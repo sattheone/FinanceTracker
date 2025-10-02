@@ -14,7 +14,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Asset, Insurance, Goal, MonthlyBudget, Transaction, BankAccount, Liability } from '../types';
+import { Asset, Insurance, Goal, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill } from '../types';
 import { UserProfile } from '../types/user';
 
 export class FirebaseService {
@@ -28,7 +28,9 @@ export class FirebaseService {
     LIC_POLICIES: 'licPolicies',
     MONTHLY_BUDGETS: 'monthlyBudgets',
     BANK_ACCOUNTS: 'bankAccounts',
-    LIABILITIES: 'liabilities'
+    LIABILITIES: 'liabilities',
+    RECURRING_TRANSACTIONS: 'recurringTransactions',
+    BILLS: 'bills'
   };
 
   // User Profile Operations
@@ -643,6 +645,111 @@ export class FirebaseService {
       await batch.commit();
     } catch (error) {
       console.error('Error deleting user data:', error);
+      throw error;
+    }
+  }
+  // Recurring Transactions Operations
+  static async getRecurringTransactions(userId: string): Promise<RecurringTransaction[]> {
+    try {
+      const q = query(
+        collection(db, this.COLLECTIONS.RECURRING_TRANSACTIONS),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RecurringTransaction));
+    } catch (error) {
+      console.error('Error getting recurring transactions:', error);
+      throw error;
+    }
+  }
+
+  static async addRecurringTransaction(userId: string, recurringTransaction: Omit<RecurringTransaction, 'id'>): Promise<string> {
+    try {
+      const docRef = await addDoc(collection(db, this.COLLECTIONS.RECURRING_TRANSACTIONS), {
+        ...recurringTransaction,
+        userId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error adding recurring transaction:', error);
+      throw error;
+    }
+  }
+
+  static async updateRecurringTransaction(id: string, recurringTransaction: Partial<RecurringTransaction>): Promise<void> {
+    try {
+      const docRef = doc(db, this.COLLECTIONS.RECURRING_TRANSACTIONS, id);
+      await updateDoc(docRef, {
+        ...recurringTransaction,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error updating recurring transaction:', error);
+      throw error;
+    }
+  }
+
+  static async deleteRecurringTransaction(id: string): Promise<void> {
+    try {
+      const docRef = doc(db, this.COLLECTIONS.RECURRING_TRANSACTIONS, id);
+      await deleteDoc(docRef);
+    } catch (error) {
+      console.error('Error deleting recurring transaction:', error);
+      throw error;
+    }
+  }
+
+  // Bills Operations
+  static async getBills(userId: string): Promise<Bill[]> {
+    try {
+      const q = query(
+        collection(db, this.COLLECTIONS.BILLS),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Bill));
+    } catch (error) {
+      console.error('Error getting bills:', error);
+      throw error;
+    }
+  }
+
+  static async addBill(userId: string, bill: Omit<Bill, 'id'>): Promise<string> {
+    try {
+      const docRef = await addDoc(collection(db, this.COLLECTIONS.BILLS), {
+        ...bill,
+        userId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error adding bill:', error);
+      throw error;
+    }
+  }
+
+  static async updateBill(id: string, bill: Partial<Bill>): Promise<void> {
+    try {
+      const docRef = doc(db, this.COLLECTIONS.BILLS, id);
+      await updateDoc(docRef, {
+        ...bill,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error updating bill:', error);
+      throw error;
+    }
+  }
+
+  static async deleteBill(id: string): Promise<void> {
+    try {
+      const docRef = doc(db, this.COLLECTIONS.BILLS, id);
+      await deleteDoc(docRef);
+    } catch (error) {
+      console.error('Error deleting bill:', error);
       throw error;
     }
   }

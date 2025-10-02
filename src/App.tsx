@@ -8,6 +8,7 @@ import OnboardingWizard from './components/onboarding/OnboardingWizard';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
+import RecurringTransactions from './pages/RecurringTransactions';
 import Assets from './pages/Assets';
 import Goals from './pages/Goals';
 import Insurance from './pages/Insurance';
@@ -43,6 +44,7 @@ const AppContent: React.FC = () => {
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="transactions" element={<Transactions />} />
+        <Route path="recurring" element={<RecurringTransactions />} />
         <Route path="assets" element={<Assets />} />
         <Route path="goals" element={<Goals />} />
         <Route path="insurance" element={<Insurance />} />

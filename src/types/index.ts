@@ -7,6 +7,7 @@ export interface Transaction {
   amount: number;
   paymentMethod?: string;
   bankAccountId?: string; // Link to bank account
+  recurringTransactionId?: string; // Link to recurring transaction if auto-generated
 }
 
 export interface Asset {
@@ -81,4 +82,48 @@ export interface BankAccount {
   number: string;
   balance: number;
   logo: string;
+}
+
+export interface RecurringTransaction {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  type: 'income' | 'expense' | 'investment' | 'insurance';
+  amount: number;
+  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+  startDate: string;
+  endDate?: string; // Optional end date
+  nextDueDate: string;
+  isActive: boolean;
+  bankAccountId?: string;
+  paymentMethod?: string;
+  reminderDays: number; // Days before due date to remind
+  autoCreate: boolean; // Auto-create transactions
+  tags: string[]; // For subscription management
+  vendor?: string; // For subscriptions (Netflix, Spotify, etc.)
+  lastProcessedDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Bill {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  amount: number;
+  dueDate: string;
+  frequency: 'monthly' | 'quarterly' | 'yearly' | 'one-time';
+  isPaid: boolean;
+  paidDate?: string;
+  paidAmount?: number;
+  reminderDays: number;
+  isOverdue: boolean;
+  recurringTransactionId?: string;
+  bankAccountId?: string;
+  vendor?: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
 }

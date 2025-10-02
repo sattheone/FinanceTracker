@@ -1,14 +1,39 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability } from '../types';
+import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill } from '../types';
 import { UserProfile } from '../types/user';
 import { useAuth } from './AuthContext';
 import FirebaseService from '../services/firebaseService';
+
+// Utility function to calculate next due date
+const calculateNextDueDate = (currentDueDate: string, frequency: RecurringTransaction['frequency']): string => {
+  const date = new Date(currentDueDate);
+
+  switch (frequency) {
+    case 'daily':
+      date.setDate(date.getDate() + 1);
+      break;
+    case 'weekly':
+      date.setDate(date.getDate() + 7);
+      break;
+    case 'monthly':
+      date.setMonth(date.getMonth() + 1);
+      break;
+    case 'quarterly':
+      date.setMonth(date.getMonth() + 3);
+      break;
+    case 'yearly':
+      date.setFullYear(date.getFullYear() + 1);
+      break;
+  }
+
+  return date.toISOString().split('T')[0];
+};
 
 interface DataContextType {
   // User Profile
   userProfile: UserProfile | null;
   updateUserProfile: (profile: Partial<UserProfile>) => void;
-  
+
   // Financial Data
   assets: Asset[];
   insurance: Insurance[];
@@ -18,35 +43,51 @@ interface DataContextType {
   transactions: Transaction[];
   bankAccounts: BankAccount[];
   liabilities: Liability[];
-  
+  recurringTransactions: RecurringTransaction[];
+  bills: Bill[];
+
   // CRUD Operations
   addAsset: (asset: Omit<Asset, 'id'>) => void;
   updateAsset: (id: string, asset: Partial<Asset>) => void;
   deleteAsset: (id: string) => void;
-  
+
   addInsurance: (insurance: Omit<Insurance, 'id'>) => void;
   updateInsurance: (id: string, insurance: Partial<Insurance>) => void;
   deleteInsurance: (id: string) => void;
-  
+
   addGoal: (goal: Omit<Goal, 'id'>) => void;
   updateGoal: (id: string, goal: Partial<Goal>) => void;
   deleteGoal: (id: string) => void;
-  
+
   addTransaction: (transaction: Omit<Transaction, 'id'>) => void;
   addTransactionsBulk: (transactions: Omit<Transaction, 'id'>[]) => void;
   updateTransaction: (id: string, transaction: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
-  
+
   addBankAccount: (account: Omit<BankAccount, 'id'>) => void;
   updateBankAccount: (id: string, account: Partial<BankAccount>) => void;
   deleteBankAccount: (id: string) => void;
-  
+
   addLiability: (liability: Omit<Liability, 'id'>) => void;
   updateLiability: (id: string, liability: Partial<Liability>) => void;
   deleteLiability: (id: string) => void;
-  
+
+  addRecurringTransaction: (recurringTransaction: Omit<RecurringTransaction, 'id'>) => void;
+  updateRecurringTransaction: (id: string, recurringTransaction: Partial<RecurringTransaction>) => void;
+  deleteRecurringTransaction: (id: string) => void;
+
+  addBill: (bill: Omit<Bill, 'id'>) => void;
+  updateBill: (id: string, bill: Partial<Bill>) => void;
+  deleteBill: (id: string) => void;
+  markBillAsPaid: (id: string, paidAmount?: number, paidDate?: string) => void;
+
   updateMonthlyBudget: (budget: Partial<MonthlyBudget>) => void;
-  
+
+  // Recurring transaction utilities
+  processRecurringTransactions: () => void;
+  getUpcomingBills: (days?: number) => Bill[];
+  getOverdueBills: () => Bill[];
+
   // Utility
   resetUserData: () => void;
   isDataLoaded: boolean;
@@ -99,10 +140,10 @@ const getDefaultMonthlyBudget = (): MonthlyBudget => ({
 export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const { user } = useAuth();
   const [isDataLoaded, setIsDataLoaded] = useState(false);
-  
+
   // User Profile
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  
+
   // Financial Data
   const [assets, setAssets] = useState<Asset[]>([]);
   const [insurance, setInsurance] = useState<Insurance[]>([]);
@@ -112,6 +153,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [liabilities, setLiabilities] = useState<Liability[]>([]);
+  const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
+  const [bills, setBills] = useState<Bill[]>([]);
 
   // Load user data when user changes
   useEffect(() => {
@@ -125,7 +168,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const loadUserData = async (userId: string) => {
     try {
       setIsDataLoaded(false);
-      
+
       // Load user profile
       const profile = await FirebaseService.getUserProfile(userId);
       if (profile) {
@@ -149,7 +192,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         transactionsData,
         budgetData,
         bankAccountsData,
-        liabilitiesData
+        liabilitiesData,
+        recurringTransactionsData,
+        billsData
       ] = await Promise.all([
         FirebaseService.getAssets(userId),
         FirebaseService.getInsurance(userId),
@@ -157,7 +202,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         FirebaseService.getTransactions(userId),
         FirebaseService.getMonthlyBudget(userId),
         FirebaseService.getBankAccounts(userId),
-        FirebaseService.getLiabilities(userId)
+        FirebaseService.getLiabilities(userId),
+        FirebaseService.getRecurringTransactions(userId),
+        FirebaseService.getBills(userId)
       ]);
 
       setAssets(assetsData);
@@ -166,11 +213,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setTransactions(transactionsData);
       setMonthlyBudget(budgetData || getDefaultMonthlyBudget());
       setLicPolicies([]); // TODO: Implement LIC policies if needed
-      
+
       // Load bank accounts and liabilities from Firebase
       setBankAccounts(bankAccountsData);
       setLiabilities(liabilitiesData);
-      
+      setRecurringTransactions(recurringTransactionsData);
+      setBills(billsData);
+
       setIsDataLoaded(true);
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -180,10 +229,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const updateUserProfile = async (profile: Partial<UserProfile>) => {
     if (!user) return;
-    
+
     const updatedProfile = userProfile ? { ...userProfile, ...profile } : getDefaultUserProfile();
     setUserProfile(updatedProfile);
-    
+
     try {
       await FirebaseService.updateUserProfile(user.id, updatedProfile);
     } catch (error) {
@@ -194,7 +243,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   // Asset operations
   const addAsset = async (asset: Omit<Asset, 'id'>) => {
     if (!user) return;
-    
+
     try {
       const id = await FirebaseService.addAsset(user.id, asset);
       const newAsset: Asset = { ...asset, id };
@@ -225,7 +274,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   // Insurance operations
   const addInsurance = async (insurance: Omit<Insurance, 'id'>) => {
     if (!user) return;
-    
+
     try {
       const id = await FirebaseService.addInsurance(user.id, insurance);
       const newInsurance: Insurance = { ...insurance, id };
@@ -256,7 +305,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   // Goal operations
   const addGoal = async (goal: Omit<Goal, 'id'>) => {
     if (!user) return;
-    
+
     try {
       const id = await FirebaseService.addGoal(user.id, goal);
       const newGoal: Goal = { ...goal, id };
@@ -287,12 +336,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   // Transaction operations
   const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
     if (!user) return;
-    
+
     try {
       const id = await FirebaseService.addTransaction(user.id, transaction);
       const newTransaction: Transaction = { ...transaction, id };
       setTransactions(prev => [...prev, newTransaction]);
-      
+
       // Update bank account balance when transaction is added
       if (transaction.bankAccountId) {
         const balanceChange = transaction.type === 'income' ? transaction.amount : -transaction.amount;
@@ -308,7 +357,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const oldTransaction = transactions.find(t => t.id === id);
       await FirebaseService.updateTransaction(id, transaction);
       setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...transaction } : t));
-      
+
       // Update bank account balances if transaction amount or type changed
       if (oldTransaction && (transaction.amount !== undefined || transaction.type !== undefined || transaction.bankAccountId !== undefined)) {
         // Reverse old transaction effect
@@ -316,7 +365,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           const oldBalanceChange = oldTransaction.type === 'income' ? -oldTransaction.amount : oldTransaction.amount;
           await updateBankAccountBalance(oldTransaction.bankAccountId, oldBalanceChange);
         }
-        
+
         // Apply new transaction effect
         const updatedTransaction = { ...oldTransaction, ...transaction };
         if (updatedTransaction.bankAccountId) {
@@ -331,10 +380,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const addTransactionsBulk = async (transactions: Omit<Transaction, 'id'>[]) => {
     if (!user) return;
-    
+
     try {
       await FirebaseService.bulkAddTransactions(user.id, transactions);
-      
+
       // Update bank account balances for bulk transactions
       const balanceUpdates: Record<string, number> = {};
       transactions.forEach(transaction => {
@@ -343,12 +392,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           balanceUpdates[transaction.bankAccountId] = (balanceUpdates[transaction.bankAccountId] || 0) + balanceChange;
         }
       });
-      
+
       // Apply balance updates
       for (const [accountId, balanceChange] of Object.entries(balanceUpdates)) {
         await updateBankAccountBalance(accountId, balanceChange);
       }
-      
+
       // Reload transactions to get the new ones with IDs
       const updatedTransactions = await FirebaseService.getTransactions(user.id);
       setTransactions(updatedTransactions);
@@ -362,7 +411,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const transaction = transactions.find(t => t.id === id);
       await FirebaseService.deleteTransaction(id);
       setTransactions(prev => prev.filter(t => t.id !== id));
-      
+
       // Reverse transaction effect on bank account balance
       if (transaction && transaction.bankAccountId) {
         const balanceChange = transaction.type === 'income' ? -transaction.amount : transaction.amount;
@@ -376,7 +425,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   // Bank Account operations
   const addBankAccount = async (account: Omit<BankAccount, 'id'>) => {
     if (!user) return;
-    
+
     try {
       const id = await FirebaseService.addBankAccount(user.id, account);
       const newAccount: BankAccount = { ...account, id };
@@ -411,7 +460,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       if (account) {
         const newBalance = account.balance + balanceChange;
         await FirebaseService.updateBankAccount(accountId, { balance: newBalance });
-        setBankAccounts(prev => prev.map(acc => 
+        setBankAccounts(prev => prev.map(acc =>
           acc.id === accountId ? { ...acc, balance: newBalance } : acc
         ));
       }
@@ -423,7 +472,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   // Liability operations
   const addLiability = async (liability: Omit<Liability, 'id'>) => {
     if (!user) return;
-    
+
     try {
       const id = await FirebaseService.addLiability(user.id, liability);
       const newLiability: Liability = { ...liability, id };
@@ -453,15 +502,162 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const updateMonthlyBudget = async (budget: Partial<MonthlyBudget>) => {
     if (!user) return;
-    
+
     const updatedBudget = { ...monthlyBudget, ...budget };
     setMonthlyBudget(updatedBudget);
-    
+
     try {
       await FirebaseService.updateMonthlyBudget(user.id, updatedBudget);
     } catch (error) {
       console.error('Error updating monthly budget:', error);
     }
+  };
+
+  // Recurring Transactions operations
+  const addRecurringTransaction = async (recurringTransaction: Omit<RecurringTransaction, 'id'>) => {
+    if (!user) return;
+
+    try {
+      const id = await FirebaseService.addRecurringTransaction(user.id, recurringTransaction);
+      const newRecurringTransaction: RecurringTransaction = { ...recurringTransaction, id };
+      setRecurringTransactions(prev => [...prev, newRecurringTransaction]);
+    } catch (error) {
+      console.error('Error adding recurring transaction:', error);
+    }
+  };
+
+  const updateRecurringTransaction = async (id: string, recurringTransaction: Partial<RecurringTransaction>) => {
+    try {
+      await FirebaseService.updateRecurringTransaction(id, recurringTransaction);
+      setRecurringTransactions(prev => prev.map(rt => rt.id === id ? { ...rt, ...recurringTransaction } : rt));
+    } catch (error) {
+      console.error('Error updating recurring transaction:', error);
+    }
+  };
+
+  const deleteRecurringTransaction = async (id: string) => {
+    try {
+      await FirebaseService.deleteRecurringTransaction(id);
+      setRecurringTransactions(prev => prev.filter(rt => rt.id !== id));
+    } catch (error) {
+      console.error('Error deleting recurring transaction:', error);
+    }
+  };
+
+  // Bills operations
+  const addBill = async (bill: Omit<Bill, 'id'>) => {
+    if (!user) return;
+
+    try {
+      const id = await FirebaseService.addBill(user.id, bill);
+      const newBill: Bill = { ...bill, id };
+      setBills(prev => [...prev, newBill]);
+    } catch (error) {
+      console.error('Error adding bill:', error);
+    }
+  };
+
+  const updateBill = async (id: string, bill: Partial<Bill>) => {
+    try {
+      await FirebaseService.updateBill(id, bill);
+      setBills(prev => prev.map(b => b.id === id ? { ...b, ...bill } : b));
+    } catch (error) {
+      console.error('Error updating bill:', error);
+    }
+  };
+
+  const deleteBill = async (id: string) => {
+    try {
+      await FirebaseService.deleteBill(id);
+      setBills(prev => prev.filter(b => b.id !== id));
+    } catch (error) {
+      console.error('Error deleting bill:', error);
+    }
+  };
+
+  const markBillAsPaid = async (id: string, paidAmount?: number, paidDate?: string) => {
+    const bill = bills.find(b => b.id === id);
+    if (!bill) return;
+
+    const updatedBill = {
+      isPaid: true,
+      paidAmount: paidAmount || bill.amount,
+      paidDate: paidDate || new Date().toISOString().split('T')[0],
+      isOverdue: false
+    };
+
+    await updateBill(id, updatedBill);
+
+    // Create a transaction for the payment
+    if (bill.bankAccountId) {
+      const transaction: Omit<Transaction, 'id'> = {
+        date: updatedBill.paidDate,
+        description: `Bill Payment: ${bill.name}`,
+        category: bill.category,
+        type: 'expense',
+        amount: updatedBill.paidAmount,
+        bankAccountId: bill.bankAccountId,
+        recurringTransactionId: bill.recurringTransactionId
+      };
+      await addTransaction(transaction);
+    }
+  };
+
+  // Utility functions
+  const processRecurringTransactions = async () => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    for (const rt of recurringTransactions) {
+      if (!rt.isActive || !rt.autoCreate) continue;
+
+      const nextDue = new Date(rt.nextDueDate);
+      if (nextDue <= today && rt.lastProcessedDate !== todayStr) {
+        // Create transaction
+        const transaction: Omit<Transaction, 'id'> = {
+          date: todayStr,
+          description: rt.description,
+          category: rt.category,
+          type: rt.type,
+          amount: rt.amount,
+          bankAccountId: rt.bankAccountId,
+          paymentMethod: rt.paymentMethod,
+          recurringTransactionId: rt.id
+        };
+
+        await addTransaction(transaction);
+
+        // Calculate next due date
+        const nextDueDate = calculateNextDueDate(rt.nextDueDate, rt.frequency);
+
+        // Update recurring transaction
+        await updateRecurringTransaction(rt.id, {
+          nextDueDate,
+          lastProcessedDate: todayStr
+        });
+      }
+    }
+  };
+
+  const getUpcomingBills = (days: number = 7): Bill[] => {
+    const today = new Date();
+    const futureDate = new Date();
+    futureDate.setDate(today.getDate() + days);
+
+    return bills.filter(bill => {
+      if (bill.isPaid) return false;
+      const dueDate = new Date(bill.dueDate);
+      return dueDate >= today && dueDate <= futureDate;
+    }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  };
+
+  const getOverdueBills = (): Bill[] => {
+    const today = new Date();
+    return bills.filter(bill => {
+      if (bill.isPaid) return false;
+      const dueDate = new Date(bill.dueDate);
+      return dueDate < today;
+    }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   };
 
   const resetUserData = () => {
@@ -474,6 +670,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     setTransactions([]);
     setBankAccounts([]);
     setLiabilities([]);
+    setRecurringTransactions([]);
+    setBills([]);
     setIsDataLoaded(false);
   };
 
@@ -488,6 +686,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     transactions,
     bankAccounts,
     liabilities,
+    recurringTransactions,
+    bills,
     addAsset,
     updateAsset,
     deleteAsset,
@@ -507,9 +707,19 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     addLiability,
     updateLiability,
     deleteLiability,
+    addRecurringTransaction,
+    updateRecurringTransaction,
+    deleteRecurringTransaction,
+    addBill,
+    updateBill,
+    deleteBill,
+    markBillAsPaid,
     updateMonthlyBudget,
     resetUserData,
     isDataLoaded,
+    processRecurringTransactions,
+    getUpcomingBills,
+    getOverdueBills,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

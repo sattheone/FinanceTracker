@@ -11,11 +11,11 @@ import {
 import { useNavigate } from 'react-router-dom';
 import MetricCard from '../components/MetricCard';
 import { useData } from '../contexts/DataContext';
-import { formatCurrency, formatLargeNumber } from '../utils/formatters';
+import { formatCurrency, formatLargeNumber, formatDate } from '../utils/formatters';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
 
 const Dashboard: React.FC = () => {
-  const { assets, goals, insurance, licPolicies, transactions, bankAccounts, liabilities, userProfile } = useData();
+  const { assets, goals, insurance, licPolicies, transactions, bankAccounts, liabilities, userProfile, recurringTransactions, getUpcomingBills, getOverdueBills } = useData();
   const navigate = useNavigate();
   const theme = useThemeClasses();
   
@@ -50,6 +50,11 @@ const Dashboard: React.FC = () => {
     .reduce((sum, t) => sum + t.amount, 0);
     
   const currentMonthSurplus = currentMonthIncome - currentMonthExpenses;
+  
+  // Recurring transactions and bills data
+  const upcomingBills = getUpcomingBills(7); // Next 7 days
+  const overdueBills = getOverdueBills();
+  const activeRecurringTransactions = recurringTransactions.filter(rt => rt.isActive);
   
   // Calculate category breakdown for expenses
   const expensesByCategory = currentMonthTransactions
@@ -610,9 +615,127 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Bills & Recurring Transactions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Upcoming Bills */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+              <AlertCircle className="h-5 w-5 mr-2" />
+              Upcoming Bills
+            </h3>
+            <button
+              onClick={() => navigate('/recurring')}
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center"
+            >
+              View All
+              <ArrowRight className="h-4 w-4 ml-1" />
+            </button>
+          </div>
+          
+          {overdueBills.length > 0 && (
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
+              <p className="text-red-800 dark:text-red-200 text-sm font-medium">
+                ⚠️ {overdueBills.length} overdue bill(s) need attention
+              </p>
+            </div>
+          )}
+          
+          {upcomingBills.length === 0 ? (
+            <div className="text-center py-6">
+              <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-2" />
+              <p className="text-gray-500 dark:text-gray-400">No upcoming bills</p>
+              <button
+                onClick={() => navigate('/recurring')}
+                className="text-blue-600 hover:text-blue-700 text-sm mt-2"
+              >
+                Add your first bill
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {upcomingBills.slice(0, 3).map(bill => {
+                const daysUntil = Math.ceil((new Date(bill.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                return (
+                  <div key={bill.id} className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">{bill.name}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Due in {daysUntil} day{daysUntil !== 1 ? 's' : ''} • {bill.category}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-gray-900 dark:text-white">{formatCurrency(bill.amount)}</p>
+                    </div>
+                  </div>
+                );
+              })}
+              {upcomingBills.length > 3 && (
+                <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                  +{upcomingBills.length - 3} more bills
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Active Recurring Transactions */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+              <Calendar className="h-5 w-5 mr-2" />
+              Recurring Transactions
+            </h3>
+            <button
+              onClick={() => navigate('/recurring')}
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center"
+            >
+              Manage
+              <ArrowRight className="h-4 w-4 ml-1" />
+            </button>
+          </div>
+          
+          {activeRecurringTransactions.length === 0 ? (
+            <div className="text-center py-6">
+              <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-2" />
+              <p className="text-gray-500 dark:text-gray-400">No recurring transactions</p>
+              <button
+                onClick={() => navigate('/recurring')}
+                className="text-blue-600 hover:text-blue-700 text-sm mt-2"
+              >
+                Set up recurring payments
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {activeRecurringTransactions.slice(0, 3).map(rt => (
+                <div key={rt.id} className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">{rt.name}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {rt.frequency} • Next: {formatDate(rt.nextDueDate)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-bold ${rt.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {rt.type === 'income' ? '+' : '-'}{formatCurrency(rt.amount)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {activeRecurringTransactions.length > 3 && (
+                <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                  +{activeRecurringTransactions.length - 3} more recurring transactions
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Upcoming Events */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white mb-4 flex items-center">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
           <Calendar className="h-5 w-5 mr-2" />
           Upcoming Financial Events
         </h3>

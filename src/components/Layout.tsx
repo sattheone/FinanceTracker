@@ -29,6 +29,7 @@ const Layout: React.FC = () => {
   const navItems = [
     { to: '/', icon: Home, label: 'Dashboard' },
     { to: '/transactions', icon: CreditCard, label: 'Transactions' },
+    { to: '/recurring', icon: Calendar, label: 'Recurring & Bills' },
     { to: '/assets', icon: TrendingUp, label: 'Assets' },
     { to: '/liabilities', icon: TrendingDown, label: 'Liabilities' },
     { to: '/goals', icon: Target, label: 'Goals' },
