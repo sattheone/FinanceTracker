@@ -91,16 +91,16 @@ const Forecast: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Financial Forecast</h1>
-        <p className="text-gray-600 mt-1">Project your financial future with different scenarios</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Financial Forecast</h1>
+        <p className="text-gray-600 dark:text-gray-300 mt-1">Project your financial future with different scenarios</p>
       </div>
 
       {/* Forecast Controls */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Forecast Parameters</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Forecast Parameters</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Expected Return Rate (%)
             </label>
             <input
@@ -113,7 +113,7 @@ const Forecast: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Inflation Rate (%)
             </label>
             <input
@@ -126,7 +126,7 @@ const Forecast: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Forecast Years
             </label>
             <input
@@ -144,40 +144,40 @@ const Forecast: React.FC = () => {
       {/* Key Projections */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="metric-card text-center">
-          <Target className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Retirement Corpus @ 50</p>
-          <p className="text-2xl font-bold text-gray-900">
+          <Target className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Retirement Corpus @ 50</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
             {formatLargeNumber(
               calculateFutureValue(currentRetirementCorpus, monthlyRetirementSIP, returnRate, yearsToRetirement)
             )}
           </p>
         </div>
         <div className="metric-card text-center">
-          <Calculator className="h-8 w-8 text-green-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Required Corpus</p>
-          <p className="text-2xl font-bold text-gray-900">
+          <Calculator className="h-8 w-8 text-green-600 dark:text-green-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Required Corpus</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
             {formatLargeNumber(requiredCorpusFor4Percent)}
           </p>
         </div>
         <div className="metric-card text-center">
-          <TrendingUp className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Monthly Income @ 50</p>
-          <p className="text-2xl font-bold text-gray-900">
+          <TrendingUp className="h-8 w-8 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Monthly Income @ 50</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
             {formatCurrency(
               calculateFutureValue(currentRetirementCorpus, monthlyRetirementSIP, returnRate, yearsToRetirement) * 0.04 / 12
             )}
           </p>
         </div>
         <div className="metric-card text-center">
-          <Calendar className="h-8 w-8 text-red-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Years to Retirement</p>
-          <p className="text-2xl font-bold text-gray-900">{yearsToRetirement}</p>
+          <Calendar className="h-8 w-8 text-red-600 dark:text-red-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Years to Retirement</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{yearsToRetirement}</p>
         </div>
       </div>
 
       {/* Wealth Projection Chart */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Wealth Projection Over Time</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Wealth Projection Over Time</h3>
         <ResponsiveContainer width="100%" height={400}>
           <LineChart data={forecastData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -201,47 +201,47 @@ const Forecast: React.FC = () => {
 
       {/* Scenario Analysis */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Retirement Scenario Analysis</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Retirement Scenario Analysis</h3>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Scenario
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Return Rate
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Inflation Rate
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Projected Corpus
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Required Corpus
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Adequacy
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200">
               {scenarioData.map((scenario) => (
-                <tr key={scenario.name} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <tr key={scenario.name} className="hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-700">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                     {scenario.name}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                     {scenario.returnRate}%
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                     {scenario.inflationRate}%
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900 dark:text-white">
                     {formatLargeNumber(scenario.projectedCorpus)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">
                     {formatLargeNumber(scenario.requiredCorpus)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
@@ -258,7 +258,7 @@ const Forecast: React.FC = () => {
 
       {/* LIC Maturity Timeline */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Post-Retirement Income Stream (LIC Policies)</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Post-Retirement Income Stream (LIC Policies)</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart 
             data={licPolicies.slice(0, 15).map(p => ({ 
@@ -278,7 +278,7 @@ const Forecast: React.FC = () => {
             <Bar dataKey="amount" fill="#F59E0B" />
           </BarChart>
         </ResponsiveContainer>
-        <p className="text-sm text-gray-600 mt-2">
+        <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
           Total LIC maturity value: {formatLargeNumber(licPolicies.reduce((sum, p) => sum + p.maturityAmount, 0))} 
           over 25 years (2036-2060)
         </p>
@@ -286,47 +286,47 @@ const Forecast: React.FC = () => {
 
       {/* Financial Independence Analysis */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Independence Analysis</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Financial Independence Analysis</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h4 className="font-medium text-gray-900 mb-3">Current Status</h4>
+            <h4 className="font-medium text-gray-900 dark:text-white mb-3">Current Status</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-600">Current Age:</span>
+                <span className="text-gray-600 dark:text-gray-300">Current Age:</span>
                 <span className="font-medium">{currentAge} years</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Target Retirement Age:</span>
+                <span className="text-gray-600 dark:text-gray-300">Target Retirement Age:</span>
                 <span className="font-medium">{retirementAge} years</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Years to Retirement:</span>
+                <span className="text-gray-600 dark:text-gray-300">Years to Retirement:</span>
                 <span className="font-medium">{yearsToRetirement} years</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Current Net Worth:</span>
+                <span className="text-gray-600 dark:text-gray-300">Current Net Worth:</span>
                 <span className="font-medium">{formatLargeNumber(currentRetirementCorpus)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Monthly Investment:</span>
+                <span className="text-gray-600 dark:text-gray-300">Monthly Investment:</span>
                 <span className="font-medium">{formatCurrency(monthlyRetirementSIP)}</span>
               </div>
             </div>
           </div>
           
           <div>
-            <h4 className="font-medium text-gray-900 mb-3">Retirement Projections</h4>
+            <h4 className="font-medium text-gray-900 dark:text-white mb-3">Retirement Projections</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-600">Projected Corpus @ 50:</span>
-                <span className="font-medium text-green-600">
+                <span className="text-gray-600 dark:text-gray-300">Projected Corpus @ 50:</span>
+                <span className="font-medium text-green-600 dark:text-green-400">
                   {formatLargeNumber(
                     calculateFutureValue(currentRetirementCorpus, monthlyRetirementSIP, returnRate, yearsToRetirement)
                   )}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Monthly Income (4% rule):</span>
+                <span className="text-gray-600 dark:text-gray-300">Monthly Income (4% rule):</span>
                 <span className="font-medium">
                   {formatCurrency(
                     calculateFutureValue(currentRetirementCorpus, monthlyRetirementSIP, returnRate, yearsToRetirement) * 0.04 / 12
@@ -334,11 +334,11 @@ const Forecast: React.FC = () => {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Inflated Monthly Expenses:</span>
+                <span className="text-gray-600 dark:text-gray-300">Inflated Monthly Expenses:</span>
                 <span className="font-medium">{formatCurrency(inflatedMonthlyExpenses)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Surplus/Deficit:</span>
+                <span className="text-gray-600 dark:text-gray-300">Surplus/Deficit:</span>
                 <span className={`font-medium ${
                   (calculateFutureValue(currentRetirementCorpus, monthlyRetirementSIP, returnRate, yearsToRetirement) * 0.04 / 12) > inflatedMonthlyExpenses 
                     ? 'text-green-600' : 'text-red-600'

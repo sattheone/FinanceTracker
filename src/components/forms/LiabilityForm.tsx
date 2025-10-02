@@ -211,11 +211,11 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Principal Amount *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
             <input
               type="number"
               value={formData.principalAmount || ''}
@@ -226,16 +226,16 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
               step="1000"
             />
           </div>
-          <p className="text-xs text-gray-500 mt-1">Original loan amount</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Original loan amount</p>
           {errors.principalAmount && <p className="text-red-500 text-sm mt-1">{errors.principalAmount}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Current Outstanding Balance *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
             <input
               type="number"
               value={formData.currentBalance || ''}
@@ -246,12 +246,12 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
               step="1000"
             />
           </div>
-          <p className="text-xs text-gray-500 mt-1">Amount still owed</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Amount still owed</p>
           {errors.currentBalance && <p className="text-red-500 text-sm mt-1">{errors.currentBalance}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Interest Rate (Annual) *
           </label>
           <div className="relative">
@@ -265,17 +265,17 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
               max="50"
               step="0.1"
             />
-            <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500">%</span>
+            <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">%</span>
           </div>
           {errors.interestRate && <p className="text-red-500 text-sm mt-1">{errors.interestRate}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Monthly EMI *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
             <input
               type="number"
               value={formData.emiAmount || ''}
@@ -296,7 +296,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
               <button
                 type="button"
                 onClick={useSuggestedEMI}
-                className="ml-2 text-blue-600 hover:text-blue-800 underline"
+                className="ml-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 underline"
               >
                 Use this
               </button>
@@ -305,7 +305,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Loan Start Date *
           </label>
           <input
@@ -318,7 +318,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Loan End Date *
           </label>
           <input
@@ -332,7 +332,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Bank/Lender Name *
           </label>
           <input
@@ -346,7 +346,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Account Number (Optional)
           </label>
           <input
@@ -359,7 +359,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Description (Optional)
           </label>
           <textarea
@@ -374,31 +374,31 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
 
       {/* Liability Summary */}
       {formData.principalAmount > 0 && formData.currentBalance > 0 && (
-        <div className="bg-gray-50 rounded-lg p-4">
-          <h4 className="font-medium text-gray-900 mb-3">Liability Summary</h4>
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+          <h4 className="font-medium text-gray-900 dark:text-white mb-3">Liability Summary</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
-              <span className="text-gray-600">Principal Paid:</span>
-              <p className="font-medium text-green-600">
+              <span className="text-gray-600 dark:text-gray-300">Principal Paid:</span>
+              <p className="font-medium text-green-600 dark:text-green-400">
                 {formatCurrency(formData.principalAmount - formData.currentBalance)}
               </p>
             </div>
             <div>
-              <span className="text-gray-600">Outstanding:</span>
-              <p className="font-medium text-red-600">
+              <span className="text-gray-600 dark:text-gray-300">Outstanding:</span>
+              <p className="font-medium text-red-600 dark:text-red-400">
                 {formatCurrency(formData.currentBalance)}
               </p>
             </div>
             <div>
-              <span className="text-gray-600">Progress:</span>
-              <p className="font-medium text-blue-600">
+              <span className="text-gray-600 dark:text-gray-300">Progress:</span>
+              <p className="font-medium text-blue-600 dark:text-blue-400">
                 {((formData.principalAmount - formData.currentBalance) / formData.principalAmount * 100).toFixed(1)}%
               </p>
             </div>
             {remainingMonths > 0 && (
               <div>
-                <span className="text-gray-600">Remaining Tenure:</span>
-                <p className="font-medium text-gray-900">
+                <span className="text-gray-600 dark:text-gray-300">Remaining Tenure:</span>
+                <p className="font-medium text-gray-900 dark:text-white">
                   {remainingYears > 0 && `${remainingYears}y `}
                   {remainingMonthsOnly}m
                 </p>
@@ -408,7 +408,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
 
           {/* Progress Bar */}
           <div className="mt-3">
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
+            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
               <span>Paid</span>
               <span>Outstanding</span>
             </div>
@@ -424,7 +424,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         </div>
       )}
 
-      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-600">
         <button
           type="button"
           onClick={onCancel}

@@ -20,14 +20,14 @@ const Toggle: React.FC<ToggleProps> = ({
   const toggleId = id || `toggle-${label.toLowerCase().replace(/\s+/g, '-')}`;
 
   return (
-    <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+    <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 dark:border-gray-600 rounded-lg">
       <div className="flex-1">
         <label htmlFor={toggleId} className="block">
-          <h4 className="font-medium text-gray-900 dark:text-gray-100 cursor-pointer">
+          <h4 className="font-medium text-gray-900 dark:text-white dark:text-gray-100 cursor-pointer">
             {label}
           </h4>
           {description && (
-            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1" id={`${toggleId}-description`}>
+            <p className="text-sm text-gray-600 dark:text-gray-300 dark:text-gray-300 mt-1" id={`${toggleId}-description`}>
               {description}
             </p>
           )}

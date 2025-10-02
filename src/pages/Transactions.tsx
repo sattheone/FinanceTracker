@@ -11,6 +11,7 @@ import Modal from '../components/common/Modal';
 import TransactionForm from '../components/forms/TransactionForm';
 import BankAccountForm from '../components/forms/BankAccountForm';
 import { ParsedTransaction } from '../services/excelParser';
+import { useThemeClasses, cn } from '../hooks/useThemeClasses';
 
 const Transactions: React.FC = () => {
   const { 
@@ -25,6 +26,8 @@ const Transactions: React.FC = () => {
     deleteBankAccount,
 
   } = useData();
+  
+  const theme = useThemeClasses();
   
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
@@ -376,14 +379,14 @@ const Transactions: React.FC = () => {
   // If no bank accounts exist, show empty state
   if (bankAccounts.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-700 dark:bg-gray-900">
         <div className="max-w-4xl mx-auto px-6 py-12">
           <div className="text-center">
             <div className="text-gray-400 mb-6">
               <CreditCard className="h-24 w-24 mx-auto" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">No Bank Accounts</h1>
-            <p className="text-gray-600 mb-8 max-w-md mx-auto">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">No Bank Accounts</h1>
+            <p className="text-gray-600 dark:text-gray-300 mb-8 max-w-md mx-auto">
               You need to add at least one bank account to start tracking your transactions and managing your finances.
             </p>
             <button
@@ -413,15 +416,15 @@ const Transactions: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-700 dark:bg-gray-900">
       {/* Top Bank Account Selector */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 px-6 py-4">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">Accounts</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Accounts</h1>
           <div className="flex gap-2">
             <button
               onClick={() => setShowImageUploader(true)}
-              className="flex items-center px-3 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
+              className="flex items-center px-3 py-2 text-sm bg-blue-50 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100"
               disabled={!currentAccount}
             >
               <Camera className="h-4 w-4 mr-2" />
@@ -429,7 +432,7 @@ const Transactions: React.FC = () => {
             </button>
             <button
               onClick={() => setShowFileUploader(true)}
-              className="flex items-center px-3 py-2 text-sm bg-green-50 text-green-600 rounded-lg hover:bg-green-100"
+              className="flex items-center px-3 py-2 text-sm bg-green-50 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-100"
               disabled={!currentAccount}
             >
               <FileSpreadsheet className="h-4 w-4 mr-2" />
@@ -460,8 +463,8 @@ const Transactions: React.FC = () => {
               >
                 <span className="text-2xl">{account.logo}</span>
                 <div className="text-left">
-                  <div className="font-medium text-gray-900 text-sm">{account.bank}</div>
-                  <div className="text-xs text-gray-500">{account.number}</div>
+                  <div className="font-medium text-gray-900 dark:text-white text-sm">{account.bank}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{account.number}</div>
                 </div>
               </button>
               
@@ -494,7 +497,7 @@ const Transactions: React.FC = () => {
           ))}
           <button 
             onClick={handleAddBankAccount}
-            className="flex items-center justify-center w-12 h-12 border-2 border-dashed border-gray-300 rounded-xl hover:border-gray-400 transition-colors min-w-fit"
+            className="flex items-center justify-center w-12 h-12 border-2 border-dashed border-gray-300 dark:border-gray-500 rounded-xl hover:border-gray-400 transition-colors min-w-fit"
             title="Add Bank Account"
           >
             <Plus className="h-5 w-5 text-gray-400" />
@@ -528,16 +531,16 @@ const Transactions: React.FC = () => {
 
         {/* Account Statistics */}
         <div className="card">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-600">
-            <h3 className="font-semibold text-gray-900 dark:text-white">Account Overview</h3>
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-600 dark:border-gray-600">
+            <h3 className="font-semibold text-gray-900 dark:text-white dark:text-white">Account Overview</h3>
           </div>
           {accountTransactions.length === 0 ? (
             <div className="p-6 text-center">
               <div className="text-gray-400 mb-4">
                 <CreditCard className="h-16 w-16 mx-auto" />
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No transactions yet</h3>
-              <p className="text-gray-500 mb-6">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No transactions yet</h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-6">
                 Start tracking your finances by adding your first transaction to this account
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -562,19 +565,19 @@ const Transactions: React.FC = () => {
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="text-center p-4 bg-green-50 rounded-lg">
-                    <p className="text-3xl font-bold text-green-600">{formatCurrency(totalIncome)}</p>
-                    <p className="text-sm text-gray-600 mt-1">Total Income</p>
-                    <p className="text-xs text-gray-500">{accountTransactions.filter(t => t.type === 'income').length} transactions</p>
+                    <p className="text-3xl font-bold text-green-600 dark:text-green-400">{formatCurrency(totalIncome)}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">Total Income</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{accountTransactions.filter(t => t.type === 'income').length} transactions</p>
                   </div>
                   <div className="text-center p-4 bg-red-50 rounded-lg">
-                    <p className="text-3xl font-bold text-red-600">{formatCurrency(totalExpenses)}</p>
-                    <p className="text-sm text-gray-600 mt-1">Total Expenses</p>
-                    <p className="text-xs text-gray-500">{accountTransactions.filter(t => t.type === 'expense').length} transactions</p>
+                    <p className="text-3xl font-bold text-red-600 dark:text-red-400">{formatCurrency(totalExpenses)}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">Total Expenses</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{accountTransactions.filter(t => t.type === 'expense').length} transactions</p>
                   </div>
                 </div>
-                <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
                   <div className="text-center">
-                    <p className="text-sm text-gray-600">Net Flow</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">Net Flow</p>
                     <p className={`text-2xl font-bold ${totalIncome - totalExpenses >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {totalIncome - totalExpenses >= 0 ? '+' : ''}{formatCurrency(totalIncome - totalExpenses)}
                     </p>
@@ -587,7 +590,7 @@ const Transactions: React.FC = () => {
 
         {/* Tab Section */}
         <div className="card">
-          <div className="border-b border-gray-200 dark:border-gray-600">
+          <div className="border-b border-gray-200 dark:border-gray-600 dark:border-gray-600">
             <nav className="flex">
               <button
                 onClick={() => setActiveTab('summary')}
@@ -617,12 +620,12 @@ const Transactions: React.FC = () => {
               <div className="space-y-6">
                 {/* Month/Year Dropdown */}
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">Monthly Overview</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Monthly Overview</h3>
                   <div className="relative">
                     <select
                       value={selectedMonth}
                       onChange={(e) => setSelectedMonth(e.target.value)}
-                      className="px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white appearance-none"
+                      className="px-4 py-2 pr-10 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 appearance-none"
                     >
                       {monthOptions.map(option => (
                         <option key={option.value} value={option.value}>
@@ -640,38 +643,38 @@ const Transactions: React.FC = () => {
                   <div className="card">
                     <div className="flex items-center space-x-3 mb-4">
                       <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                        <TrendingUp className="h-6 w-6 text-green-600" />
+                        <TrendingUp className="h-6 w-6 text-green-600 dark:text-green-400" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-gray-900">Money In</h4>
-                        <p className="text-sm text-gray-600">{incomeCount} transactions</p>
+                        <h4 className="font-semibold text-gray-900 dark:text-white">Money In</h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">{incomeCount} transactions</p>
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-green-600">{formatCurrency(monthlyIncome)}</p>
+                    <p className="text-3xl font-bold text-green-600 dark:text-green-400">{formatCurrency(monthlyIncome)}</p>
                   </div>
 
                   {/* Money Out Card */}
                   <div className="card">
                     <div className="flex items-center space-x-3 mb-4">
-                      <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                        <TrendingDown className="h-6 w-6 text-gray-600" />
+                      <div className="p-2 bg-gray-100 dark:bg-gray-700 dark:bg-gray-700 rounded-lg">
+                        <TrendingDown className="h-6 w-6 text-gray-600 dark:text-gray-300" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-gray-900">Money Out</h4>
-                        <p className="text-sm text-gray-600">{expenseCount} transactions</p>
+                        <h4 className="font-semibold text-gray-900 dark:text-white">Money Out</h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">{expenseCount} transactions</p>
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-gray-600">{formatCurrency(monthlyExpenses)}</p>
+                    <p className="text-3xl font-bold text-gray-600 dark:text-gray-300">{formatCurrency(monthlyExpenses)}</p>
                   </div>
                 </div>
 
                 {/* 6-Month Comparison Chart */}
                 <div className="card">
                   <div className="flex items-center space-x-2 mb-6">
-                    <BarChart3 className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                    <h4 className="font-semibold text-gray-900">6-Month Money Flow Comparison</h4>
+                    <BarChart3 className="h-5 w-5 text-gray-600 dark:text-gray-300 dark:text-gray-400" />
+                    <h4 className="font-semibold text-gray-900 dark:text-white">6-Month Money Flow Comparison</h4>
                     {currentAccount && (
-                      <span className="text-sm text-gray-500">({currentAccount.bank})</span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">({currentAccount.bank})</span>
                     )}
                   </div>
                   
@@ -680,8 +683,8 @@ const Transactions: React.FC = () => {
                       <div className="text-gray-400 mb-4">
                         <BarChart3 className="h-16 w-16 mx-auto" />
                       </div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No data available</h3>
-                      <p className="text-gray-500">
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No data available</h3>
+                      <p className="text-gray-500 dark:text-gray-400">
                         {!currentAccount 
                           ? 'No bank account selected' 
                           : 'No transaction data available for the last 6 months for this account'
@@ -720,7 +723,7 @@ const Transactions: React.FC = () => {
                                     ></div>
                                   </div>
                                 </div>
-                                <div className="text-xs text-gray-600 font-medium">
+                                <div className="text-xs text-gray-600 dark:text-gray-300 font-medium">
                                   {monthData.month}
                                 </div>
                               </div>
@@ -733,27 +736,27 @@ const Transactions: React.FC = () => {
                       <div className="flex items-center justify-center space-x-6">
                         <div className="flex items-center space-x-2">
                           <div className="w-3 h-3 bg-green-500 rounded"></div>
-                          <span className="text-sm text-gray-600">Money In</span>
+                          <span className="text-sm text-gray-600 dark:text-gray-300">Money In</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <div className="w-3 h-3 bg-red-500 rounded"></div>
-                          <span className="text-sm text-gray-600">Money Out</span>
+                          <span className="text-sm text-gray-600 dark:text-gray-300">Money Out</span>
                         </div>
                       </div>
                       
                       {/* Current Month Summary */}
-                      <div className="pt-4 border-t border-gray-200">
+                      <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
                         <div className="grid grid-cols-3 gap-4 text-center">
                           <div>
-                            <p className="text-sm text-gray-600">This Month In</p>
-                            <p className="text-lg font-bold text-green-600">{formatCurrency(monthlyIncome)}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">This Month In</p>
+                            <p className="text-lg font-bold text-green-600 dark:text-green-400">{formatCurrency(monthlyIncome)}</p>
                           </div>
                           <div>
-                            <p className="text-sm text-gray-600">This Month Out</p>
-                            <p className="text-lg font-bold text-red-600">{formatCurrency(monthlyExpenses)}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">This Month Out</p>
+                            <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(monthlyExpenses)}</p>
                           </div>
                           <div>
-                            <p className="text-sm text-gray-600">Net Flow</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">Net Flow</p>
                             <p className={`text-lg font-bold ${monthlyIncome - monthlyExpenses >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {formatCurrency(monthlyIncome - monthlyExpenses)}
                             </p>
@@ -769,12 +772,12 @@ const Transactions: React.FC = () => {
                 {/* Month Filter and Search */}
                 <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                   <div className="flex items-center space-x-2">
-                    <span className="text-sm font-medium text-gray-700">Month:</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Month:</span>
                     <div className="relative">
                       <select
                         value={selectedTransactionMonth}
                         onChange={(e) => setSelectedTransactionMonth(e.target.value)}
-                        className="px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white appearance-none text-sm"
+                        className="px-3 py-2 pr-8 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 appearance-none text-sm"
                       >
                         {monthOptions.map(option => (
                           <option key={option.value} value={option.value}>
@@ -795,7 +798,7 @@ const Transactions: React.FC = () => {
                       <input
                         type="text"
                         placeholder="Search transactions..."
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                       />
@@ -804,7 +807,7 @@ const Transactions: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <Filter className="h-4 w-4 text-gray-400" />
                     <select
-                      className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="px-4 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       value={filterType}
                       onChange={(e) => setFilterType(e.target.value)}
                     >
@@ -857,7 +860,7 @@ const Transactions: React.FC = () => {
                       </div>
                       <button
                         onClick={() => setSelectedTransactions(new Set())}
-                        className="text-blue-600 hover:text-blue-800 text-sm"
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 text-sm"
                       >
                         Clear Selection
                       </button>
@@ -867,7 +870,7 @@ const Transactions: React.FC = () => {
 
                 {/* Transaction Count */}
                 <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
+                  <div className="text-sm text-gray-600 dark:text-gray-300">
                     Showing {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''} for {monthOptions.find(m => m.value === selectedTransactionMonth)?.label}
                   </div>
                 </div>
@@ -879,8 +882,8 @@ const Transactions: React.FC = () => {
                       <div className="text-gray-400 mb-4">
                         <BarChart3 className="h-12 w-12 mx-auto" />
                       </div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No transactions found</h3>
-                      <p className="text-gray-500 mb-4">
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No transactions found</h3>
+                      <p className="text-gray-500 dark:text-gray-400 mb-4">
                         No transactions found for {monthOptions.find(m => m.value === selectedTransactionMonth)?.label}
                       </p>
                       <button
@@ -893,16 +896,16 @@ const Transactions: React.FC = () => {
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                      <table className={theme.table}>
+                        <thead>
                           <tr>
-                            <th className="px-4 py-3 text-left w-12">
+                            <th className={cn(theme.tableHeader, 'w-12')}>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleSelectAll();
                                 }}
-                                className="flex items-center text-gray-500 hover:text-gray-700 p-1"
+                                className="flex items-center text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200 p-1"
                               >
                                 {selectedTransactions.size === filteredTransactions.length && filteredTransactions.length > 0 ? (
                                   <CheckSquare className="w-4 h-4" />
@@ -911,74 +914,77 @@ const Transactions: React.FC = () => {
                                 )}
                               </button>
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className={theme.tableHeader}>
                               Date
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className={theme.tableHeader}>
                               Description
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className={theme.tableHeader}>
                               Category
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className={theme.tableHeader}>
                               Type
                             </th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className={cn(theme.tableHeader, 'text-right')}>
                               Amount
                             </th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className={cn(theme.tableHeader, 'text-right')}>
                               Actions
                             </th>
                           </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody>
                           {filteredTransactions.map((transaction) => (
                             <tr 
                               key={transaction.id} 
-                              className={`hover:bg-gray-50 ${selectedTransactions.has(transaction.id) ? 'bg-blue-50' : ''}`}
+                              className={cn(
+                                theme.tableRow,
+                                selectedTransactions.has(transaction.id) && 'bg-blue-50 dark:bg-blue-900/30'
+                              )}
                             >
-                              <td className="px-4 py-3">
+                              <td className={theme.tableCell}>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleSelectTransaction(transaction.id);
                                   }}
-                                  className="text-gray-500 hover:text-gray-700 p-1"
+                                  className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200 p-1"
                                 >
                                   {selectedTransactions.has(transaction.id) ? (
-                                    <CheckSquare className="w-4 h-4 text-blue-600" />
+                                    <CheckSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                                   ) : (
                                     <Square className="w-4 h-4" />
                                   )}
                                 </button>
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                {formatDate(transaction.date)}
+                              <td className={cn(theme.tableCell, 'whitespace-nowrap text-sm')}>
+                                <span className={theme.textPrimary}>{formatDate(transaction.date)}</span>
                               </td>
-                              <td className="px-4 py-3 text-sm font-medium text-gray-900 max-w-xs truncate" title={transaction.description}>
-                                {transaction.description}
+                              <td className={cn(theme.tableCell, 'text-sm font-medium max-w-xs truncate')} title={transaction.description}>
+                                <span className={theme.textPrimary}>{transaction.description}</span>
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                {transaction.category}
+                              <td className={cn(theme.tableCell, 'whitespace-nowrap text-sm')}>
+                                <span className={theme.textSecondary}>{transaction.category}</span>
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
+                              <td className={cn(theme.tableCell, 'whitespace-nowrap')}>
                                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTypeColor(transaction.type)}`}>
                                   {transaction.type}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-medium">
-                                <span className={transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}>
+                              <td className={cn(theme.tableCell, 'whitespace-nowrap text-sm text-right font-medium')}>
+                                <span className={transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
                                   {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                              <td className={cn(theme.tableCell, 'whitespace-nowrap text-right text-sm font-medium')}>
                                 <div className="flex justify-end gap-2">
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleEditTransaction(transaction);
                                     }}
-                                    className="text-blue-600 hover:text-blue-900 p-1"
+                                    className="text-blue-600 dark:text-blue-400 hover:text-blue-900 p-1"
                                     title="Edit Transaction"
                                   >
                                     <Edit3 className="w-4 h-4" />
@@ -988,7 +994,7 @@ const Transactions: React.FC = () => {
                                       e.stopPropagation();
                                       handleDeleteTransaction(transaction.id);
                                     }}
-                                    className="text-red-600 hover:text-red-900 p-1"
+                                    className="text-red-600 dark:text-red-400 hover:text-red-900 p-1"
                                     title="Delete Transaction"
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -1011,18 +1017,18 @@ const Transactions: React.FC = () => {
       {/* Bulk Action Modal */}
       {showBulkActions && (
         <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 border border-gray-200 dark:border-gray-600">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="bg-white dark:bg-gray-800 dark:bg-gray-800 rounded-lg max-w-md w-full p-6 border border-gray-200 dark:border-gray-600 dark:border-gray-600">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white mb-4">
               {bulkActionType === 'category' ? 'Change Category' : 'Change Type'} for {selectedTransactions.size} transactions
             </h3>
             
             {bulkActionType === 'category' && (
               <div className="space-y-4">
-                <label className="block text-sm font-medium text-gray-700">Select New Category</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Select New Category</label>
                 <select
                   value={bulkCategory}
                   onChange={(e) => setBulkCategory(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">Select a category...</option>
                   {getAllCategories().map(category => (
@@ -1034,11 +1040,11 @@ const Transactions: React.FC = () => {
 
             {bulkActionType === 'type' && (
               <div className="space-y-4">
-                <label className="block text-sm font-medium text-gray-700">Select New Type</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Select New Type</label>
                 <select
                   value={bulkType}
                   onChange={(e) => setBulkType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">Select a type...</option>
                   <option value="income">Income</option>
@@ -1057,7 +1063,7 @@ const Transactions: React.FC = () => {
                   setBulkCategory('');
                   setBulkType('');
                 }}
-                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                className="px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-lg"
               >
                 Cancel
               </button>

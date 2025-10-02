@@ -45,8 +45,8 @@ const MetricCard: React.FC<MetricCardProps> = ({
     <div className="metric-card">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-200 dark:text-gray-200">{title}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-gray-100 mt-1">
             {formatValue(value)}
           </p>
           {trend && (

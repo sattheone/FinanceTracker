@@ -43,8 +43,8 @@ const AssetsStep: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Assets & Investments</h2>
-        <p className="text-gray-600">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Assets & Investments</h2>
+        <p className="text-gray-600 dark:text-gray-300">
           Add your current assets and investments to track your portfolio.
         </p>
       </div>
@@ -53,21 +53,21 @@ const AssetsStep: React.FC = () => {
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Total Portfolio Value</h3>
-            <p className="text-3xl font-bold text-blue-600 mt-1">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Total Portfolio Value</h3>
+            <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-1">
               {formatCurrency(totalAssetValue)}
             </p>
           </div>
-          <TrendingUp className="w-12 h-12 text-blue-600" />
+          <TrendingUp className="w-12 h-12 text-blue-600 dark:text-blue-400" />
         </div>
-        <p className="text-sm text-gray-600 mt-2">
+        <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
           {assets.length} {assets.length === 1 ? 'asset' : 'assets'} tracked
         </p>
       </div>
 
       {/* Add Asset Button */}
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-900">Your Assets</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Assets</h3>
         <button
           onClick={() => setShowAddForm(true)}
           className="btn-primary flex items-center"
@@ -79,11 +79,11 @@ const AssetsStep: React.FC = () => {
 
       {/* Add Asset Form */}
       {showAddForm && (
-        <div className="bg-gray-50 rounded-lg p-6 border-2 border-dashed border-gray-300">
-          <h4 className="font-medium text-gray-900 mb-4">Add New Asset</h4>
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border-2 border-dashed border-gray-300 dark:border-gray-500">
+          <h4 className="font-medium text-gray-900 dark:text-white mb-4">Add New Asset</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Asset Name
               </label>
               <input
@@ -95,7 +95,7 @@ const AssetsStep: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Category
               </label>
               <select
@@ -111,11 +111,11 @@ const AssetsStep: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Current Value
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
                 <input
                   type="number"
                   value={newAsset.currentValue || ''}
@@ -127,11 +127,11 @@ const AssetsStep: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Purchase Value (Optional)
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
                 <input
                   type="number"
                   value={newAsset.purchaseValue || ''}
@@ -143,7 +143,7 @@ const AssetsStep: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Purchase Date (Optional)
               </label>
               <input
@@ -171,10 +171,10 @@ const AssetsStep: React.FC = () => {
       {/* Assets List */}
       <div className="space-y-4">
         {assets.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <TrendingUp className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No assets added yet</h3>
-            <p className="text-gray-600 mb-4">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No assets added yet</h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
               Start by adding your investments, savings, and other assets to track your portfolio.
             </p>
             <button
@@ -191,40 +191,40 @@ const AssetsStep: React.FC = () => {
             const gainLossPercent = asset.purchaseValue ? (gainLoss / asset.purchaseValue) * 100 : 0;
             
             return (
-              <div key={asset.id} className="bg-white border border-gray-200 rounded-lg p-4">
+              <div key={asset.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center mb-2">
                       <span className="text-2xl mr-3">{category?.icon}</span>
                       <div>
-                        <h4 className="font-medium text-gray-900">{asset.name}</h4>
-                        <p className="text-sm text-gray-600">{category?.label}</p>
+                        <h4 className="font-medium text-gray-900 dark:text-white">{asset.name}</h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">{category?.label}</p>
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <p className="text-gray-600">Current Value</p>
-                        <p className="font-semibold text-gray-900">
+                        <p className="text-gray-600 dark:text-gray-300">Current Value</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">
                           {formatCurrency(asset.currentValue)}
                         </p>
                       </div>
                       {asset.purchaseValue && (
                         <>
                           <div>
-                            <p className="text-gray-600">Purchase Value</p>
-                            <p className="font-semibold text-gray-900">
+                            <p className="text-gray-600 dark:text-gray-300">Purchase Value</p>
+                            <p className="font-semibold text-gray-900 dark:text-white">
                               {formatCurrency(asset.purchaseValue)}
                             </p>
                           </div>
                           <div>
-                            <p className="text-gray-600">Gain/Loss</p>
+                            <p className="text-gray-600 dark:text-gray-300">Gain/Loss</p>
                             <p className={`font-semibold ${gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}
                             </p>
                           </div>
                           <div>
-                            <p className="text-gray-600">Return %</p>
+                            <p className="text-gray-600 dark:text-gray-300">Return %</p>
                             <p className={`font-semibold ${gainLossPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {gainLossPercent >= 0 ? '+' : ''}{gainLossPercent.toFixed(2)}%
                             </p>
@@ -236,7 +236,7 @@ const AssetsStep: React.FC = () => {
                   
                   <button
                     onClick={() => deleteAsset(asset.id)}
-                    className="text-red-600 hover:bg-red-50 p-2 rounded-lg"
+                    className="text-red-600 dark:text-red-400 hover:bg-red-50 p-2 rounded-lg"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -249,8 +249,8 @@ const AssetsStep: React.FC = () => {
 
       {/* Asset Categories Summary */}
       {assets.length > 0 && (
-        <div className="bg-gray-50 rounded-lg p-6">
-          <h4 className="font-medium text-gray-900 mb-4">Portfolio Allocation</h4>
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+          <h4 className="font-medium text-gray-900 dark:text-white mb-4">Portfolio Allocation</h4>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {assetCategories.map(category => {
               const categoryAssets = assets.filter(a => a.category === category.value);
@@ -260,13 +260,13 @@ const AssetsStep: React.FC = () => {
               if (categoryValue === 0) return null;
               
               return (
-                <div key={category.value} className="text-center p-3 bg-white rounded-lg">
+                <div key={category.value} className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
                   <div className="text-xl mb-1">{category.icon}</div>
-                  <p className="text-sm font-medium text-gray-900">{category.label}</p>
-                  <p className="text-lg font-bold text-blue-600">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{category.label}</p>
+                  <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
                     {formatCurrency(categoryValue)}
                   </p>
-                  <p className="text-xs text-gray-600">{percentage.toFixed(1)}%</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-300">{percentage.toFixed(1)}%</p>
                 </div>
               );
             })}

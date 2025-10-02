@@ -35,19 +35,19 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-gray-900">Welcome Back</h2>
-        <p className="text-gray-600 mt-2">Sign in to your financial dashboard</p>
+        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Welcome Back</h2>
+        <p className="text-gray-600 dark:text-gray-300 mt-2">Sign in to your financial dashboard</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg">
+          <div className="bg-red-50 border border-red-200 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
 
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Email Address
           </label>
           <div className="relative">
@@ -65,7 +65,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Password
           </label>
           <div className="relative">
@@ -82,7 +82,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-300"
             >
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
@@ -99,7 +99,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
       </form>
 
       <div className="mt-6 text-center">
-        <p className="text-gray-600">
+        <p className="text-gray-600 dark:text-gray-300">
           Don't have an account?{' '}
           <button
             onClick={onToggleMode}
@@ -116,7 +116,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
         <p className="text-sm text-blue-700 mb-2">
           Try the app with sample data:
         </p>
-        <div className="text-xs text-blue-600 space-y-1">
+        <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
           <p><strong>Email:</strong> demo@example.com</p>
           <p><strong>Password:</strong> demo123</p>
         </div>
@@ -125,7 +125,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
             setEmail('demo@example.com');
             setPassword('demo123');
           }}
-          className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
+          className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline"
         >
           Fill demo credentials
         </button>

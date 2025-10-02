@@ -49,16 +49,16 @@ const OnboardingWizard: React.FC = () => {
   const CurrentStepComponent = steps[currentStep].component;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-700">
       {/* Header */}
-      <div className="bg-white shadow-sm">
+      <div className="bg-white dark:bg-gray-800 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Welcome to FinanceTracker</h1>
-              <p className="text-gray-600 mt-1">Let's set up your financial profile</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome to FinanceTracker</h1>
+              <p className="text-gray-600 dark:text-gray-300 mt-1">Let's set up your financial profile</p>
             </div>
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
               Step {currentStep + 1} of {steps.length}
             </div>
           </div>
@@ -66,7 +66,7 @@ const OnboardingWizard: React.FC = () => {
       </div>
 
       {/* Progress Bar */}
-      <div className="bg-white border-b">
+      <div className="bg-white dark:bg-gray-800 border-b">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center">
             {steps.map((step, index) => (
@@ -110,7 +110,7 @@ const OnboardingWizard: React.FC = () => {
 
       {/* Content */}
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-sm p-8">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
           <CurrentStepComponent />
         </div>
 
@@ -119,7 +119,7 @@ const OnboardingWizard: React.FC = () => {
           <button
             onClick={handlePrevious}
             disabled={currentStep === 0}
-            className="flex items-center px-4 py-2 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center px-4 py-2 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronLeft className="w-4 h-4 mr-2" />
             Previous

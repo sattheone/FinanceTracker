@@ -71,8 +71,8 @@ const FinancialInfoStep: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Financial Overview</h2>
-        <p className="text-gray-600">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Financial Overview</h2>
+        <p className="text-gray-600 dark:text-gray-300">
           Tell us about your current financial situation to help us create a personalized plan.
         </p>
       </div>
@@ -80,17 +80,17 @@ const FinancialInfoStep: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Income & Expenses */}
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
             <DollarSign className="w-5 h-5 mr-2" />
             Monthly Cash Flow
           </h3>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Monthly Income (Take-home)
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
               <input
                 type="number"
                 value={userProfile?.financialInfo.monthlyIncome || ''}
@@ -103,11 +103,11 @@ const FinancialInfoStep: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Monthly Expenses
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
               <input
                 type="number"
                 value={userProfile?.financialInfo.monthlyExpenses || ''}
@@ -122,29 +122,29 @@ const FinancialInfoStep: React.FC = () => {
 
         {/* Retirement Planning */}
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
             <Target className="w-5 h-5 mr-2" />
             Retirement Planning
           </h3>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Current Age
             </label>
             <input
               type="number"
               value={currentAge}
               readOnly
-              className="input-field bg-gray-50"
+              className="input-field bg-gray-50 dark:bg-gray-700"
               placeholder="Calculated from date of birth"
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Calculated from your date of birth
             </p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Target Retirement Age
             </label>
             <input
@@ -161,41 +161,41 @@ const FinancialInfoStep: React.FC = () => {
       </div>
 
       {/* Financial Summary */}
-      <div className="bg-gray-50 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
           <Calculator className="w-5 h-5 mr-2" />
           Financial Summary
         </h3>
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 bg-white rounded-lg">
-            <TrendingUp className="w-8 h-8 text-green-600 mx-auto mb-2" />
-            <p className="text-sm text-gray-600">Monthly Savings</p>
+          <div className="text-center p-4 bg-white dark:bg-gray-800 rounded-lg">
+            <TrendingUp className="w-8 h-8 text-green-600 dark:text-green-400 mx-auto mb-2" />
+            <p className="text-sm text-gray-600 dark:text-gray-300">Monthly Savings</p>
             <p className={`text-lg font-bold ${monthlySavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {formatCurrency(monthlySavings)}
             </p>
           </div>
           
-          <div className="text-center p-4 bg-white rounded-lg">
-            <Target className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-            <p className="text-sm text-gray-600">Savings Rate</p>
+          <div className="text-center p-4 bg-white dark:bg-gray-800 rounded-lg">
+            <Target className="w-8 h-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
+            <p className="text-sm text-gray-600 dark:text-gray-300">Savings Rate</p>
             <p className={`text-lg font-bold ${savingsRate >= 20 ? 'text-green-600' : savingsRate >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
               {savingsRate.toFixed(1)}%
             </p>
           </div>
           
-          <div className="text-center p-4 bg-white rounded-lg">
-            <DollarSign className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-            <p className="text-sm text-gray-600">Years to Retirement</p>
-            <p className="text-lg font-bold text-gray-900">
+          <div className="text-center p-4 bg-white dark:bg-gray-800 rounded-lg">
+            <DollarSign className="w-8 h-8 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
+            <p className="text-sm text-gray-600 dark:text-gray-300">Years to Retirement</p>
+            <p className="text-lg font-bold text-gray-900 dark:text-white">
               {yearsToRetirement > 0 ? yearsToRetirement : 0} years
             </p>
           </div>
           
-          <div className="text-center p-4 bg-white rounded-lg">
+          <div className="text-center p-4 bg-white dark:bg-gray-800 rounded-lg">
             <Calculator className="w-8 h-8 text-orange-600 mx-auto mb-2" />
-            <p className="text-sm text-gray-600">Annual Savings</p>
-            <p className="text-lg font-bold text-gray-900">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Annual Savings</p>
+            <p className="text-lg font-bold text-gray-900 dark:text-white">
               {formatCurrency(monthlySavings * 12)}
             </p>
           </div>

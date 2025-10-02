@@ -12,10 +12,12 @@ import { useNavigate } from 'react-router-dom';
 import MetricCard from '../components/MetricCard';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, formatLargeNumber } from '../utils/formatters';
+import { useThemeClasses, cn } from '../hooks/useThemeClasses';
 
 const Dashboard: React.FC = () => {
   const { assets, goals, insurance, licPolicies, transactions, bankAccounts, liabilities, userProfile } = useData();
   const navigate = useNavigate();
+  const theme = useThemeClasses();
   
 
   
@@ -88,8 +90,8 @@ const Dashboard: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <header>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Financial Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">
+        <h1 className={theme.heading1}>Financial Dashboard</h1>
+        <p className={cn(theme.textSecondary, 'mt-1')}>
           Overview of your financial health
         </p>
       </header>
@@ -137,12 +139,12 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
               Account Overview
             </h3>
             <button
               onClick={() => navigate('/transactions')}
-              className="flex items-center text-sm text-blue-600 hover:text-blue-800"
+              className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
             >
               View Transactions
               <ArrowRight className="w-4 h-4 ml-1" />
@@ -152,51 +154,51 @@ const Dashboard: React.FC = () => {
           <div className="space-y-4">
             <div className="flex justify-between items-center p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
               <div>
-                <span className="text-sm text-gray-700 dark:text-gray-200">Current Balance</span>
+                <span className="text-sm text-gray-700 dark:text-gray-200 dark:text-gray-200">Current Balance</span>
                 <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
                   {formatCurrency(totalAccountBalance)}
                 </p>
-                <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                <p className="text-xs text-gray-600 dark:text-gray-300 dark:text-gray-300 mt-1">
                   Across {bankAccounts.length} account{bankAccounts.length !== 1 ? 's' : ''}
                 </p>
               </div>
-              <Wallet className="h-12 w-12 text-blue-600 dark:text-blue-300" aria-hidden="true" />
+              <Wallet className="h-12 w-12 text-blue-600 dark:text-blue-400 dark:text-blue-300" aria-hidden="true" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm text-gray-700 dark:text-gray-200">This Month Income</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-200 dark:text-gray-200">This Month Income</span>
                     <p className="text-xl font-bold text-green-700 dark:text-green-300">
                       +{formatCurrency(currentMonthIncome)}
                     </p>
                   </div>
-                  <TrendingUp className="h-8 w-8 text-green-600 dark:text-green-300" aria-hidden="true" />
+                  <TrendingUp className="h-8 w-8 text-green-600 dark:text-green-400 dark:text-green-300" aria-hidden="true" />
                 </div>
               </div>
 
               <div className="p-4 bg-red-50 dark:bg-red-900/30 rounded-lg border border-red-200 dark:border-red-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm text-gray-700 dark:text-gray-200">This Month Expenses</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-200 dark:text-gray-200">This Month Expenses</span>
                     <p className="text-xl font-bold text-red-700 dark:text-red-300">
                       -{formatCurrency(currentMonthExpenses)}
                     </p>
                   </div>
-                  <TrendingUp className="h-8 w-8 text-red-600 dark:text-red-300 transform rotate-180" aria-hidden="true" />
+                  <TrendingUp className="h-8 w-8 text-red-600 dark:text-red-400 dark:text-red-300 transform rotate-180" aria-hidden="true" />
                 </div>
               </div>
             </div>
 
-            <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+            <div className="p-4 bg-gray-50 dark:bg-gray-700 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 dark:border-gray-600">
               <div className="flex justify-between items-center">
-                <span className="text-gray-700 dark:text-gray-200">Net Cash Flow This Month</span>
+                <span className="text-gray-700 dark:text-gray-200 dark:text-gray-200">Net Cash Flow This Month</span>
                 <span className={`text-xl font-bold ${currentMonthSurplus >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
                   {currentMonthSurplus >= 0 ? '+' : ''}{formatCurrency(currentMonthSurplus)}
                 </span>
               </div>
-              <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+              <div className="mt-2 text-xs text-gray-600 dark:text-gray-300 dark:text-gray-300">
                 {currentMonthTransactions.length} transactions in {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
               </div>
             </div>
@@ -206,12 +208,12 @@ const Dashboard: React.FC = () => {
         {/* Top Expense Categories */}
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
               Top Expense Categories
             </h3>
             <button
               onClick={() => navigate('/transactions')}
-              className="flex items-center text-sm text-blue-600 hover:text-blue-800"
+              className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
             >
               View All
               <ArrowRight className="w-4 h-4 ml-1" />
@@ -226,7 +228,7 @@ const Dashboard: React.FC = () => {
                     <div className="flex justify-between text-sm">
                       <button
                         onClick={() => navigate(`/transactions?category=${encodeURIComponent(category)}`)}
-                        className="text-gray-600 hover:text-blue-600 text-left"
+                        className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:text-blue-400 text-left"
                       >
                         {category}
                       </button>
@@ -248,7 +250,7 @@ const Dashboard: React.FC = () => {
                 <div className="text-gray-400 mb-2">
                   <TrendingUp className="h-12 w-12 mx-auto" />
                 </div>
-                <p className="text-gray-500">No expenses this month</p>
+                <p className="text-gray-500 dark:text-gray-400">No expenses this month</p>
               </div>
             )}
           </div>
@@ -259,12 +261,12 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
               Asset Allocation
             </h3>
             <button
               onClick={() => navigate('/assets')}
-              className="flex items-center text-sm text-blue-600 hover:text-blue-800"
+              className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
             >
               View All
               <ArrowRight className="w-4 h-4 ml-1" />
@@ -276,7 +278,7 @@ const Dashboard: React.FC = () => {
               return (
                 <div key={asset.id} className="space-y-1">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">{asset.name}</span>
+                    <span className="text-gray-600 dark:text-gray-300">{asset.name}</span>
                     <span className="font-medium">
                       {formatLargeNumber(asset.currentValue)} ({percentage.toFixed(1)}%)
                     </span>
@@ -291,7 +293,7 @@ const Dashboard: React.FC = () => {
               );
             })}
             {assets.length === 0 && (
-              <div className="text-center py-4 text-gray-500">
+              <div className="text-center py-4 text-gray-500 dark:text-gray-400">
                 <p>No assets added yet</p>
               </div>
             )}
@@ -300,12 +302,12 @@ const Dashboard: React.FC = () => {
 
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibent text-gray-900 dark:text-white">
+            <h3 className="text-lg font-semibent text-gray-900 dark:text-white dark:text-white">
               Liabilities Overview
             </h3>
             <button
               onClick={() => navigate('/liabilities')}
-              className="flex items-center text-sm text-blue-600 hover:text-blue-800"
+              className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
             >
               View All
               <ArrowRight className="w-4 h-4 ml-1" />
@@ -333,9 +335,9 @@ const Dashboard: React.FC = () => {
                   <div className="flex justify-between text-sm">
                     <div className="flex items-center">
                       <span className="mr-2">{getLiabilityIcon(liability.type)}</span>
-                      <span className="text-gray-600">{liability.name}</span>
+                      <span className="text-gray-600 dark:text-gray-300">{liability.name}</span>
                     </div>
-                    <span className="font-medium text-red-600">
+                    <span className="font-medium text-red-600 dark:text-red-400">
                       {formatLargeNumber(liability.currentBalance)}
                     </span>
                   </div>
@@ -345,7 +347,7 @@ const Dashboard: React.FC = () => {
                       style={{ width: `${progress}%` }}
                     ></div>
                   </div>
-                  <div className="flex justify-between text-xs text-gray-500">
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                     <span>Paid: {progress.toFixed(1)}%</span>
                     <span>EMI: {formatCurrency(liability.emiAmount)}</span>
                   </div>
@@ -353,11 +355,11 @@ const Dashboard: React.FC = () => {
               );
             })}
             {liabilities.length === 0 && (
-              <div className="text-center py-4 text-gray-500">
+              <div className="text-center py-4 text-gray-500 dark:text-gray-400">
                 <p>No liabilities added yet</p>
                 <button
                   onClick={() => navigate('/liabilities')}
-                  className="text-blue-600 hover:text-blue-800 text-sm mt-2"
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 text-sm mt-2"
                 >
                   Add your first liability
                 </button>
@@ -370,12 +372,12 @@ const Dashboard: React.FC = () => {
       {/* Goals Progress */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
             Financial Goals Progress
           </h3>
           <button
             onClick={() => navigate('/goals')}
-            className="flex items-center text-sm text-blue-600 hover:text-blue-800"
+            className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
           >
             Manage Goals
             <ArrowRight className="w-4 h-4 ml-1" />
@@ -440,14 +442,14 @@ const Dashboard: React.FC = () => {
                       <span className="text-2xl mr-3">{getCategoryIcon(goal.category)}</span>
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{goal.name}</h3>
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">{goal.name}</h3>
                           <span className={`px-2 py-1 text-xs rounded-full ${
                             isOnTrack ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                           }`}>
                             {isOnTrack ? 'On Track' : 'Behind Schedule'}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-4 text-sm text-gray-600">
+                        <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
                           <span className="capitalize">{goal.category} Goal</span>
                           <span>•</span>
                           <span>{expectedReturnRate}% expected return</span>
@@ -459,26 +461,26 @@ const Dashboard: React.FC = () => {
                     
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                       <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide">Target Amount</p>
-                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Target Amount</p>
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
                           {formatLargeNumber(goal.targetAmount)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide">Current Amount</p>
-                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Current Amount</p>
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
                           {formatLargeNumber(goal.currentAmount)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide">Monthly SIP</p>
-                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Monthly SIP</p>
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
                           {formatCurrency(goal.monthlyContribution)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide">Time Remaining</p>
-                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Time Remaining</p>
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
                           {yearsUntilTarget > 0 && `${yearsUntilTarget}y `}
                           {remainingMonths}m
                         </p>
@@ -488,7 +490,7 @@ const Dashboard: React.FC = () => {
                     {/* Progress Bar */}
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Progress</span>
+                        <span className="text-gray-600 dark:text-gray-300">Progress</span>
                         <span className="font-medium">{progress.toFixed(1)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-3">
@@ -497,7 +499,7 @@ const Dashboard: React.FC = () => {
                           style={{ width: `${Math.min(progress, 100)}%` }}
                         ></div>
                       </div>
-                      <div className="flex justify-between text-xs text-gray-500">
+                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                         <span>₹0</span>
                         <span>{formatLargeNumber(goal.targetAmount)}</span>
                       </div>
@@ -506,7 +508,7 @@ const Dashboard: React.FC = () => {
                     {/* Advanced Metrics */}
                     <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <span className="text-gray-600">Required Monthly SIP:</span>
+                        <span className="text-gray-600 dark:text-gray-300">Required Monthly SIP:</span>
                         <span className={`ml-2 font-medium ${
                           requiredMonthlySIP > goal.monthlyContribution * 1.1 ? 'text-red-600' : 'text-green-600'
                         }`}>
@@ -514,7 +516,7 @@ const Dashboard: React.FC = () => {
                         </span>
                       </div>
                       <div>
-                        <span className="text-gray-600">Projected Completion:</span>
+                        <span className="text-gray-600 dark:text-gray-300">Projected Completion:</span>
                         <span className={`ml-2 font-medium ${
                           projectedMonths > monthsUntilTarget ? 'text-red-600' : 'text-green-600'
                         }`}>
@@ -529,14 +531,14 @@ const Dashboard: React.FC = () => {
                       {goal.category === 'retirement' && userProfile?.financialInfo && (
                         <>
                           <div>
-                            <span className="text-gray-600">Current Age:</span>
-                            <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                            <span className="text-gray-600 dark:text-gray-300">Current Age:</span>
+                            <span className="ml-2 font-medium text-gray-900 dark:text-white dark:text-white">
                               {userProfile.financialInfo.currentAge} years
                             </span>
                           </div>
                           <div>
-                            <span className="text-gray-600">Target Retirement Age:</span>
-                            <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                            <span className="text-gray-600 dark:text-gray-300">Target Retirement Age:</span>
+                            <span className="ml-2 font-medium text-gray-900 dark:text-white dark:text-white">
                               {userProfile.financialInfo.retirementAge} years
                             </span>
                           </div>
@@ -558,7 +560,7 @@ const Dashboard: React.FC = () => {
 
                     {/* Target Date */}
                     <div className="mt-4 flex items-center justify-between">
-                      <div className="flex items-center text-sm text-gray-600">
+                      <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
                         <Calendar className="h-4 w-4 mr-2" />
                         Target Date: {targetDate.toLocaleDateString('en-US', { 
                           year: 'numeric', 
@@ -568,13 +570,13 @@ const Dashboard: React.FC = () => {
                       
                       {/* SIP Adjustment Recommendation */}
                       {goal.monthlyContribution > 0 && requiredMonthlySIP > goal.monthlyContribution * 1.1 && (
-                        <div className="text-xs text-red-600 font-medium">
+                        <div className="text-xs text-red-600 dark:text-red-400 font-medium">
                           ↑ Increase SIP by {formatCurrency(requiredMonthlySIP - goal.monthlyContribution)}
                         </div>
                       )}
                       
                       {goal.monthlyContribution > 0 && requiredMonthlySIP < goal.monthlyContribution * 0.9 && (
-                        <div className="text-xs text-green-600 font-medium">
+                        <div className="text-xs text-green-600 dark:text-green-400 font-medium">
                           ↓ Can reduce SIP by {formatCurrency(goal.monthlyContribution - requiredMonthlySIP)}
                         </div>
                       )}
@@ -588,7 +590,7 @@ const Dashboard: React.FC = () => {
               <div className="text-gray-400 mb-2">
                 <Target className="h-12 w-12 mx-auto" />
               </div>
-              <p className="text-gray-500">No financial goals set</p>
+              <p className="text-gray-500 dark:text-gray-400">No financial goals set</p>
               <p className="text-sm text-gray-400 mt-1">
                 Add your first financial goal to start tracking progress
               </p>
@@ -596,10 +598,10 @@ const Dashboard: React.FC = () => {
           )}
           
           {goals.length > 3 && (
-            <div className="text-center pt-4 border-t border-gray-200 dark:border-gray-600">
+            <div className="text-center pt-4 border-t border-gray-200 dark:border-gray-600 dark:border-gray-600">
               <button
                 onClick={() => navigate('/goals')}
-                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 text-sm font-medium"
               >
                 View all {goals.length} goals →
               </button>
@@ -610,19 +612,19 @@ const Dashboard: React.FC = () => {
 
       {/* Upcoming Events */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white mb-4 flex items-center">
           <Calendar className="h-5 w-5 mr-2" />
           Upcoming Financial Events
         </h3>
         <div className="space-y-3">
           {upcomingEvents.length > 0 ? (
             upcomingEvents.map((event, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                 <div className="flex items-center">
                   <AlertCircle className="h-4 w-4 text-blue-500 mr-3" />
                   <div>
-                    <p className="font-medium text-gray-900 dark:text-white">{event.event}</p>
-                    <p className="text-sm text-gray-600">
+                    <p className="font-medium text-gray-900 dark:text-white dark:text-white">{event.event}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
                       {new Date(event.date).toLocaleDateString('en-US', { 
                         year: 'numeric', 
                         month: 'long' 
@@ -631,7 +633,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
                 {event.amount > 0 && (
-                  <span className="font-semibold text-green-600">
+                  <span className="font-semibold text-green-600 dark:text-green-400">
                     +{formatLargeNumber(event.amount)}
                   </span>
                 )}
@@ -642,7 +644,7 @@ const Dashboard: React.FC = () => {
               <div className="text-gray-400 mb-2">
                 <Calendar className="h-12 w-12 mx-auto" />
               </div>
-              <p className="text-gray-500">No upcoming financial events</p>
+              <p className="text-gray-500 dark:text-gray-400">No upcoming financial events</p>
               <p className="text-sm text-gray-400 mt-1">
                 Add insurance policies or goals with target dates to see upcoming events
               </p>

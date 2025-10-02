@@ -86,7 +86,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Asset Name *
           </label>
           <input
@@ -100,7 +100,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Category *
           </label>
           <select
@@ -117,11 +117,11 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Current Value *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
             <input
               type="number"
               value={formData.currentValue || ''}
@@ -136,11 +136,11 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Purchase Value (Optional)
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
             <input
               type="number"
               value={formData.purchaseValue || ''}
@@ -155,7 +155,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Purchase Date (Optional)
           </label>
           <input
@@ -170,11 +170,11 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
 
       {/* Calculated Fields */}
       {formData.purchaseValue > 0 && formData.currentValue > 0 && (
-        <div className="bg-gray-50 rounded-lg p-4">
-          <h4 className="font-medium text-gray-900 mb-2">Calculated Values</h4>
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+          <h4 className="font-medium text-gray-900 dark:text-white mb-2">Calculated Values</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div>
-              <span className="text-gray-600">Gain/Loss:</span>
+              <span className="text-gray-600 dark:text-gray-300">Gain/Loss:</span>
               <span className={`ml-2 font-medium ${
                 formData.currentValue >= formData.purchaseValue ? 'text-green-600' : 'text-red-600'
               }`}>
@@ -182,7 +182,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
               </span>
             </div>
             <div>
-              <span className="text-gray-600">Return %:</span>
+              <span className="text-gray-600 dark:text-gray-300">Return %:</span>
               <span className={`ml-2 font-medium ${
                 formData.currentValue >= formData.purchaseValue ? 'text-green-600' : 'text-red-600'
               }`}>
@@ -193,7 +193,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
         </div>
       )}
 
-      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-600">
         <button
           type="button"
           onClick={onCancel}

@@ -12,7 +12,7 @@ const ThemeToggle: React.FC = () => {
   ];
 
   return (
-    <div className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+    <div className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 dark:bg-gray-700 rounded-lg p-1">
       {themes.map(({ value, label, icon: Icon }) => (
         <button
           key={value}

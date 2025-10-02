@@ -99,36 +99,36 @@ const Liabilities: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Liabilities & Debts</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Manage your loans, EMIs, and debt obligations</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white dark:text-white">Liabilities & Debts</h1>
+        <p className="text-gray-600 dark:text-gray-300 dark:text-gray-400 mt-1">Manage your loans, EMIs, and debt obligations</p>
       </div>
 
       {/* Liabilities Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="metric-card text-center">
-          <CreditCard className="h-8 w-8 text-red-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Total Outstanding</p>
-          <p className="text-2xl font-bold text-red-600">
+          <CreditCard className="h-8 w-8 text-red-600 dark:text-red-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Outstanding</p>
+          <p className="text-2xl font-bold text-red-600 dark:text-red-400">
             {formatLargeNumber(totalOutstanding)}
           </p>
         </div>
         <div className="metric-card text-center">
-          <TrendingDown className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Monthly EMI</p>
-          <p className="text-2xl font-bold text-blue-600">
+          <TrendingDown className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Monthly EMI</p>
+          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
             {formatCurrency(totalMonthlyEMI)}
           </p>
         </div>
         <div className="metric-card text-center">
-          <DollarSign className="h-8 w-8 text-green-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Principal Paid</p>
-          <p className="text-2xl font-bold text-green-600">
+          <DollarSign className="h-8 w-8 text-green-600 dark:text-green-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Principal Paid</p>
+          <p className="text-2xl font-bold text-green-600 dark:text-green-400">
             {formatLargeNumber(totalPrincipal - totalOutstanding)}
           </p>
         </div>
         <div className="metric-card text-center">
           <AlertCircle className="h-8 w-8 text-orange-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Interest Remaining</p>
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Interest Remaining</p>
           <p className="text-2xl font-bold text-orange-600">
             {formatLargeNumber(totalInterestRemaining)}
           </p>
@@ -137,7 +137,7 @@ const Liabilities: React.FC = () => {
 
       {/* Quick Actions */}
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Liabilities</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">Your Liabilities</h3>
         <button
           onClick={handleAddLiability}
           className="btn-primary flex items-center"
@@ -172,14 +172,14 @@ const Liabilities: React.FC = () => {
                     <span className="text-2xl mr-3">{getLiabilityIcon(liability.type)}</span>
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{liability.name}</h3>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">{liability.name}</h3>
                         {isEMIDueSoon && (
                           <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800">
                             EMI Due Soon
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                      <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
                         <span className="capitalize">{liability.type.replace('_', ' ')}</span>
                         <span>•</span>
                         <span>{liability.bankName}</span>
@@ -191,26 +191,26 @@ const Liabilities: React.FC = () => {
                   
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Principal Amount</p>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Principal Amount</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
                         {formatLargeNumber(liability.principalAmount)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Outstanding</p>
-                      <p className="text-lg font-semibold text-red-600">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Outstanding</p>
+                      <p className="text-lg font-semibold text-red-600 dark:text-red-400">
                         {formatLargeNumber(liability.currentBalance)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Monthly EMI</p>
-                      <p className="text-lg font-semibold text-blue-600">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Monthly EMI</p>
+                      <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
                         {formatCurrency(liability.emiAmount)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Remaining Tenure</p>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Remaining Tenure</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
                         {remainingYears > 0 && `${remainingYears}y `}
                         {remainingMonthsOnly}m
                       </p>
@@ -220,7 +220,7 @@ const Liabilities: React.FC = () => {
                   {/* Progress Bar */}
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Repayment Progress</span>
+                      <span className="text-gray-600 dark:text-gray-300">Repayment Progress</span>
                       <span className="font-medium">{progress.toFixed(1)}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-3">
@@ -229,7 +229,7 @@ const Liabilities: React.FC = () => {
                         style={{ width: `${Math.min(progress, 100)}%` }}
                       ></div>
                     </div>
-                    <div className="flex justify-between text-xs text-gray-500">
+                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                       <span>Paid: {formatLargeNumber(liability.principalAmount - liability.currentBalance)}</span>
                       <span>Outstanding: {formatLargeNumber(liability.currentBalance)}</span>
                     </div>
@@ -238,28 +238,28 @@ const Liabilities: React.FC = () => {
                   {/* Additional Info */}
                   <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-600">Interest Remaining:</span>
+                      <span className="text-gray-600 dark:text-gray-300">Interest Remaining:</span>
                       <span className="ml-2 font-medium text-orange-600">
                         {formatCurrency(totalInterest)}
                       </span>
                     </div>
                     <div>
-                      <span className="text-gray-600">Loan End Date:</span>
-                      <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                      <span className="text-gray-600 dark:text-gray-300">Loan End Date:</span>
+                      <span className="ml-2 font-medium text-gray-900 dark:text-white dark:text-white">
                         {formatDate(liability.endDate)}
                       </span>
                     </div>
                   </div>
 
                   {liability.description && (
-                    <div className="mt-3 p-2 bg-gray-50 rounded text-sm text-gray-600">
+                    <div className="mt-3 p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm text-gray-600 dark:text-gray-300">
                       {liability.description}
                     </div>
                   )}
 
                   {/* Action Buttons */}
                   <div className="mt-4 flex items-center justify-between">
-                    <div className="flex items-center text-sm text-gray-600">
+                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
                       <Calendar className="h-4 w-4 mr-2" />
                       Started: {formatDate(liability.startDate)}
                       {liability.accountNumber && (
@@ -270,14 +270,14 @@ const Liabilities: React.FC = () => {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleEditLiability(liability)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors"
                         title="Edit Liability"
                       >
                         <Edit3 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteLiability(liability.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
                         title="Delete Liability"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -295,8 +295,8 @@ const Liabilities: React.FC = () => {
             <div className="text-gray-400 mb-4">
               <CreditCard className="h-16 w-16 mx-auto" />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No liabilities added yet</h3>
-            <p className="text-gray-500 mb-4">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white dark:text-white mb-2">No liabilities added yet</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">
               Start by adding your loans, EMIs, and other debt obligations to track your financial health.
             </p>
             <button
@@ -312,7 +312,7 @@ const Liabilities: React.FC = () => {
       {/* Liability Summary by Type */}
       {liabilities.length > 0 && (
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Liabilities by Type</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white mb-4">Liabilities by Type</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {['home_loan', 'personal_loan', 'car_loan', 'credit_card', 'education_loan', 'business_loan'].map((type) => {
               const typeLiabilities = liabilities.filter(l => l.type === type);
@@ -324,27 +324,27 @@ const Liabilities: React.FC = () => {
               const typeProgress = typePrincipal > 0 ? ((typePrincipal - typeOutstanding) / typePrincipal * 100) : 0;
 
               return (
-                <div key={type} className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+                <div key={type} className="p-4 border border-gray-200 dark:border-gray-600 dark:border-gray-600 rounded-lg">
                   <div className="flex items-center mb-3">
                     <span className="text-xl mr-2">{getLiabilityIcon(type)}</span>
-                    <h4 className="font-medium text-gray-900 dark:text-white capitalize">{type.replace('_', ' ')}</h4>
+                    <h4 className="font-medium text-gray-900 dark:text-white dark:text-white capitalize">{type.replace('_', ' ')}</h4>
                   </div>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Count:</span>
+                      <span className="text-gray-600 dark:text-gray-300">Count:</span>
                       <span className="font-medium">{typeLiabilities.length}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Outstanding:</span>
-                      <span className="font-medium text-red-600">{formatLargeNumber(typeOutstanding)}</span>
+                      <span className="text-gray-600 dark:text-gray-300">Outstanding:</span>
+                      <span className="font-medium text-red-600 dark:text-red-400">{formatLargeNumber(typeOutstanding)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Monthly EMI:</span>
-                      <span className="font-medium text-blue-600">{formatCurrency(typeEMI)}</span>
+                      <span className="text-gray-600 dark:text-gray-300">Monthly EMI:</span>
+                      <span className="font-medium text-blue-600 dark:text-blue-400">{formatCurrency(typeEMI)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Progress:</span>
-                      <span className="font-medium text-green-600">{typeProgress.toFixed(1)}%</span>
+                      <span className="text-gray-600 dark:text-gray-300">Progress:</span>
+                      <span className="font-medium text-green-600 dark:text-green-400">{typeProgress.toFixed(1)}%</span>
                     </div>
                   </div>
                 </div>

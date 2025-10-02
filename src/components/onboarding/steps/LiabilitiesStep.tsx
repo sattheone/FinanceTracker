@@ -65,9 +65,9 @@ const LiabilitiesStep: React.FC<LiabilitiesStepProps> = ({ onNext, onPrevious })
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <CreditCard className="h-12 w-12 text-red-600 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Liabilities</h2>
-        <p className="text-gray-600">
+        <CreditCard className="h-12 w-12 text-red-600 dark:text-red-400 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Your Liabilities</h2>
+        <p className="text-gray-600 dark:text-gray-300">
           Add your loans, EMIs, and debt obligations to get a complete picture of your financial health.
         </p>
       </div>
@@ -77,10 +77,10 @@ const LiabilitiesStep: React.FC<LiabilitiesStepProps> = ({ onNext, onPrevious })
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-red-50 p-4 rounded-lg border border-red-200">
             <div className="flex items-center">
-              <CreditCard className="h-8 w-8 text-red-600 mr-3" />
+              <CreditCard className="h-8 w-8 text-red-600 dark:text-red-400 mr-3" />
               <div>
                 <p className="text-sm font-medium text-red-800">Total Outstanding</p>
-                <p className="text-xl font-bold text-red-600">
+                <p className="text-xl font-bold text-red-600 dark:text-red-400">
                   {formatLargeNumber(totalOutstanding)}
                 </p>
               </div>
@@ -93,7 +93,7 @@ const LiabilitiesStep: React.FC<LiabilitiesStepProps> = ({ onNext, onPrevious })
               </div>
               <div>
                 <p className="text-sm font-medium text-blue-800">Monthly EMI</p>
-                <p className="text-xl font-bold text-blue-600">
+                <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
                   {formatCurrency(totalEMI)}
                 </p>
               </div>
@@ -116,7 +116,7 @@ const LiabilitiesStep: React.FC<LiabilitiesStepProps> = ({ onNext, onPrevious })
       {/* Liabilities List */}
       {liabilities.length > 0 && (
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">Your Liabilities</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Liabilities</h3>
           <div className="space-y-3">
             {liabilities.map((liability) => {
               const progress = liability.principalAmount > 0 
@@ -124,13 +124,13 @@ const LiabilitiesStep: React.FC<LiabilitiesStepProps> = ({ onNext, onPrevious })
                 : 0;
               
               return (
-                <div key={liability.id} className="bg-white p-4 rounded-lg border border-gray-200">
+                <div key={liability.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center flex-1">
                       <span className="text-2xl mr-3">{getLiabilityIcon(liability.type)}</span>
                       <div className="flex-1">
-                        <h4 className="font-medium text-gray-900">{liability.name}</h4>
-                        <div className="flex items-center space-x-4 text-sm text-gray-600">
+                        <h4 className="font-medium text-gray-900 dark:text-white">{liability.name}</h4>
+                        <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
                           <span className="capitalize">{liability.type.replace('_', ' ')}</span>
                           <span>•</span>
                           <span>{liability.bankName}</span>
@@ -140,20 +140,20 @@ const LiabilitiesStep: React.FC<LiabilitiesStepProps> = ({ onNext, onPrevious })
                         
                         <div className="mt-2 grid grid-cols-3 gap-4 text-sm">
                           <div>
-                            <span className="text-gray-500">Outstanding:</span>
-                            <p className="font-medium text-red-600">
+                            <span className="text-gray-500 dark:text-gray-400">Outstanding:</span>
+                            <p className="font-medium text-red-600 dark:text-red-400">
                               {formatLargeNumber(liability.currentBalance)}
                             </p>
                           </div>
                           <div>
-                            <span className="text-gray-500">Monthly EMI:</span>
-                            <p className="font-medium text-blue-600">
+                            <span className="text-gray-500 dark:text-gray-400">Monthly EMI:</span>
+                            <p className="font-medium text-blue-600 dark:text-blue-400">
                               {formatCurrency(liability.emiAmount)}
                             </p>
                           </div>
                           <div>
-                            <span className="text-gray-500">Progress:</span>
-                            <p className="font-medium text-green-600">
+                            <span className="text-gray-500 dark:text-gray-400">Progress:</span>
+                            <p className="font-medium text-green-600 dark:text-green-400">
                               {progress.toFixed(1)}%
                             </p>
                           </div>
@@ -174,14 +174,14 @@ const LiabilitiesStep: React.FC<LiabilitiesStepProps> = ({ onNext, onPrevious })
                     <div className="flex gap-2 ml-4">
                       <button
                         onClick={() => handleEditLiability(liability)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors"
                         title="Edit Liability"
                       >
                         <Edit3 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteLiability(liability.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
                         title="Delete Liability"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -201,8 +201,8 @@ const LiabilitiesStep: React.FC<LiabilitiesStepProps> = ({ onNext, onPrevious })
           <div className="text-gray-400 mb-4">
             <CreditCard className="h-16 w-16 mx-auto" />
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No liabilities added yet</h3>
-          <p className="text-gray-500 mb-4">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No liabilities added yet</h3>
+          <p className="text-gray-500 dark:text-gray-400 mb-4">
             Add your loans, EMIs, and debt obligations to track your complete financial picture.
           </p>
           <p className="text-sm text-gray-400">
@@ -212,10 +212,10 @@ const LiabilitiesStep: React.FC<LiabilitiesStepProps> = ({ onNext, onPrevious })
       )}
 
       {/* Navigation Buttons */}
-      <div className="flex justify-between pt-6 border-t border-gray-200">
+      <div className="flex justify-between pt-6 border-t border-gray-200 dark:border-gray-600">
         <button
           onClick={onPrevious}
-          className="px-6 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+          className="px-6 py-2 text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
         >
           Previous
         </button>

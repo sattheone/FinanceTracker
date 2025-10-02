@@ -108,8 +108,8 @@ const Settings: React.FC = () => {
           </button>
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Profile Picture</h3>
-          <p className="text-sm text-gray-500">Upload a profile picture</p>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Profile Picture</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Upload a profile picture</p>
         </div>
       </div>
 
@@ -125,45 +125,45 @@ const Settings: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Email Address</label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="email"
               value={settings.email}
               onChange={(e) => handleSettingChange('email', e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Phone Number</label>
           <div className="relative">
             <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="tel"
               value={settings.phone}
               onChange={(e) => handleSettingChange('phone', e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="+91 98765 43210"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">New Password</label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type={showPassword ? 'text' : 'password'}
               placeholder="Enter new password"
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-300"
             >
               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
@@ -171,7 +171,7 @@ const Settings: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex justify-between pt-4 border-t border-gray-200">
+      <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-600">
         <button
           onClick={handleSaveProfile}
           className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -195,11 +195,11 @@ const Settings: React.FC = () => {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Default Currency</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Default Currency</label>
           <select
             value={settings.currency}
             onChange={(e) => handleSettingChange('currency', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="INR">Indian Rupee (₹)</option>
             <option value="USD">US Dollar ($)</option>
@@ -209,11 +209,11 @@ const Settings: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Number Format</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Number Format</label>
           <select
             value={settings.numberFormat}
             onChange={(e) => handleSettingChange('numberFormat', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="indian">Indian (1,00,000)</option>
             <option value="international">International (100,000)</option>
@@ -221,13 +221,13 @@ const Settings: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Financial Year Start</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Financial Year Start</label>
           <div className="relative">
             <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <select
               value={settings.financialYearStart}
               onChange={(e) => handleSettingChange('financialYearStart', e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="april">April (Indian FY)</option>
               <option value="january">January (Calendar Year)</option>
@@ -237,24 +237,24 @@ const Settings: React.FC = () => {
       </div>
 
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900">Budget Alerts</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Budget Alerts</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Monthly Budget Limit</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Monthly Budget Limit</label>
             <input
               type="number"
               placeholder="50000"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Alert Threshold (%)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Alert Threshold (%)</label>
             <input
               type="number"
               placeholder="80"
               min="1"
               max="100"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
         </div>
@@ -265,7 +265,7 @@ const Settings: React.FC = () => {
   const renderBankAccountSettings = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Your Bank Accounts</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Bank Accounts</h3>
         <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
           <CreditCard className="w-4 h-4 mr-2" />
           Add Account
@@ -274,19 +274,19 @@ const Settings: React.FC = () => {
 
       <div className="space-y-4">
         {bankAccounts.map((account) => (
-          <div key={account.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+          <div key={account.id} className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
             <div className="flex items-center space-x-3">
               <span className="text-2xl">{account.logo}</span>
               <div>
-                <h4 className="font-medium text-gray-900">{account.bank}</h4>
-                <p className="text-sm text-gray-500">{account.number}</p>
+                <h4 className="font-medium text-gray-900 dark:text-white">{account.bank}</h4>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{account.number}</p>
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-lg font-semibold text-gray-900">
+              <span className="text-lg font-semibold text-gray-900 dark:text-white">
                 ₹{account.balance.toLocaleString()}
               </span>
-              <button className="p-2 text-gray-400 hover:text-blue-600">
+              <button className="p-2 text-gray-400 hover:text-blue-600 dark:text-blue-400">
                 <SettingsIcon className="w-4 h-4" />
               </button>
             </div>
@@ -305,10 +305,10 @@ const Settings: React.FC = () => {
           { key: 'goalReminders', label: 'Goal Reminders', description: 'Reminders about your financial goals' },
           { key: 'monthlyReports', label: 'Monthly Reports', description: 'Receive monthly financial summary reports' },
         ].map((item) => (
-          <div key={item.key} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+          <div key={item.key} className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
             <div>
-              <h4 className="font-medium text-gray-900">{item.label}</h4>
-              <p className="text-sm text-gray-500">{item.description}</p>
+              <h4 className="font-medium text-gray-900 dark:text-white">{item.label}</h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{item.description}</p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -317,7 +317,7 @@ const Settings: React.FC = () => {
                 onChange={(e) => handleSettingChange(item.key, e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:bg-gray-800 after:border-gray-300 dark:border-gray-500 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
           </div>
         ))}
@@ -329,7 +329,7 @@ const Settings: React.FC = () => {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Theme</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 dark:text-gray-300 mb-2">Theme</label>
           <select
             value={settings.theme}
             onChange={(e) => handleSettingChange('theme', e.target.value)}
@@ -339,19 +339,19 @@ const Settings: React.FC = () => {
             <option value="dark">Dark</option>
             <option value="auto">Auto (System)</option>
           </select>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-400 mt-1">
             Auto theme follows your system preference
           </p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Language</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Language</label>
           <div className="relative">
             <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <select
               value={settings.language}
               onChange={(e) => handleSettingChange('language', e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="english">English</option>
               <option value="hindi">हिंदी (Hindi)</option>
@@ -362,11 +362,11 @@ const Settings: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Dashboard Layout</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Dashboard Layout</label>
           <select
             value={settings.dashboardLayout}
             onChange={(e) => handleSettingChange('dashboardLayout', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="default">Default</option>
             <option value="compact">Compact</option>
@@ -376,16 +376,16 @@ const Settings: React.FC = () => {
       </div>
 
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900">Dashboard Account Selection</h3>
-        <p className="text-sm text-gray-600">Choose which bank accounts to include in dashboard calculations</p>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Dashboard Account Selection</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-300">Choose which bank accounts to include in dashboard calculations</p>
         <div className="space-y-2">
           {bankAccounts.map((account) => (
-            <div key={account.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+            <div key={account.id} className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
               <div className="flex items-center space-x-3">
                 <span className="text-xl">{account.logo}</span>
                 <div>
-                  <h4 className="font-medium text-gray-900">{account.bank}</h4>
-                  <p className="text-sm text-gray-500">{account.number}</p>
+                  <h4 className="font-medium text-gray-900 dark:text-white">{account.bank}</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{account.number}</p>
                 </div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -400,7 +400,7 @@ const Settings: React.FC = () => {
                   }}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:bg-gray-800 after:border-gray-300 dark:border-gray-500 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
               </label>
             </div>
           ))}
@@ -421,10 +421,10 @@ const Settings: React.FC = () => {
           { key: 'twoFactorAuth', label: 'Two-Factor Authentication', description: 'Add an extra layer of security to your account' },
           { key: 'loginAlerts', label: 'Login Alerts', description: 'Get notified of new login attempts' },
         ].map((item) => (
-          <div key={item.key} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+          <div key={item.key} className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
             <div>
-              <h4 className="font-medium text-gray-900">{item.label}</h4>
-              <p className="text-sm text-gray-500">{item.description}</p>
+              <h4 className="font-medium text-gray-900 dark:text-white">{item.label}</h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{item.description}</p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -433,19 +433,19 @@ const Settings: React.FC = () => {
                 onChange={(e) => handleSettingChange(item.key, e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:bg-gray-800 after:border-gray-300 dark:border-gray-500 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
           </div>
         ))}
       </div>
 
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900">Active Sessions</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Active Sessions</h3>
         <div className="space-y-2">
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
             <div>
-              <p className="font-medium text-gray-900">Current Session</p>
-              <p className="text-sm text-gray-500">Chrome on macOS • Active now</p>
+              <p className="font-medium text-gray-900 dark:text-white">Current Session</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Chrome on macOS • Active now</p>
             </div>
             <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Current</span>
           </div>
@@ -457,9 +457,9 @@ const Settings: React.FC = () => {
   const renderDataSettings = () => (
     <div className="space-y-6">
       <div className="space-y-4">
-        <div className="p-4 border border-gray-200 rounded-lg">
-          <h4 className="font-medium text-gray-900 mb-2">Export Your Data</h4>
-          <p className="text-sm text-gray-500 mb-4">Download all your financial data in JSON format</p>
+        <div className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+          <h4 className="font-medium text-gray-900 dark:text-white mb-2">Export Your Data</h4>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Download all your financial data in JSON format</p>
           <button
             onClick={handleExportData}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -469,9 +469,9 @@ const Settings: React.FC = () => {
           </button>
         </div>
 
-        <div className="p-4 border border-gray-200 rounded-lg">
-          <h4 className="font-medium text-gray-900 mb-2">Import Data</h4>
-          <p className="text-sm text-gray-500 mb-4">Import financial data from Excel or CSV files</p>
+        <div className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+          <h4 className="font-medium text-gray-900 dark:text-white mb-2">Import Data</h4>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Import financial data from Excel or CSV files</p>
           <button className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
             <Upload className="w-4 h-4 mr-2" />
             Import Data
@@ -507,11 +507,11 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-700 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">Manage your account preferences and settings</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white dark:text-white">Settings</h1>
+          <p className="text-gray-600 dark:text-gray-300 dark:text-gray-400 mt-2">Manage your account preferences and settings</p>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
@@ -540,8 +540,8 @@ const Settings: React.FC = () => {
 
           {/* Content */}
           <div className="flex-1">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
+            <div className="bg-white dark:bg-gray-800 dark:bg-gray-800 rounded-lg shadow-sm p-6">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white dark:text-white mb-6">
                 {tabs.find(tab => tab.id === activeTab)?.label}
               </h2>
               {renderTabContent()}

@@ -57,8 +57,8 @@ const PersonalInfoStep: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Personal Information</h2>
-        <p className="text-gray-600">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Personal Information</h2>
+        <p className="text-gray-600 dark:text-gray-300">
           Let's start with some basic information about you and your family.
         </p>
       </div>
@@ -66,13 +66,13 @@ const PersonalInfoStep: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Your Information */}
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
             <User className="w-5 h-5 mr-2" />
             Your Information
           </h3>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Full Name
             </label>
             <input
@@ -85,7 +85,7 @@ const PersonalInfoStep: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Email Address
             </label>
             <div className="relative">
@@ -101,7 +101,7 @@ const PersonalInfoStep: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Date of Birth
             </label>
             <div className="relative">
@@ -118,13 +118,13 @@ const PersonalInfoStep: React.FC = () => {
 
         {/* Spouse Information */}
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
             <Users className="w-5 h-5 mr-2" />
             Spouse Information (Optional)
           </h3>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Spouse Name
             </label>
             <input
@@ -137,7 +137,7 @@ const PersonalInfoStep: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
               Spouse Date of Birth
             </label>
             <div className="relative">
@@ -156,7 +156,7 @@ const PersonalInfoStep: React.FC = () => {
       {/* Children Information */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">Children (Optional)</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Children (Optional)</h3>
           <button
             onClick={addChild}
             className="btn-primary text-sm"
@@ -166,9 +166,9 @@ const PersonalInfoStep: React.FC = () => {
         </div>
 
         {userProfile?.personalInfo?.children?.map((child, index) => (
-          <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border border-gray-200 rounded-lg">
+          <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Child Name
               </label>
               <input
@@ -180,7 +180,7 @@ const PersonalInfoStep: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Date of Birth
               </label>
               <div className="flex gap-2">
@@ -195,7 +195,7 @@ const PersonalInfoStep: React.FC = () => {
                 </div>
                 <button
                   onClick={() => removeChild(index)}
-                  className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg border border-red-200"
+                  className="px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 rounded-lg border border-red-200"
                 >
                   Remove
                 </button>
@@ -205,7 +205,7 @@ const PersonalInfoStep: React.FC = () => {
         ))}
 
         {(!userProfile?.personalInfo?.children || userProfile.personalInfo.children.length === 0) && (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
             <Users className="w-12 h-12 mx-auto mb-2 text-gray-300" />
             <p>No children added yet. Click "Add Child" to include family members.</p>
           </div>

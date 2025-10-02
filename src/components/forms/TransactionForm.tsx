@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction } from '../../types';
 import { useData } from '../../contexts/DataContext';
+import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 
 interface TransactionFormProps {
   transaction?: Transaction;
@@ -11,6 +12,7 @@ interface TransactionFormProps {
 
 const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit, onCancel, defaultBankAccountId }) => {
   const { bankAccounts } = useData();
+  const theme = useThemeClasses();
   
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -124,7 +126,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
             type="date"
             value={formData.date}
             onChange={(e) => handleChange('date', e.target.value)}
-            className={`input-field ${errors.date ? 'border-red-500' : ''}`}
+            className={cn(theme.input, errors.date && 'border-red-500 dark:border-red-400')}
             max={new Date().toISOString().split('T')[0]}
           />
           {errors.date && <p className="text-red-500 text-sm mt-1">{errors.date}</p>}
@@ -137,7 +139,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
           <select
             value={formData.type}
             onChange={(e) => handleChange('type', e.target.value)}
-            className="input-field"
+            className={theme.select}
           >
             {transactionTypes.map(type => (
               <option key={type.value} value={type.value}>
@@ -154,7 +156,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
           <select
             value={formData.bankAccountId}
             onChange={(e) => handleChange('bankAccountId', e.target.value)}
-            className="input-field"
+            className={theme.select}
           >
             {bankAccounts.map(account => (
               <option key={account.id} value={account.id}>
@@ -172,7 +174,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
             type="text"
             value={formData.description}
             onChange={(e) => handleChange('description', e.target.value)}
-            className={`input-field ${errors.description ? 'border-red-500' : ''}`}
+            className={cn(theme.input, errors.description && 'border-red-500 dark:border-red-400')}
             placeholder="e.g., Grocery shopping, Salary credit, SIP investment"
           />
           {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
@@ -185,7 +187,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
           <select
             value={formData.category}
             onChange={(e) => handleChange('category', e.target.value)}
-            className={`input-field ${errors.category ? 'border-red-500' : ''}`}
+            className={cn(theme.select, errors.category && 'border-red-500 dark:border-red-400')}
           >
             <option value="">Select a category</option>
             {categoryOptions[formData.type].map(category => (
@@ -202,12 +204,12 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
             Amount *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
             <input
               type="number"
               value={formData.amount || ''}
               onChange={(e) => handleChange('amount', Number(e.target.value))}
-              className={`input-field pl-8 ${errors.amount ? 'border-red-500' : ''}`}
+              className={cn(theme.input, 'pl-8', errors.amount && 'border-red-500 dark:border-red-400')}
               placeholder="0"
               min="0"
               step="0.01"
@@ -223,7 +225,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
           <select
             value={formData.paymentMethod}
             onChange={(e) => handleChange('paymentMethod', e.target.value)}
-            className="input-field"
+            className={theme.select}
           >
             <option value="">Select payment method</option>
             {paymentMethods.map(method => (
@@ -236,19 +238,19 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
       </div>
 
       {/* Transaction Preview */}
-      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-        <h4 className="font-medium text-gray-900 dark:text-white mb-3">Transaction Preview</h4>
-        <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-600">
+      <div className="bg-gray-50 dark:bg-gray-700 dark:bg-gray-700 rounded-lg p-4">
+        <h4 className="font-medium text-gray-900 dark:text-white dark:text-white mb-3">Transaction Preview</h4>
+        <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-600 dark:border-gray-600">
           <div className="flex items-center">
             <span className="text-2xl mr-3">{selectedType?.icon}</span>
             <div>
-              <p className="font-medium text-gray-900">{formData.description || 'Transaction Description'}</p>
-              <p className="text-sm text-gray-600">
+              <p className="font-medium text-gray-900 dark:text-white">{formData.description || 'Transaction Description'}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
                 {formData.category || 'Category'} • {new Date(formData.date).toLocaleDateString()}
                 {formData.paymentMethod && ` • ${formData.paymentMethod}`}
               </p>
               {formData.bankAccountId && (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
                   {bankAccounts.find(acc => acc.id === formData.bankAccountId)?.bank} ({bankAccounts.find(acc => acc.id === formData.bankAccountId)?.number})
                 </p>
               )}
@@ -258,7 +260,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
             <p className={`text-lg font-bold ${selectedType?.color || 'text-gray-900'}`}>
               {formData.type === 'income' ? '+' : '-'}₹{formData.amount.toLocaleString()}
             </p>
-            <p className="text-xs text-gray-500 uppercase">{formData.type}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">{formData.type}</p>
           </div>
         </div>
       </div>
@@ -274,7 +276,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
               key={amount}
               type="button"
               onClick={() => handleChange('amount', amount)}
-              className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              className="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
             >
               ₹{amount.toLocaleString()}
             </button>
@@ -282,7 +284,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-600">
         <button
           type="button"
           onClick={onCancel}

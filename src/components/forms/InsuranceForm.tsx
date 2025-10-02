@@ -116,7 +116,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Policy Name *
           </label>
           <input
@@ -130,7 +130,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Insurance Type *
           </label>
           <select
@@ -147,11 +147,11 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Coverage Amount *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
             <input
               type="number"
               value={formData.coverAmount || ''}
@@ -166,11 +166,11 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Premium Amount *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
             <input
               type="number"
               value={formData.premiumAmount || ''}
@@ -185,7 +185,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Premium Frequency *
           </label>
           <select
@@ -202,7 +202,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
         {showMaturityFields && (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Maturity Date (Optional)
               </label>
               <input
@@ -216,11 +216,11 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Maturity Amount (Optional)
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
                 <input
                   type="number"
                   value={formData.maturityAmount || ''}
@@ -239,41 +239,41 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
 
       {/* Calculated Fields */}
       {formData.premiumAmount > 0 && formData.coverAmount > 0 && (
-        <div className="bg-gray-50 rounded-lg p-4">
-          <h4 className="font-medium text-gray-900 mb-3">Policy Analysis</h4>
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+          <h4 className="font-medium text-gray-900 dark:text-white mb-3">Policy Analysis</h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div>
-              <span className="text-gray-600">Annual Premium:</span>
-              <div className="font-medium text-gray-900">
+              <span className="text-gray-600 dark:text-gray-300">Annual Premium:</span>
+              <div className="font-medium text-gray-900 dark:text-white">
                 {formatCurrency(getAnnualPremium())}
               </div>
             </div>
             <div>
-              <span className="text-gray-600">Coverage Ratio:</span>
-              <div className="font-medium text-gray-900">
+              <span className="text-gray-600 dark:text-gray-300">Coverage Ratio:</span>
+              <div className="font-medium text-gray-900 dark:text-white">
                 ₹{getCoverageRatio()} per ₹1 premium
               </div>
             </div>
             <div>
-              <span className="text-gray-600">Premium % of Cover:</span>
-              <div className="font-medium text-gray-900">
+              <span className="text-gray-600 dark:text-gray-300">Premium % of Cover:</span>
+              <div className="font-medium text-gray-900 dark:text-white">
                 {((getAnnualPremium() / formData.coverAmount) * 100).toFixed(2)}%
               </div>
             </div>
           </div>
 
           {formData.maturityAmount > 0 && formData.maturityDate && (
-            <div className="mt-3 pt-3 border-t border-gray-200">
+            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-600">Maturity Value:</span>
-                  <div className="font-medium text-green-600">
+                  <span className="text-gray-600 dark:text-gray-300">Maturity Value:</span>
+                  <div className="font-medium text-green-600 dark:text-green-400">
                     {formatCurrency(formData.maturityAmount)}
                   </div>
                 </div>
                 <div>
-                  <span className="text-gray-600">Years to Maturity:</span>
-                  <div className="font-medium text-gray-900">
+                  <span className="text-gray-600 dark:text-gray-300">Years to Maturity:</span>
+                  <div className="font-medium text-gray-900 dark:text-white">
                     {Math.ceil((new Date(formData.maturityDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 365))} years
                   </div>
                 </div>
@@ -306,7 +306,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
         </ul>
       </div>
 
-      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-600">
         <button
           type="button"
           onClick={onCancel}

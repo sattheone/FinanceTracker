@@ -61,38 +61,38 @@ const Reports: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Financial Reports</h1>
-        <p className="text-gray-600 mt-1">Comprehensive analysis and visualizations</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Financial Reports</h1>
+        <p className="text-gray-600 dark:text-gray-300 mt-1">Comprehensive analysis and visualizations</p>
       </div>
 
       {/* Report Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="metric-card text-center">
-          <PieChartIcon className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Net Worth</p>
-          <p className="text-2xl font-bold text-gray-900">
+          <PieChartIcon className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Net Worth</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
             {formatLargeNumber(totalAssets)}
           </p>
         </div>
         <div className="metric-card text-center">
-          <BarChart3 className="h-8 w-8 text-green-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Monthly Savings Rate</p>
-          <p className="text-2xl font-bold text-gray-900">
+          <BarChart3 className="h-8 w-8 text-green-600 dark:text-green-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Monthly Savings Rate</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
             {(((monthlyBudget.expenses.investments + monthlyBudget.expenses.other + monthlyBudget.surplus) / monthlyBudget.income) * 100).toFixed(1)}%
           </p>
         </div>
         <div className="metric-card text-center">
-          <Target className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Retirement Progress</p>
-          <p className="text-2xl font-bold text-gray-900">
+          <Target className="h-8 w-8 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Retirement Progress</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
             {((goals.find(g => g.category === 'retirement')?.currentAmount || 0) / 
               (goals.find(g => g.category === 'retirement')?.targetAmount || 1) * 100).toFixed(1)}%
           </p>
         </div>
         <div className="metric-card text-center">
-          <TrendingUp className="h-8 w-8 text-red-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Investment Allocation</p>
-          <p className="text-2xl font-bold text-gray-900">
+          <TrendingUp className="h-8 w-8 text-red-600 dark:text-red-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Investment Allocation</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
             {totalAssets > 0 ? (((assets.filter(a => ['stocks', 'mutual_funds'].includes(a.category))
                 .reduce((sum, a) => sum + a.currentValue, 0)) / totalAssets) * 100).toFixed(1) : 0}%
           </p>
@@ -103,7 +103,7 @@ const Reports: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Asset Allocation Pie Chart */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Asset Allocation</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Asset Allocation</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
@@ -130,7 +130,7 @@ const Reports: React.FC = () => {
                   className="w-3 h-3 rounded-full mr-2" 
                   style={{ backgroundColor: COLORS[index % COLORS.length] }}
                 ></div>
-                <span className="text-gray-600">{item.name}: {item.percentage}%</span>
+                <span className="text-gray-600 dark:text-gray-300">{item.name}: {item.percentage}%</span>
               </div>
             ))}
           </div>
@@ -138,7 +138,7 @@ const Reports: React.FC = () => {
 
         {/* Monthly Cash Flow */}
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Cash Flow</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Monthly Cash Flow</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={cashFlowData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -163,7 +163,7 @@ const Reports: React.FC = () => {
 
       {/* Goals Progress Chart */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Goals Progress</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Financial Goals Progress</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={goalsData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -182,7 +182,7 @@ const Reports: React.FC = () => {
 
       {/* LIC Maturity Timeline */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">LIC Policies Maturity Timeline (Next 10 Years)</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">LIC Policies Maturity Timeline (Next 10 Years)</h3>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={licTimelineData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -202,36 +202,36 @@ const Reports: React.FC = () => {
 
       {/* Financial Ratios */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Key Financial Ratios</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Key Financial Ratios</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-4 bg-blue-50 rounded-lg text-center">
-            <p className="text-sm text-gray-600">Debt-to-Income Ratio</p>
-            <p className="text-2xl font-bold text-blue-600">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Debt-to-Income Ratio</p>
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {((329030 / (monthlyBudget.income * 12)) * 100).toFixed(1)}%
             </p>
-            <p className="text-xs text-gray-500">Excellent (&lt;20%)</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Excellent (&lt;20%)</p>
           </div>
           <div className="p-4 bg-green-50 rounded-lg text-center">
-            <p className="text-sm text-gray-600">Emergency Fund Ratio</p>
-            <p className="text-2xl font-bold text-green-600">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Emergency Fund Ratio</p>
+            <p className="text-2xl font-bold text-green-600 dark:text-green-400">
               {(700000 / (monthlyBudget.expenses.household * 6)).toFixed(1)}x
             </p>
-            <p className="text-xs text-gray-500">6 months expenses</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">6 months expenses</p>
           </div>
           <div className="p-4 bg-yellow-50 rounded-lg text-center">
-            <p className="text-sm text-gray-600">Investment Rate</p>
-            <p className="text-2xl font-bold text-yellow-600">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Investment Rate</p>
+            <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {(((monthlyBudget.expenses.investments + monthlyBudget.expenses.other) / monthlyBudget.income) * 100).toFixed(1)}%
             </p>
-            <p className="text-xs text-gray-500">Of gross income</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Of gross income</p>
           </div>
           <div className="p-4 bg-purple-50 rounded-lg text-center">
-            <p className="text-sm text-gray-600">Liquidity Ratio</p>
-            <p className="text-2xl font-bold text-purple-600">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Liquidity Ratio</p>
+            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {totalAssets > 0 ? ((assets.filter(a => ['cash', 'stocks', 'mutual_funds'].includes(a.category))
                   .reduce((sum, a) => sum + a.currentValue, 0) / totalAssets) * 100).toFixed(1) : 0}%
             </p>
-            <p className="text-xs text-gray-500">Liquid assets</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Liquid assets</p>
           </div>
         </div>
       </div>

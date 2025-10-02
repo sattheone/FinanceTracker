@@ -85,7 +85,7 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Bank Selection */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-3">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">
           Select Bank
         </label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -101,28 +101,28 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
               }`}
             >
               <span className="text-xl">{bank.logo}</span>
-              <span className="text-sm font-medium text-gray-900 truncate">
+              <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
                 {bank.name}
               </span>
             </button>
           ))}
         </div>
         {errors.bank && (
-          <p className="mt-1 text-sm text-red-600">{errors.bank}</p>
+          <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.bank}</p>
         )}
       </div>
 
       {/* Custom Bank Name (if Other is selected) */}
       {formData.bank === 'Other' && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Bank Name
           </label>
           <input
             type="text"
             value={formData.bank === 'Other' ? '' : formData.bank}
             onChange={(e) => setFormData(prev => ({ ...prev, bank: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="Enter bank name"
           />
         </div>
@@ -130,27 +130,27 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
 
       {/* Account Number */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
           Account Number
         </label>
         <input
           type="text"
           value={formData.accountNumber}
           onChange={(e) => setFormData(prev => ({ ...prev, accountNumber: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           placeholder="Enter account number"
         />
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           Only the last 4 digits will be displayed for security
         </p>
         {errors.accountNumber && (
-          <p className="mt-1 text-sm text-red-600">{errors.accountNumber}</p>
+          <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.accountNumber}</p>
         )}
       </div>
 
       {/* Current Balance */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
           Current Balance
         </label>
         <input
@@ -158,23 +158,23 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
           step="0.01"
           value={formData.balance}
           onChange={(e) => setFormData(prev => ({ ...prev, balance: parseFloat(e.target.value) || 0 }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           placeholder="0.00"
         />
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           This is your current account balance. New transactions will automatically update this balance.
         </p>
         {errors.balance && (
-          <p className="mt-1 text-sm text-red-600">{errors.balance}</p>
+          <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.balance}</p>
         )}
       </div>
 
       {/* Form Actions */}
-      <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+      <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-600">
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+          className="px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
         >
           Cancel
         </button>

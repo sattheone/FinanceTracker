@@ -50,8 +50,8 @@ const InsuranceStep: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Insurance Policies</h2>
-        <p className="text-gray-600">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Insurance Policies</h2>
+        <p className="text-gray-600 dark:text-gray-300">
           Add your insurance policies to ensure adequate protection for you and your family.
         </p>
       </div>
@@ -59,20 +59,20 @@ const InsuranceStep: React.FC = () => {
       {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-gray-600">Total Coverage</h3>
-          <p className="text-2xl font-bold text-blue-600 mt-1">
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Coverage</h3>
+          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
             {formatCurrency(totalCover)}
           </p>
         </div>
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-gray-600">Annual Premiums</h3>
-          <p className="text-2xl font-bold text-green-600 mt-1">
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Annual Premiums</h3>
+          <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
             {formatCurrency(totalPremiums)}
           </p>
         </div>
         <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-gray-600">Active Policies</h3>
-          <p className="text-2xl font-bold text-purple-600 mt-1">
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Active Policies</h3>
+          <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
             {insurance.length}
           </p>
         </div>
@@ -80,7 +80,7 @@ const InsuranceStep: React.FC = () => {
 
       {/* Add Insurance Button */}
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-900">Your Insurance Policies</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Insurance Policies</h3>
         <button
           onClick={() => setShowAddForm(true)}
           className="btn-primary flex items-center"
@@ -92,11 +92,11 @@ const InsuranceStep: React.FC = () => {
 
       {/* Add Insurance Form */}
       {showAddForm && (
-        <div className="bg-gray-50 rounded-lg p-6 border-2 border-dashed border-gray-300">
-          <h4 className="font-medium text-gray-900 mb-4">Add New Insurance Policy</h4>
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border-2 border-dashed border-gray-300 dark:border-gray-500">
+          <h4 className="font-medium text-gray-900 dark:text-white mb-4">Add New Insurance Policy</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Policy Name
               </label>
               <input
@@ -108,7 +108,7 @@ const InsuranceStep: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Insurance Type
               </label>
               <select
@@ -124,11 +124,11 @@ const InsuranceStep: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Coverage Amount
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
                 <input
                   type="number"
                   value={newInsurance.coverAmount || ''}
@@ -140,11 +140,11 @@ const InsuranceStep: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Premium Amount
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
                 <input
                   type="number"
                   value={newInsurance.premiumAmount || ''}
@@ -156,7 +156,7 @@ const InsuranceStep: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Premium Frequency
               </label>
               <select
@@ -172,7 +172,7 @@ const InsuranceStep: React.FC = () => {
             {(newInsurance.type === 'endowment' || newInsurance.type === 'other') && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                     Maturity Date (Optional)
                   </label>
                   <input
@@ -183,11 +183,11 @@ const InsuranceStep: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                     Maturity Amount (Optional)
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
                     <input
                       type="number"
                       value={newInsurance.maturityAmount || ''}
@@ -218,10 +218,10 @@ const InsuranceStep: React.FC = () => {
       {/* Insurance List */}
       <div className="space-y-4">
         {insurance.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <Shield className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No insurance policies added</h3>
-            <p className="text-gray-600 mb-4">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No insurance policies added</h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
               Protect yourself and your family by adding your insurance policies.
             </p>
             <button
@@ -239,45 +239,45 @@ const InsuranceStep: React.FC = () => {
                                  policy.premiumAmount;
             
             return (
-              <div key={policy.id} className="bg-white border border-gray-200 rounded-lg p-4">
+              <div key={policy.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center mb-3">
                       <span className="text-2xl mr-3">{insuranceType?.icon}</span>
                       <div>
-                        <h4 className="font-medium text-gray-900">{policy.policyName}</h4>
-                        <p className="text-sm text-gray-600">{insuranceType?.label}</p>
+                        <h4 className="font-medium text-gray-900 dark:text-white">{policy.policyName}</h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">{insuranceType?.label}</p>
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <p className="text-gray-600">Coverage</p>
-                        <p className="font-semibold text-gray-900">
+                        <p className="text-gray-600 dark:text-gray-300">Coverage</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">
                           {formatCurrency(policy.coverAmount)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-gray-600">Premium</p>
-                        <p className="font-semibold text-gray-900">
+                        <p className="text-gray-600 dark:text-gray-300">Premium</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">
                           {formatCurrency(policy.premiumAmount)}
                         </p>
-                        <p className="text-xs text-gray-500">{policy.premiumFrequency}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{policy.premiumFrequency}</p>
                       </div>
                       <div>
-                        <p className="text-gray-600">Annual Premium</p>
-                        <p className="font-semibold text-gray-900">
+                        <p className="text-gray-600 dark:text-gray-300">Annual Premium</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">
                           {formatCurrency(annualPremium)}
                         </p>
                       </div>
                       {policy.maturityDate && (
                         <div>
-                          <p className="text-gray-600">Maturity</p>
-                          <p className="font-semibold text-gray-900">
+                          <p className="text-gray-600 dark:text-gray-300">Maturity</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
                             {new Date(policy.maturityDate).toLocaleDateString()}
                           </p>
                           {policy.maturityAmount && (
-                            <p className="text-xs text-green-600">
+                            <p className="text-xs text-green-600 dark:text-green-400">
                               {formatCurrency(policy.maturityAmount)}
                             </p>
                           )}
@@ -288,7 +288,7 @@ const InsuranceStep: React.FC = () => {
                   
                   <button
                     onClick={() => deleteInsurance(policy.id)}
-                    className="text-red-600 hover:bg-red-50 p-2 rounded-lg ml-4"
+                    className="text-red-600 dark:text-red-400 hover:bg-red-50 p-2 rounded-lg ml-4"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

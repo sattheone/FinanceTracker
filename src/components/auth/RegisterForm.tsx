@@ -60,19 +60,19 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-gray-900">Create Account</h2>
-        <p className="text-gray-600 mt-2">Start tracking your financial journey</p>
+        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Create Account</h2>
+        <p className="text-gray-600 dark:text-gray-300 mt-2">Start tracking your financial journey</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg">
+          <div className="bg-red-50 border border-red-200 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
 
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Full Name
           </label>
           <div className="relative">
@@ -91,7 +91,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
         </div>
 
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Email Address
           </label>
           <div className="relative">
@@ -110,7 +110,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Password
           </label>
           <div className="relative">
@@ -128,7 +128,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-300"
             >
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
@@ -136,7 +136,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
         </div>
 
         <div>
-          <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Confirm Password
           </label>
           <div className="relative">
@@ -154,7 +154,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
             <button
               type="button"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-300"
             >
               {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
@@ -171,7 +171,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
       </form>
 
       <div className="mt-6 text-center">
-        <p className="text-gray-600">
+        <p className="text-gray-600 dark:text-gray-300">
           Already have an account?{' '}
           <button
             onClick={onToggleMode}

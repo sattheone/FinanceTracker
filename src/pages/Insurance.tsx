@@ -77,37 +77,37 @@ const Insurance: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Insurance Portfolio</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Comprehensive protection and policy management</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white dark:text-white">Insurance Portfolio</h1>
+        <p className="text-gray-600 dark:text-gray-300 dark:text-gray-400 mt-1">Comprehensive protection and policy management</p>
       </div>
 
       {/* Insurance Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="metric-card text-center">
-          <Shield className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Total Cover</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatLargeNumber(totalCover)}</p>
+          <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Cover</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">{formatLargeNumber(totalCover)}</p>
         </div>
         <div className="metric-card text-center">
-          <Calendar className="h-8 w-8 text-green-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Annual Premiums</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(totalPremiums)}</p>
+          <Calendar className="h-8 w-8 text-green-600 dark:text-green-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Annual Premiums</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">{formatCurrency(totalPremiums)}</p>
         </div>
         <div className="metric-card text-center">
-          <User className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Active Policies</p>
-          <p className="text-2xl font-bold text-gray-900">{insurance.length + licPolicies.length}</p>
+          <User className="h-8 w-8 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Active Policies</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{insurance.length + licPolicies.length}</p>
         </div>
         <div className="metric-card text-center">
-          <Heart className="h-8 w-8 text-red-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">LIC Maturity Value</p>
-          <p className="text-2xl font-bold text-gray-900">{formatLargeNumber(totalLICMaturity)}</p>
+          <Heart className="h-8 w-8 text-red-600 dark:text-red-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">LIC Maturity Value</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatLargeNumber(totalLICMaturity)}</p>
         </div>
       </div>
 
       {/* Quick Actions */}
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-900">Active Insurance Policies</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Active Insurance Policies</h3>
         <button
           onClick={handleAddInsurance}
           className="btn-primary flex items-center"
@@ -127,37 +127,37 @@ const Insurance: React.FC = () => {
                   <div className="flex items-center mb-2">
                     <span className="text-2xl mr-3">{getInsuranceIcon(policy.type)}</span>
                     <div>
-                      <h4 className="text-lg font-semibold text-gray-900">{policy.policyName}</h4>
-                      <p className="text-sm text-gray-600 capitalize">{policy.type} Insurance</p>
+                      <h4 className="text-lg font-semibold text-gray-900 dark:text-white">{policy.policyName}</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-300 capitalize">{policy.type} Insurance</p>
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Cover Amount</p>
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Cover Amount</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
                         {formatLargeNumber(policy.coverAmount)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Premium</p>
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Premium</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
                         {formatCurrency(policy.premiumAmount)}
                       </p>
-                      <p className="text-xs text-gray-500">{policy.premiumFrequency}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{policy.premiumFrequency}</p>
                     </div>
                     {policy.maturityDate && (
                       <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide">Maturity Date</p>
-                        <p className="text-lg font-semibold text-gray-900">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Maturity Date</p>
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
                           {formatDate(policy.maturityDate)}
                         </p>
                       </div>
                     )}
                     {policy.maturityAmount && (
                       <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide">Maturity Amount</p>
-                        <p className="text-lg font-semibold text-green-600">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Maturity Amount</p>
+                        <p className="text-lg font-semibold text-green-600 dark:text-green-400">
                           {formatLargeNumber(policy.maturityAmount)}
                         </p>
                       </div>
@@ -169,14 +169,14 @@ const Insurance: React.FC = () => {
                 <div className="flex gap-2 ml-4">
                   <button
                     onClick={() => handleEditInsurance(policy)}
-                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors"
                     title="Edit Policy"
                   >
                     <Edit3 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteInsurance(policy.id)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
                     title="Delete Policy"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -190,67 +190,67 @@ const Insurance: React.FC = () => {
 
       {/* LIC Policies Maturity Schedule */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           LIC Policies Maturity Schedule (25 Policies)
         </h3>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
           Post-retirement income stream from {licPolicies.length} LIC policies maturing between 2036-2060
         </p>
         
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
-            <thead className="bg-gray-50 dark:bg-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-700 dark:bg-gray-700">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-300 uppercase tracking-wider">
                   Year
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Policies Maturing
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Total Maturity Amount
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Age at Maturity
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
+            <tbody className="bg-white dark:bg-gray-800 dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
               {sortedYears.map((year) => {
                 const yearPolicies = licByYear[year];
                 const yearTotal = yearPolicies.reduce((sum, p) => sum + p.maturityAmount, 0);
                 const ageAtMaturity = 40 + (year - 2025); // Current age is 40 in 2025
                 
                 return (
-                  <tr key={year} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                  <tr key={year} className="hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-700">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white dark:text-white">
                       {year}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {yearPolicies.length} {yearPolicies.length === 1 ? 'policy' : 'policies'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-green-600">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-green-600 dark:text-green-400">
                       {formatCurrency(yearTotal)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">
                       {ageAtMaturity} years
                     </td>
                   </tr>
                 );
               })}
             </tbody>
-            <tfoot className="bg-gray-50 dark:bg-gray-700">
+            <tfoot className="bg-gray-50 dark:bg-gray-700 dark:bg-gray-700">
               <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white dark:text-white">
                   Total
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   {licPolicies.length} policies
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-green-600">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-green-600 dark:text-green-400">
                   {formatLargeNumber(totalLICMaturity)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">
                   25 years
                 </td>
               </tr>
@@ -262,14 +262,14 @@ const Insurance: React.FC = () => {
       {/* Insurance Analysis */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Coverage Analysis</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Coverage Analysis</h3>
           <div className="space-y-4">
             <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
               <div>
-                <p className="font-medium text-gray-900">Life Insurance Coverage</p>
-                <p className="text-sm text-gray-600">Term + Endowment policies</p>
+                <p className="font-medium text-gray-900 dark:text-white">Life Insurance Coverage</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Term + Endowment policies</p>
               </div>
-              <p className="text-lg font-bold text-blue-600">
+              <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
                 {formatLargeNumber(
                   insurance
                     .filter(p => ['term', 'endowment'].includes(p.type))
@@ -280,10 +280,10 @@ const Insurance: React.FC = () => {
             
             <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
               <div>
-                <p className="font-medium text-gray-900">Health Insurance Coverage</p>
-                <p className="text-sm text-gray-600">Family floater policy</p>
+                <p className="font-medium text-gray-900 dark:text-white">Health Insurance Coverage</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Family floater policy</p>
               </div>
-              <p className="text-lg font-bold text-red-600">
+              <p className="text-lg font-bold text-red-600 dark:text-red-400">
                 {formatLargeNumber(
                   insurance
                     .filter(p => p.type === 'health')
@@ -292,14 +292,14 @@ const Insurance: React.FC = () => {
               </p>
             </div>
 
-            <div className="pt-3 border-t border-gray-200">
+            <div className="pt-3 border-t border-gray-200 dark:border-gray-600">
               <div className="flex justify-between items-center">
-                <span className="font-medium text-gray-900">Coverage to Income Ratio</span>
-                <span className="text-lg font-bold text-green-600">
+                <span className="font-medium text-gray-900 dark:text-white">Coverage to Income Ratio</span>
+                <span className="text-lg font-bold text-green-600 dark:text-green-400">
                   {(totalCover / (223857 * 12)).toFixed(1)}x
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Recommended: 10-15x annual income
               </p>
             </div>
@@ -307,31 +307,31 @@ const Insurance: React.FC = () => {
         </div>
 
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Premium Efficiency</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Premium Efficiency</h3>
           <div className="space-y-4">
             {insurance.map((policy) => {
               const efficiency = (policy.coverAmount / policy.premiumAmount).toFixed(0);
               return (
-                <div key={policy.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div key={policy.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 dark:bg-gray-700 rounded-lg">
                   <div>
-                    <p className="font-medium text-gray-900 dark:text-white">{policy.policyName}</p>
-                    <p className="text-sm text-gray-600">Cover per ₹1 premium</p>
+                    <p className="font-medium text-gray-900 dark:text-white dark:text-white">{policy.policyName}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">Cover per ₹1 premium</p>
                   </div>
-                  <p className="text-lg font-bold text-purple-600">
+                  <p className="text-lg font-bold text-purple-600 dark:text-purple-400">
                     ₹{efficiency}
                   </p>
                 </div>
               );
             })}
             
-            <div className="pt-3 border-t border-gray-200">
+            <div className="pt-3 border-t border-gray-200 dark:border-gray-600">
               <div className="flex justify-between items-center">
-                <span className="font-medium text-gray-900">Total Annual Premium</span>
-                <span className="text-lg font-bold text-red-600">
+                <span className="font-medium text-gray-900 dark:text-white">Total Annual Premium</span>
+                <span className="text-lg font-bold text-red-600 dark:text-red-400">
                   {formatCurrency(totalPremiums)}
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {((totalPremiums / (223857 * 12)) * 100).toFixed(1)}% of annual income
               </p>
             </div>

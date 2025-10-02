@@ -68,16 +68,16 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
   const getFileIcon = (fileName: string) => {
     if (fileName.toLowerCase().endsWith('.csv')) {
-      return <FileSpreadsheet className="w-8 h-8 text-green-600" />;
+      return <FileSpreadsheet className="w-8 h-8 text-green-600 dark:text-green-400" />;
     }
-    return <FileSpreadsheet className="w-8 h-8 text-blue-600" />;
+    return <FileSpreadsheet className="w-8 h-8 text-blue-600 dark:text-blue-400" />;
   };
 
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
-        <p className="text-sm text-gray-600">{description}</p>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{title}</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-300">{description}</p>
       </div>
 
       {!uploadedFile ? (
@@ -95,10 +95,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({
             <p className="text-primary-600 font-medium">Drop the file here...</p>
           ) : (
             <div>
-              <p className="text-gray-600 font-medium mb-2">
+              <p className="text-gray-600 dark:text-gray-300 font-medium mb-2">
                 Drag & drop a bank statement file here, or click to select
               </p>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 Supports Excel (.xlsx, .xls) and CSV files (max 10MB)
               </p>
             </div>
@@ -106,19 +106,19 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
+          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border">
             <div className="flex items-center">
               {getFileIcon(uploadedFile.name)}
               <div className="ml-3">
-                <p className="font-medium text-gray-900">{uploadedFile.name}</p>
-                <p className="text-sm text-gray-600">
+                <p className="font-medium text-gray-900 dark:text-white">{uploadedFile.name}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
                   {(uploadedFile.size / 1024).toFixed(1)} KB
                 </p>
               </div>
             </div>
             <button
               onClick={clearFile}
-              className="p-1 text-gray-400 hover:text-gray-600"
+              className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-300"
             >
               <X className="w-5 h-5" />
             </button>
@@ -126,27 +126,27 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
           {isParsing && (
             <div className="flex items-center justify-center p-4 bg-blue-50 rounded-lg">
-              <Loader2 className="w-5 h-5 text-blue-600 animate-spin mr-3" />
+              <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin mr-3" />
               <span className="text-blue-700">Parsing bank statement...</span>
             </div>
           )}
 
           {error && (
             <div className="flex items-start p-4 bg-red-50 border border-red-200 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-red-600 mr-3 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mr-3 mt-0.5" />
               <div>
                 <p className="text-red-700 font-medium">Parsing Failed</p>
-                <p className="text-red-600 text-sm">{error}</p>
+                <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
               </div>
             </div>
           )}
 
           {parseResult && (
             <div className="flex items-start p-4 bg-green-50 border border-green-200 rounded-lg">
-              <CheckCircle className="w-5 h-5 text-green-600 mr-3 mt-0.5" />
+              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mr-3 mt-0.5" />
               <div>
                 <p className="text-green-700 font-medium">Successfully Parsed!</p>
-                <p className="text-green-600 text-sm">
+                <p className="text-green-600 dark:text-green-400 text-sm">
                   Found {parseResult.length} transactions. Review and confirm to add them.
                 </p>
               </div>

@@ -181,7 +181,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
             Target Amount *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
             <input
               type="number"
               value={formData.targetAmount || ''}
@@ -200,7 +200,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
             Current Amount
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
             <input
               type="number"
               value={formData.currentAmount || ''}
@@ -233,7 +233,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
             Monthly SIP
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
             <input
               type="number"
               value={formData.monthlyContribution || ''}
@@ -254,7 +254,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
               <button
                 type="button"
                 onClick={useSuggestedSIP}
-                className="ml-2 text-blue-600 hover:text-blue-800 underline"
+                className="ml-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 underline"
               >
                 Use this
               </button>
@@ -277,16 +277,16 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
               max="50"
               step="0.1"
             />
-            <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500">%</span>
+            <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">%</span>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             Expected annual return from your investments (e.g., 12% for equity mutual funds)
           </p>
           {errors.expectedReturnRate && <p className="text-red-500 text-sm mt-1">{errors.expectedReturnRate}</p>}
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-3">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">
             Target Amount Type
           </label>
           <div className="space-y-3">
@@ -296,9 +296,9 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
                 name="inflationAdjusted"
                 checked={!formData.isInflationAdjusted}
                 onChange={() => handleChange('isInflationAdjusted', false)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                className="h-4 w-4 text-blue-600 dark:text-blue-400 focus:ring-blue-500 border-gray-300 dark:border-gray-500"
               />
-              <span className="ml-2 text-sm text-gray-700">
+              <span className="ml-2 text-sm text-gray-700 dark:text-gray-200">
                 <strong>Nominal Value</strong> - Today's purchasing power (₹{formatCurrency(formData.targetAmount)} in today's money)
               </span>
             </label>
@@ -308,14 +308,14 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
                 name="inflationAdjusted"
                 checked={formData.isInflationAdjusted}
                 onChange={() => handleChange('isInflationAdjusted', true)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                className="h-4 w-4 text-blue-600 dark:text-blue-400 focus:ring-blue-500 border-gray-300 dark:border-gray-500"
               />
-              <span className="ml-2 text-sm text-gray-700">
+              <span className="ml-2 text-sm text-gray-700 dark:text-gray-200">
                 <strong>Inflation-Adjusted</strong> - Future purchasing power (₹{formatCurrency(formData.targetAmount)} will have today's buying power)
               </span>
             </label>
           </div>
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
             Choose whether your target amount accounts for inflation. For long-term goals like retirement, 
             inflation-adjusted is recommended.
           </p>
@@ -324,11 +324,11 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
 
       {/* Progress Visualization */}
       {formData.targetAmount > 0 && (
-        <div className="bg-gray-50 rounded-lg p-4">
-          <h4 className="font-medium text-gray-900 mb-3">Goal Progress</h4>
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+          <h4 className="font-medium text-gray-900 dark:text-white mb-3">Goal Progress</h4>
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Progress</span>
+              <span className="text-gray-600 dark:text-gray-300">Progress</span>
               <span className="font-medium">{progress.toFixed(1)}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-3">
@@ -337,7 +337,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
                 style={{ width: `${Math.min(progress, 100)}%` }}
               ></div>
             </div>
-            <div className="flex justify-between text-xs text-gray-500">
+            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
               <span>{formatCurrency(formData.currentAmount)}</span>
               <span>Remaining: {formatCurrency(Math.max(0, formData.targetAmount - formData.currentAmount))}</span>
               <span>{formatCurrency(formData.targetAmount)}</span>
@@ -345,7 +345,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
           </div>
 
           {formData.targetDate && (
-            <div className="mt-3 text-sm text-gray-600">
+            <div className="mt-3 text-sm text-gray-600 dark:text-gray-300">
               <span>Target Date: {new Date(formData.targetDate).toLocaleDateString()}</span>
               <span className="ml-4">
                 Time Remaining: {Math.max(0, Math.ceil((new Date(formData.targetDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24 * 30)))} months
@@ -355,7 +355,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
         </div>
       )}
 
-      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-600">
         <button
           type="button"
           onClick={onCancel}

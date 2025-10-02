@@ -110,26 +110,26 @@ const Assets: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Assets Portfolio</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Overview of your investment portfolio and assets</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white dark:text-white">Assets Portfolio</h1>
+        <p className="text-gray-600 dark:text-gray-300 dark:text-gray-400 mt-1">Overview of your investment portfolio and assets</p>
       </div>
 
       {/* Portfolio Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="metric-card text-center">
-          <Wallet className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Total Assets</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatLargeNumber(totalAssets)}</p>
+          <Wallet className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Assets</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">{formatLargeNumber(totalAssets)}</p>
         </div>
         <div className="metric-card text-center">
-          <PieChart className="h-8 w-8 text-green-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Asset Categories</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{Object.keys(assetsByCategory).length}</p>
+          <PieChart className="h-8 w-8 text-green-600 dark:text-green-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Asset Categories</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">{Object.keys(assetsByCategory).length}</p>
         </div>
         <div className="metric-card text-center">
-          <TrendingUp className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Total Holdings</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{assets.length}</p>
+          <TrendingUp className="h-8 w-8 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Holdings</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">{assets.length}</p>
         </div>
       </div>
 
@@ -153,7 +153,7 @@ const Assets: React.FC = () => {
 
       {/* Asset Allocation Chart */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Asset Allocation</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white mb-4">Asset Allocation</h3>
         <div className="space-y-4">
           {categoryTotals.map(({ category, total, count }) => {
             const percentage = (total / totalAssets) * 100;
@@ -162,13 +162,13 @@ const Assets: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <div className="flex items-center">
                     <span className="text-xl mr-2">{getCategoryIcon(category)}</span>
-                    <span className="font-medium text-gray-900 dark:text-white capitalize">
+                    <span className="font-medium text-gray-900 dark:text-white dark:text-white capitalize">
                       {category.replace('_', ' ')} ({count} {count === 1 ? 'asset' : 'assets'})
                     </span>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-gray-900 dark:text-white">{formatLargeNumber(total)}</p>
-                    <p className="text-sm text-gray-600">{percentage.toFixed(1)}%</p>
+                    <p className="font-semibold text-gray-900 dark:text-white dark:text-white">{formatLargeNumber(total)}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">{percentage.toFixed(1)}%</p>
                   </div>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3">
@@ -191,17 +191,17 @@ const Assets: React.FC = () => {
               <div className="flex items-center">
                 <span className="text-2xl mr-3">{getCategoryIcon(category)}</span>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 capitalize">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white capitalize">
                     {category.replace('_', ' ')}
                   </h3>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
                     {assets.length} {assets.length === 1 ? 'asset' : 'assets'} • {formatLargeNumber(total)}
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-sm text-gray-600">Portfolio Weight</p>
-                <p className="text-lg font-semibold text-gray-900">
+                <p className="text-sm text-gray-600 dark:text-gray-300">Portfolio Weight</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
                   {((total / totalAssets) * 100).toFixed(1)}%
                 </p>
               </div>
@@ -209,21 +209,21 @@ const Assets: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {assets.map((asset) => (
-                <div key={asset.id} className="p-4 bg-white border border-gray-200 rounded-lg">
-                  <h4 className="font-medium text-gray-900 mb-2">{asset.name}</h4>
+                <div key={asset.id} className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg">
+                  <h4 className="font-medium text-gray-900 dark:text-white mb-2">{asset.name}</h4>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Current Value:</span>
+                      <span className="text-gray-600 dark:text-gray-300">Current Value:</span>
                       <span className="font-semibold">{formatLargeNumber(asset.currentValue)}</span>
                     </div>
                     {asset.purchaseValue && (
                       <>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Purchase Value:</span>
+                          <span className="text-gray-600 dark:text-gray-300">Purchase Value:</span>
                           <span>{formatLargeNumber(asset.purchaseValue)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Gain/Loss:</span>
+                          <span className="text-gray-600 dark:text-gray-300">Gain/Loss:</span>
                           <span className={asset.currentValue > asset.purchaseValue ? 'text-green-600' : 'text-red-600'}>
                             {asset.currentValue > asset.purchaseValue ? '+' : ''}
                             {formatLargeNumber(asset.currentValue - asset.purchaseValue)}
@@ -232,7 +232,7 @@ const Assets: React.FC = () => {
                       </>
                     )}
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Portfolio %:</span>
+                      <span className="text-gray-600 dark:text-gray-300">Portfolio %:</span>
                       <span className="font-medium">
                         {((asset.currentValue / totalAssets) * 100).toFixed(2)}%
                       </span>
@@ -243,14 +243,14 @@ const Assets: React.FC = () => {
                   <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-gray-100">
                     <button
                       onClick={() => handleEditAsset(asset)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors"
                       title="Edit Asset"
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDeleteAsset(asset.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
                       title="Delete Asset"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -265,36 +265,36 @@ const Assets: React.FC = () => {
 
       {/* Asset Performance Summary */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Portfolio Performance</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Portfolio Performance</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="text-center p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm text-gray-600">Largest Holding</p>
-            <p className="text-lg font-semibold text-gray-900">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Largest Holding</p>
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">
               {assets.length > 0 ? assets.reduce((max, asset) => 
                 asset.currentValue > max.currentValue ? asset : max
               ).name : 'N/A'}
             </p>
-            <p className="text-sm text-blue-600">
+            <p className="text-sm text-blue-600 dark:text-blue-400">
               {assets.length > 0 ? formatLargeNumber(Math.max(...assets.map(a => a.currentValue))) : '₹0'}
             </p>
           </div>
           <div className="text-center p-4 bg-green-50 rounded-lg">
-            <p className="text-sm text-gray-600">Diversification</p>
-            <p className="text-lg font-semibold text-gray-900">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Diversification</p>
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">
               {Object.keys(assetsByCategory).length} Categories
             </p>
-            <p className="text-sm text-green-600">Well Diversified</p>
+            <p className="text-sm text-green-600 dark:text-green-400">Well Diversified</p>
           </div>
           <div className="text-center p-4 bg-yellow-50 rounded-lg">
-            <p className="text-sm text-gray-600">Liquid Assets</p>
-            <p className="text-lg font-semibold text-gray-900">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Liquid Assets</p>
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">
               {formatLargeNumber(
                 assets
                   .filter(a => ['cash', 'stocks', 'mutual_funds'].includes(a.category))
                   .reduce((sum, a) => sum + a.currentValue, 0)
               )}
             </p>
-            <p className="text-sm text-yellow-600">
+            <p className="text-sm text-yellow-600 dark:text-yellow-400">
               {totalAssets > 0 ? (
                 (assets
                   .filter(a => ['cash', 'stocks', 'mutual_funds'].includes(a.category))
@@ -303,11 +303,11 @@ const Assets: React.FC = () => {
             </p>
           </div>
           <div className="text-center p-4 bg-purple-50 rounded-lg">
-            <p className="text-sm text-gray-600">Average Holding</p>
-            <p className="text-lg font-semibold text-gray-900">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Average Holding</p>
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">
               {assets.length > 0 ? formatLargeNumber(totalAssets / assets.length) : '₹0'}
             </p>
-            <p className="text-sm text-purple-600">Per Asset</p>
+            <p className="text-sm text-purple-600 dark:text-purple-400">Per Asset</p>
           </div>
         </div>
       </div>

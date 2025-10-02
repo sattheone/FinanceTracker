@@ -60,8 +60,8 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
-        <p className="text-sm text-gray-600">{description}</p>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{title}</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-300">{description}</p>
       </div>
 
       {!uploadedImage ? (
@@ -79,10 +79,10 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
             <p className="text-primary-600 font-medium">Drop the image here...</p>
           ) : (
             <div>
-              <p className="text-gray-600 font-medium mb-2">
+              <p className="text-gray-600 dark:text-gray-300 font-medium mb-2">
                 Drag & drop an image here, or click to select
               </p>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 Supports JPG, PNG, WebP (max 10MB)
               </p>
             </div>
@@ -94,7 +94,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
             <img
               src={uploadedImage}
               alt="Uploaded screenshot"
-              className="w-full max-h-64 object-contain rounded-lg border border-gray-200"
+              className="w-full max-h-64 object-contain rounded-lg border border-gray-200 dark:border-gray-600"
             />
             <button
               onClick={clearImage}
@@ -106,17 +106,17 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
 
           {isAnalyzing && (
             <div className="flex items-center justify-center p-4 bg-blue-50 rounded-lg">
-              <Loader2 className="w-5 h-5 text-blue-600 animate-spin mr-3" />
+              <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin mr-3" />
               <span className="text-blue-700">Analyzing image with AI...</span>
             </div>
           )}
 
           {error && (
             <div className="flex items-center p-4 bg-red-50 border border-red-200 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-red-600 mr-3" />
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mr-3" />
               <div>
                 <p className="text-red-700 font-medium">Analysis Failed</p>
-                <p className="text-red-600 text-sm">{error}</p>
+                <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
               </div>
             </div>
           )}
@@ -126,7 +126,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       {!hasApiKey && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <div className="flex items-start">
-            <Info className="w-5 h-5 text-yellow-600 mr-3 mt-0.5" />
+            <Info className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mr-3 mt-0.5" />
             <div>
               <h4 className="font-medium text-yellow-900 mb-2">🔑 API Key Required</h4>
               <p className="text-sm text-yellow-700 mb-2">

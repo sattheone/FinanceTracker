@@ -90,8 +90,8 @@ const GoalsStep: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Financial Goals</h2>
-        <p className="text-gray-600">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Financial Goals</h2>
+        <p className="text-gray-600 dark:text-gray-300">
           Set your financial goals and track your progress towards achieving them.
         </p>
       </div>
@@ -99,20 +99,20 @@ const GoalsStep: React.FC = () => {
       {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-gray-600">Total Goal Value</h3>
-          <p className="text-2xl font-bold text-green-600 mt-1">
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Goal Value</h3>
+          <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
             {formatCurrency(totalGoalValue)}
           </p>
         </div>
         <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-gray-600">Current Progress</h3>
-          <p className="text-2xl font-bold text-blue-600 mt-1">
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Current Progress</h3>
+          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
             {formatCurrency(totalCurrentValue)}
           </p>
         </div>
         <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-gray-600">Monthly SIP</h3>
-          <p className="text-2xl font-bold text-purple-600 mt-1">
+          <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Monthly SIP</h3>
+          <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
             {formatCurrency(totalMonthlySIP)}
           </p>
         </div>
@@ -140,11 +140,11 @@ const GoalsStep: React.FC = () => {
 
       {/* Add Goal Form */}
       {showAddForm && (
-        <div className="bg-gray-50 rounded-lg p-6 border-2 border-dashed border-gray-300">
-          <h4 className="font-medium text-gray-900 mb-4">Add New Goal</h4>
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border-2 border-dashed border-gray-300 dark:border-gray-500">
+          <h4 className="font-medium text-gray-900 dark:text-white mb-4">Add New Goal</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Goal Name
               </label>
               <input
@@ -156,7 +156,7 @@ const GoalsStep: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Category
               </label>
               <select
@@ -172,11 +172,11 @@ const GoalsStep: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Target Amount
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
                 <input
                   type="number"
                   value={newGoal.targetAmount || ''}
@@ -188,11 +188,11 @@ const GoalsStep: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Current Amount
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
                 <input
                   type="number"
                   value={newGoal.currentAmount || ''}
@@ -204,7 +204,7 @@ const GoalsStep: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Target Date
               </label>
               <input
@@ -216,11 +216,11 @@ const GoalsStep: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Monthly SIP
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
                 <input
                   type="number"
                   value={newGoal.monthlyContribution || ''}
@@ -231,7 +231,7 @@ const GoalsStep: React.FC = () => {
                 />
               </div>
               {newGoal.targetAmount > 0 && newGoal.targetDate && (
-                <p className="text-xs text-blue-600 mt-1">
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                   Suggested SIP: {formatCurrency(calculateRequiredSIP(newGoal.targetAmount, newGoal.currentAmount, newGoal.targetDate))}
                 </p>
               )}
@@ -254,10 +254,10 @@ const GoalsStep: React.FC = () => {
       {/* Goals List */}
       <div className="space-y-4">
         {goals.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <Target className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No goals set yet</h3>
-            <p className="text-gray-600 mb-4">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No goals set yet</h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
               Start by setting your financial goals to create a roadmap for your future.
             </p>
             <button
@@ -274,39 +274,39 @@ const GoalsStep: React.FC = () => {
             const remainingAmount = goal.targetAmount - goal.currentAmount;
             
             return (
-              <div key={goal.id} className="bg-white border border-gray-200 rounded-lg p-4">
+              <div key={goal.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center mb-3">
                       <span className="text-2xl mr-3">{category?.icon}</span>
                       <div>
-                        <h4 className="font-medium text-gray-900">{goal.name}</h4>
-                        <p className="text-sm text-gray-600">{category?.label} Goal</p>
+                        <h4 className="font-medium text-gray-900 dark:text-white">{goal.name}</h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">{category?.label} Goal</p>
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-3">
                       <div>
-                        <p className="text-gray-600">Target Amount</p>
-                        <p className="font-semibold text-gray-900">
+                        <p className="text-gray-600 dark:text-gray-300">Target Amount</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">
                           {formatCurrency(goal.targetAmount)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-gray-600">Current Amount</p>
-                        <p className="font-semibold text-gray-900">
+                        <p className="text-gray-600 dark:text-gray-300">Current Amount</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">
                           {formatCurrency(goal.currentAmount)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-gray-600">Monthly SIP</p>
-                        <p className="font-semibold text-gray-900">
+                        <p className="text-gray-600 dark:text-gray-300">Monthly SIP</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">
                           {formatCurrency(goal.monthlyContribution)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-gray-600">Target Date</p>
-                        <p className="font-semibold text-gray-900">
+                        <p className="text-gray-600 dark:text-gray-300">Target Date</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">
                           {new Date(goal.targetDate).toLocaleDateString()}
                         </p>
                       </div>
@@ -315,7 +315,7 @@ const GoalsStep: React.FC = () => {
                     {/* Progress Bar */}
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Progress</span>
+                        <span className="text-gray-600 dark:text-gray-300">Progress</span>
                         <span className="font-medium">{progress.toFixed(1)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
@@ -324,7 +324,7 @@ const GoalsStep: React.FC = () => {
                           style={{ width: `${Math.min(progress, 100)}%` }}
                         ></div>
                       </div>
-                      <div className="flex justify-between text-xs text-gray-500">
+                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                         <span>₹0</span>
                         <span>Remaining: {formatCurrency(remainingAmount)}</span>
                         <span>{formatCurrency(goal.targetAmount)}</span>
@@ -334,7 +334,7 @@ const GoalsStep: React.FC = () => {
                   
                   <button
                     onClick={() => deleteGoal(goal.id)}
-                    className="text-red-600 hover:bg-red-50 p-2 rounded-lg ml-4"
+                    className="text-red-600 dark:text-red-400 hover:bg-red-50 p-2 rounded-lg ml-4"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

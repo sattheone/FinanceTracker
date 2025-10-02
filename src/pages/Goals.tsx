@@ -71,28 +71,28 @@ const Goals: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Financial Goals</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Track progress towards your financial objectives</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white dark:text-white">Financial Goals</h1>
+        <p className="text-gray-600 dark:text-gray-300 dark:text-gray-400 mt-1">Track progress towards your financial objectives</p>
       </div>
 
       {/* Goals Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="metric-card text-center">
-          <Target className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Total Goals</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{goals.length}</p>
+          <Target className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Goals</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">{goals.length}</p>
         </div>
         <div className="metric-card text-center">
-          <TrendingUp className="h-8 w-8 text-green-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Total Target</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+          <TrendingUp className="h-8 w-8 text-green-600 dark:text-green-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Target</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">
             {formatLargeNumber(goals.reduce((sum, goal) => sum + goal.targetAmount, 0))}
           </p>
         </div>
         <div className="metric-card text-center">
-          <DollarSign className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600">Monthly Investment</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+          <DollarSign className="h-8 w-8 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Monthly Investment</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">
             {formatCurrency(goals.reduce((sum, goal) => sum + goal.monthlyContribution, 0))}
           </p>
         </div>
@@ -100,7 +100,7 @@ const Goals: React.FC = () => {
 
       {/* Quick Actions */}
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Financial Goals</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">Your Financial Goals</h3>
         <button
           onClick={handleAddGoal}
           className="btn-primary flex items-center"
@@ -125,33 +125,33 @@ const Goals: React.FC = () => {
                   <div className="flex items-center mb-2">
                     <span className="text-2xl mr-3">{getCategoryIcon(goal.category)}</span>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{goal.name}</h3>
-                      <p className="text-sm text-gray-600 capitalize">{goal.category} Goal</p>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{goal.name}</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-300 capitalize">{goal.category} Goal</p>
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Target Amount</p>
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Target Amount</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
                         {formatLargeNumber(goal.targetAmount)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Current Amount</p>
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Current Amount</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
                         {formatLargeNumber(goal.currentAmount)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Monthly SIP</p>
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Monthly SIP</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
                         {formatCurrency(goal.monthlyContribution)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Time Remaining</p>
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Time Remaining</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
                         {yearsRemaining > 0 && `${yearsRemaining}y `}
                         {remainingMonths}m
                       </p>
@@ -161,7 +161,7 @@ const Goals: React.FC = () => {
                   {/* Progress Bar */}
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Progress</span>
+                      <span className="text-gray-600 dark:text-gray-300">Progress</span>
                       <span className="font-medium">{progress.toFixed(1)}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-3">
@@ -170,7 +170,7 @@ const Goals: React.FC = () => {
                         style={{ width: `${Math.min(progress, 100)}%` }}
                       ></div>
                     </div>
-                    <div className="flex justify-between text-xs text-gray-500">
+                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                       <span>₹0</span>
                       <span>{formatLargeNumber(goal.targetAmount)}</span>
                     </div>
@@ -178,7 +178,7 @@ const Goals: React.FC = () => {
 
                   {/* Target Date */}
                   <div className="mt-4 flex items-center justify-between">
-                    <div className="flex items-center text-sm text-gray-600">
+                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
                       <Calendar className="h-4 w-4 mr-2" />
                       Target Date: {formatDate(goal.targetDate)}
                     </div>
@@ -187,14 +187,14 @@ const Goals: React.FC = () => {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleEditGoal(goal)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors"
                         title="Edit Goal"
                       >
                         <Edit3 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteGoal(goal.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
                         title="Delete Goal"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -210,7 +210,7 @@ const Goals: React.FC = () => {
 
       {/* Goal Categories Summary */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Goals by Category</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Goals by Category</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {['retirement', 'education', 'marriage'].map((category) => {
             const categoryGoals = goals.filter(g => g.category === category);
@@ -222,30 +222,30 @@ const Goals: React.FC = () => {
               : 0;
 
             return (
-              <div key={category} className="p-4 border border-gray-200 rounded-lg">
+              <div key={category} className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
                 <div className="flex items-center mb-3">
                   <span className="text-xl mr-2">{getCategoryIcon(category)}</span>
-                  <h4 className="font-medium text-gray-900 capitalize">{category}</h4>
+                  <h4 className="font-medium text-gray-900 dark:text-white capitalize">{category}</h4>
                 </div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Goals:</span>
+                    <span className="text-gray-600 dark:text-gray-300">Goals:</span>
                     <span className="font-medium">{categoryGoals.length}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Target:</span>
+                    <span className="text-gray-600 dark:text-gray-300">Target:</span>
                     <span className="font-medium">{formatLargeNumber(totalTarget)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Current:</span>
+                    <span className="text-gray-600 dark:text-gray-300">Current:</span>
                     <span className="font-medium">{formatLargeNumber(totalCurrent)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Monthly:</span>
+                    <span className="text-gray-600 dark:text-gray-300">Monthly:</span>
                     <span className="font-medium">{formatCurrency(totalMonthly)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Avg Progress:</span>
+                    <span className="text-gray-600 dark:text-gray-300">Avg Progress:</span>
                     <span className="font-medium">{avgProgress.toFixed(1)}%</span>
                   </div>
                 </div>
