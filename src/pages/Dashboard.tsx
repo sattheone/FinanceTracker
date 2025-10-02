@@ -90,7 +90,7 @@ const Dashboard: React.FC = () => {
       <header>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Financial Dashboard</h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
-          Overview of Satheesh & Family's financial health
+          Overview of your financial health
         </p>
       </header>
 
@@ -206,7 +206,7 @@ const Dashboard: React.FC = () => {
         {/* Top Expense Categories */}
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               Top Expense Categories
             </h3>
             <button
@@ -259,7 +259,7 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               Asset Allocation
             </h3>
             <button
@@ -300,7 +300,7 @@ const Dashboard: React.FC = () => {
 
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-lg font-semibent text-gray-900 dark:text-white">
               Liabilities Overview
             </h3>
             <button
@@ -370,7 +370,7 @@ const Dashboard: React.FC = () => {
       {/* Goals Progress */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             Financial Goals Progress
           </h3>
           <button
@@ -406,7 +406,7 @@ const Dashboard: React.FC = () => {
                 case 'retirement': return 'border-purple-200 bg-purple-50';
                 case 'education': return 'border-blue-200 bg-blue-50';
                 case 'marriage': return 'border-pink-200 bg-pink-50';
-                default: return 'border-gray-200 bg-gray-50';
+                default: return 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700';
               }
             };
             
@@ -440,7 +440,7 @@ const Dashboard: React.FC = () => {
                       <span className="text-2xl mr-3">{getCategoryIcon(goal.category)}</span>
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold text-gray-900">{goal.name}</h3>
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{goal.name}</h3>
                           <span className={`px-2 py-1 text-xs rounded-full ${
                             isOnTrack ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                           }`}>
@@ -460,25 +460,25 @@ const Dashboard: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                       <div>
                         <p className="text-xs text-gray-500 uppercase tracking-wide">Target Amount</p>
-                        <p className="text-lg font-semibold text-gray-900">
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
                           {formatLargeNumber(goal.targetAmount)}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500 uppercase tracking-wide">Current Amount</p>
-                        <p className="text-lg font-semibold text-gray-900">
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
                           {formatLargeNumber(goal.currentAmount)}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500 uppercase tracking-wide">Monthly SIP</p>
-                        <p className="text-lg font-semibold text-gray-900">
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
                           {formatCurrency(goal.monthlyContribution)}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500 uppercase tracking-wide">Time Remaining</p>
-                        <p className="text-lg font-semibold text-gray-900">
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
                           {yearsUntilTarget > 0 && `${yearsUntilTarget}y `}
                           {remainingMonths}m
                         </p>
@@ -530,13 +530,13 @@ const Dashboard: React.FC = () => {
                         <>
                           <div>
                             <span className="text-gray-600">Current Age:</span>
-                            <span className="ml-2 font-medium text-gray-900">
+                            <span className="ml-2 font-medium text-gray-900 dark:text-white">
                               {userProfile.financialInfo.currentAge} years
                             </span>
                           </div>
                           <div>
                             <span className="text-gray-600">Target Retirement Age:</span>
-                            <span className="ml-2 font-medium text-gray-900">
+                            <span className="ml-2 font-medium text-gray-900 dark:text-white">
                               {userProfile.financialInfo.retirementAge} years
                             </span>
                           </div>
@@ -596,7 +596,7 @@ const Dashboard: React.FC = () => {
           )}
           
           {goals.length > 3 && (
-            <div className="text-center pt-4 border-t border-gray-200">
+            <div className="text-center pt-4 border-t border-gray-200 dark:border-gray-600">
               <button
                 onClick={() => navigate('/goals')}
                 className="text-blue-600 hover:text-blue-800 text-sm font-medium"
@@ -610,7 +610,7 @@ const Dashboard: React.FC = () => {
 
       {/* Upcoming Events */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
           <Calendar className="h-5 w-5 mr-2" />
           Upcoming Financial Events
         </h3>
@@ -621,7 +621,7 @@ const Dashboard: React.FC = () => {
                 <div className="flex items-center">
                   <AlertCircle className="h-4 w-4 text-blue-500 mr-3" />
                   <div>
-                    <p className="font-medium text-gray-900">{event.event}</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{event.event}</p>
                     <p className="text-sm text-gray-600">
                       {new Date(event.date).toLocaleDateString('en-US', { 
                         year: 'numeric', 

@@ -77,8 +77,8 @@ const Insurance: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Insurance Portfolio</h1>
-        <p className="text-gray-600 mt-1">Comprehensive protection and policy management</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Insurance Portfolio</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Comprehensive protection and policy management</p>
       </div>
 
       {/* Insurance Summary */}
@@ -86,12 +86,12 @@ const Insurance: React.FC = () => {
         <div className="metric-card text-center">
           <Shield className="h-8 w-8 text-blue-600 mx-auto mb-2" />
           <p className="text-sm font-medium text-gray-600">Total Cover</p>
-          <p className="text-2xl font-bold text-gray-900">{formatLargeNumber(totalCover)}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatLargeNumber(totalCover)}</p>
         </div>
         <div className="metric-card text-center">
           <Calendar className="h-8 w-8 text-green-600 mx-auto mb-2" />
           <p className="text-sm font-medium text-gray-600">Annual Premiums</p>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalPremiums)}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(totalPremiums)}</p>
         </div>
         <div className="metric-card text-center">
           <User className="h-8 w-8 text-purple-600 mx-auto mb-2" />

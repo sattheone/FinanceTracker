@@ -1,6 +1,6 @@
-# Personal Finance Tracker - Satheesh & Family
+# Personal Finance Tracker
 
-A comprehensive personal finance tracking application built specifically for Satheesh's financial planning needs. This app provides detailed tracking, analysis, and forecasting capabilities for managing complex financial portfolios including assets, goals, insurance policies, and retirement planning.
+A comprehensive personal finance tracking application built for managing complex financial portfolios including assets, goals, insurance policies, and retirement planning. This application provides detailed tracking, analysis, and forecasting capabilities for personal financial management.
 
 ## Features
 
@@ -34,8 +34,8 @@ A comprehensive personal finance tracking application built specifically for Sat
 - Liquid vs illiquid asset breakdown
 
 ### 🎯 Financial Goals
-- Retirement planning (Target: Age 50)
-- Children's education goals (Vidhuna & Aadhya)
+- Retirement planning (customizable target age)
+- Children's education goals
 - Marriage planning
 - Progress tracking with visual indicators
 - Monthly SIP calculations
@@ -44,7 +44,7 @@ A comprehensive personal finance tracking application built specifically for Sat
 ### 🛡️ Insurance Management
 - Life insurance portfolio (Term + Endowment)
 - Health insurance tracking
-- 25 LIC policies maturity schedule (2036-2060)
+- LIC policies maturity schedule
 - Premium efficiency analysis
 - Coverage adequacy assessment
 - Post-retirement income planning
@@ -108,49 +108,62 @@ A comprehensive personal finance tracking application built specifically for Sat
    npm run preview
    ```
 
-## Data Structure
+## Getting Started
 
-The application uses the following key data structures:
+### First Time Setup
+1. **Sign Up**: Create your account with email and password
+2. **Complete Onboarding**: Follow the guided setup wizard to:
+   - Add personal and family information
+   - Set up bank accounts
+   - Define financial goals
+   - Add existing assets and liabilities
+   - Configure insurance policies
+3. **Start Tracking**: Begin adding transactions and monitoring your financial progress
 
-### Assets
-- Provident Fund: ₹30L
-- Mutual Funds: ₹33.19L (Vidhuna: ₹22.69L, Aadhya: ₹10.5L)
-- Stocks: ₹17.83L
-- Gold: ₹14.8L (20 sovereigns)
-- Fixed Deposit: ₹10L
-- Cash: ₹7L
-- Other: ₹6L (Loan to friend)
+### Data Structure
 
-### Monthly Cash Flow
-- **Income**: ₹2,30,857 (Salary + Interest)
-- **Expenses**: 
-  - Household: ₹35,000
-  - Insurance: ₹16,852
-  - Loans: ₹19,355
-  - Investments: ₹47,876
-  - Chit Fund: ₹1,04,167
-- **Surplus**: ₹7,607
+The application allows you to manage:
 
-### Financial Goals
-1. **Retirement**: ₹6.35Cr by age 50
-2. **Vidhuna's Education**: ₹32.58L by 2035
-3. **Vidhuna's Marriage**: ₹59.82L by 2042
-4. **Aadhya's Education**: ₹43.66L by 2041
-5. **Aadhya's Marriage**: ₹80.17L by 2048
+#### Assets
+- Provident Fund and retirement accounts
+- Mutual Funds and SIP investments
+- Stock portfolios
+- Gold and precious metals
+- Fixed Deposits and savings
+- Real estate properties
+- Other investments
 
-### Insurance Coverage
-- **Term Life**: ₹1.5Cr cover
-- **Health**: ₹5L family floater
-- **LIC Policies**: 25 policies maturing 2036-2060 (Total: ₹85L+)
+#### Liabilities
+- Home loans and mortgages
+- Personal loans
+- Car loans
+- Credit card debt
+- Education loans
+- Business loans
 
-## Key Financial Metrics
+#### Financial Goals
+- Retirement planning
+- Children's education
+- Marriage expenses
+- Emergency fund
+- Custom financial objectives
 
-- **Net Worth**: ₹1.24Cr (as of Sep 2025)
-- **Monthly Savings Rate**: 69.2%
-- **Retirement Progress**: 19.5%
-- **Investment Allocation**: 42.1%
-- **Debt-to-Income**: 1.5% (Excellent)
-- **Emergency Fund**: 3.3x monthly expenses
+#### Insurance Coverage
+- Term life insurance
+- Health insurance policies
+- Endowment policies
+- Vehicle insurance
+- Property insurance
+
+## Key Features
+
+The application provides comprehensive financial tracking:
+- **Net Worth Calculation**: Assets minus liabilities
+- **Cash Flow Analysis**: Income vs expenses tracking
+- **Goal Progress Monitoring**: Visual progress indicators
+- **Investment Allocation**: Portfolio diversification analysis
+- **Debt Management**: EMI tracking and payoff schedules
+- **Insurance Portfolio**: Coverage adequacy assessment
 
 ## AI Features & Pricing
 
@@ -182,10 +195,27 @@ The application uses the following key data structures:
 - [ ] Voice-based transaction entry
 - [ ] OCR for physical document scanning
 
+## Data Privacy & Security
+
+⚠️ **Important**: This application contains demo/sample financial data for demonstration purposes only.
+
+### Privacy Guidelines
+- All personal names, amounts, and financial details in the demo data are fictional
+- Before deploying or sharing this code, ensure all personal information is removed
+- Use placeholder data for public repositories
+- Keep actual financial data in private, secure environments
+
+### Recommended Practices
+1. **Never commit real financial data** to version control
+2. **Use environment variables** for sensitive configuration
+3. **Implement proper authentication** for production use
+4. **Regular security audits** of the codebase
+5. **Backup strategies** for important financial data
+
 ## License
 
-This project is created specifically for Satheesh & Family's personal financial management.
+This project is open source and available under the MIT License.
 
 ---
 
-**Note**: This application contains sample financial data based on the provided financial plan. All amounts and projections are for demonstration purposes and should be updated with real-time data for actual use.
+**Note**: This application contains sample financial data for demonstration purposes. All amounts and projections should be replaced with real data for actual use. Ensure proper data privacy and security measures when handling real financial information.

@@ -31,7 +31,7 @@ const Liabilities: React.FC = () => {
       case 'credit_card': return 'border-red-200 bg-red-50';
       case 'education_loan': return 'border-purple-200 bg-purple-50';
       case 'business_loan': return 'border-indigo-200 bg-indigo-50';
-      default: return 'border-gray-200 bg-gray-50';
+      default: return 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700';
     }
   };
 
@@ -172,7 +172,7 @@ const Liabilities: React.FC = () => {
                     <span className="text-2xl mr-3">{getLiabilityIcon(liability.type)}</span>
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-gray-900">{liability.name}</h3>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{liability.name}</h3>
                         {isEMIDueSoon && (
                           <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800">
                             EMI Due Soon
@@ -192,7 +192,7 @@ const Liabilities: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wide">Principal Amount</p>
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
                         {formatLargeNumber(liability.principalAmount)}
                       </p>
                     </div>
@@ -210,7 +210,7 @@ const Liabilities: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wide">Remaining Tenure</p>
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
                         {remainingYears > 0 && `${remainingYears}y `}
                         {remainingMonthsOnly}m
                       </p>
@@ -245,7 +245,7 @@ const Liabilities: React.FC = () => {
                     </div>
                     <div>
                       <span className="text-gray-600">Loan End Date:</span>
-                      <span className="ml-2 font-medium text-gray-900">
+                      <span className="ml-2 font-medium text-gray-900 dark:text-white">
                         {formatDate(liability.endDate)}
                       </span>
                     </div>
@@ -295,7 +295,7 @@ const Liabilities: React.FC = () => {
             <div className="text-gray-400 mb-4">
               <CreditCard className="h-16 w-16 mx-auto" />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No liabilities added yet</h3>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No liabilities added yet</h3>
             <p className="text-gray-500 mb-4">
               Start by adding your loans, EMIs, and other debt obligations to track your financial health.
             </p>
@@ -312,7 +312,7 @@ const Liabilities: React.FC = () => {
       {/* Liability Summary by Type */}
       {liabilities.length > 0 && (
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Liabilities by Type</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Liabilities by Type</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {['home_loan', 'personal_loan', 'car_loan', 'credit_card', 'education_loan', 'business_loan'].map((type) => {
               const typeLiabilities = liabilities.filter(l => l.type === type);
@@ -324,10 +324,10 @@ const Liabilities: React.FC = () => {
               const typeProgress = typePrincipal > 0 ? ((typePrincipal - typeOutstanding) / typePrincipal * 100) : 0;
 
               return (
-                <div key={type} className="p-4 border border-gray-200 rounded-lg">
+                <div key={type} className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
                   <div className="flex items-center mb-3">
                     <span className="text-xl mr-2">{getLiabilityIcon(type)}</span>
-                    <h4 className="font-medium text-gray-900 capitalize">{type.replace('_', ' ')}</h4>
+                    <h4 className="font-medium text-gray-900 dark:text-white capitalize">{type.replace('_', ' ')}</h4>
                   </div>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
