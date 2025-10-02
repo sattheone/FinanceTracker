@@ -1,0 +1,51 @@
+
+> personal-finance-tracker@1.0.0 dev
+> vite
+
+Port 3000 is in use, trying another one...
+Port 3001 is in use, trying another one...
+(node:11678) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/satheeshs-1136/FinancialPlan/postcss.config.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/satheeshs-1136/FinancialPlan/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+  VITE v4.5.14  ready in 557 ms
+
+  ➜  Local:   http://localhost:3002/
+  ➜  Network: use --host to expose
+5:28:07 PM [vite] hmr update /src/pages/Assets.tsx, /src/index.css, /src/pages/Transactions.tsx, /src/components/common/AIStatusIndicator.tsx
+Transform failed with 1 error:
+/Users/satheeshs-1136/FinancialPlan/src/services/aiService.ts:264:32: ERROR: Unexpected "."
+Transform failed with 1 error:
+/Users/satheeshs-1136/FinancialPlan/src/services/aiService.ts:264:32: ERROR: Unexpected "."
+5:28:07 PM [vite] Internal server error: Transform failed with 1 error:
+/Users/satheeshs-1136/FinancialPlan/src/services/aiService.ts:264:32: ERROR: Unexpected "."
+  Plugin: vite:esbuild
+  File: /Users/satheeshs-1136/FinancialPlan/src/services/aiService.ts:264:32
+  
+  Unexpected "."
+  262|      const base64EncodedDataPromise = new Promise<string>((resolve) => {
+  263|        const reader = new FileReader();
+  264|        reader.onloadend = () => {.
+     |                                  ^
+  265|          const base64String = (reader.result as string).split(',')[1];
+  266|          resolve(base64String);
+  
+      at failureErrorWithLog (/Users/satheeshs-1136/FinancialPlan/node_modules/esbuild/lib/main.js:1649:15)
+      at /Users/satheeshs-1136/FinancialPlan/node_modules/esbuild/lib/main.js:847:29
+      at responseCallbacks.<computed> (/Users/satheeshs-1136/FinancialPlan/node_modules/esbuild/lib/main.js:703:9)
+      at handleIncomingPacket (/Users/satheeshs-1136/FinancialPlan/node_modules/esbuild/lib/main.js:762:9)
+      at Socket.readFromStdout (/Users/satheeshs-1136/FinancialPlan/node_modules/esbuild/lib/main.js:679:7)
+      at Socket.emit (node:events:507:28)
+      at addChunk (node:internal/streams/readable:559:12)
+      at readableAddChunkPushByteMode (node:internal/streams/readable:510:3)
+      at Readable.push (node:internal/streams/readable:390:5)
+      at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+5:28:54 PM [vite] hmr update /src/components/common/AIStatusIndicator.tsx, /src/index.css
+5:29:07 PM [vite] hmr update /src/components/common/AIStatusIndicator.tsx, /src/index.css
+5:29:23 PM [vite] hmr update /src/pages/Assets.tsx, /src/index.css
+Transform failed with 1 error:
+/Users/satheeshs-1136/FinancialPlan/src/services/aiService.ts:264:32: ERROR: Unexpected "."
+5:29:43 PM [vite] hmr update /src/pages/Transactions.tsx, /src/index.css
+Transform failed with 1 error:
+/Users/satheeshs-1136/FinancialPlan/src/services/aiService.ts:264:32: ERROR: Unexpected "."

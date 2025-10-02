@@ -1,0 +1,324 @@
+import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction } from '../types';
+
+export const createDemoAccount = () => {
+  // Create demo user
+  const demoUser = {
+    id: 'demo-user-1',
+    email: 'demo@example.com',
+    password: 'demo123',
+    name: 'Satheesh Kumar',
+    dateOfBirth: '1985-06-01',
+    createdAt: new Date().toISOString(),
+    onboardingCompleted: true,
+  };
+
+  // Demo user profile
+  const demoUserProfile = {
+    personalInfo: {
+      name: 'Satheesh Kumar',
+      email: 'demo@example.com',
+      dateOfBirth: '1985-06-01',
+      spouseName: 'Sowmiya',
+      spouseDateOfBirth: '1988-03-15',
+      children: [
+        { name: 'Vidhuna', dateOfBirth: '2017-08-06' },
+        { name: 'Aadhya', dateOfBirth: '2023-06-17' },
+      ],
+    },
+    financialInfo: {
+      monthlyIncome: 230857,
+      monthlyExpenses: 35000,
+      retirementAge: 50,
+      currentAge: 40,
+    },
+    onboardingStep: 6,
+  };
+
+  // Demo assets
+  const demoAssets: Asset[] = [
+    {
+      id: '1',
+      name: 'Provident Fund (PF)',
+      category: 'other',
+      currentValue: 3000000,
+    },
+    {
+      id: '2',
+      name: 'Mutual Fund 1 (Vidhuna)',
+      category: 'mutual_funds',
+      currentValue: 2269000,
+      purchaseValue: 1800000,
+      purchaseDate: '2020-01-01',
+    },
+    {
+      id: '3',
+      name: 'Stocks Portfolio',
+      category: 'stocks',
+      currentValue: 1783000,
+      purchaseValue: 1500000,
+      purchaseDate: '2019-06-01',
+    },
+    {
+      id: '4',
+      name: 'Gold (20 sovereigns)',
+      category: 'gold',
+      currentValue: 1480000,
+      purchaseValue: 1200000,
+      purchaseDate: '2018-01-01',
+    },
+    {
+      id: '5',
+      name: 'Fixed Deposit',
+      category: 'fixed_deposit',
+      currentValue: 1000000,
+      purchaseValue: 1000000,
+      purchaseDate: '2022-01-01',
+    },
+    {
+      id: '6',
+      name: 'Mutual Fund 2 (Aadhya)',
+      category: 'mutual_funds',
+      currentValue: 1050000,
+      purchaseValue: 800000,
+      purchaseDate: '2023-01-01',
+    },
+    {
+      id: '7',
+      name: 'Bank Account',
+      category: 'cash',
+      currentValue: 700000,
+    },
+    {
+      id: '8',
+      name: 'Loan to Friend',
+      category: 'other',
+      currentValue: 600000,
+    },
+  ];
+
+  // Demo insurance
+  const demoInsurance: Insurance[] = [
+    {
+      id: '1',
+      type: 'term',
+      policyName: 'Term Life Insurance',
+      coverAmount: 15000000,
+      premiumAmount: 34517,
+      premiumFrequency: 'yearly',
+    },
+    {
+      id: '2',
+      type: 'endowment',
+      policyName: 'Wife\'s Jeevan Labh Policy',
+      coverAmount: 1577000,
+      premiumAmount: 63851,
+      premiumFrequency: 'yearly',
+      maturityDate: '2038-08-01',
+      maturityAmount: 1577000,
+    },
+    {
+      id: '3',
+      type: 'health',
+      policyName: 'Star Health Family Floater',
+      coverAmount: 500000,
+      premiumAmount: 21000,
+      premiumFrequency: 'yearly',
+    },
+  ];
+
+  // Demo goals
+  const demoGoals: Goal[] = [
+    {
+      id: '1',
+      name: 'Retirement at 50',
+      targetAmount: 63500000,
+      currentAmount: 12386306,
+      targetDate: '2035-06-01',
+      monthlyContribution: 39400,
+      category: 'retirement',
+      expectedReturnRate: 12,
+      isInflationAdjusted: true,
+    },
+    {
+      id: '2',
+      name: 'Vidhuna\'s Education',
+      targetAmount: 3257780,
+      currentAmount: 2269000,
+      targetDate: '2035-08-06',
+      monthlyContribution: 16256,
+      category: 'education',
+      expectedReturnRate: 10,
+      isInflationAdjusted: true,
+    },
+    {
+      id: '3',
+      name: 'Vidhuna\'s Marriage',
+      targetAmount: 5982120,
+      currentAmount: 0,
+      targetDate: '2042-08-06',
+      monthlyContribution: 11770,
+      category: 'marriage',
+      expectedReturnRate: 8,
+      isInflationAdjusted: true,
+    },
+    {
+      id: '4',
+      name: 'Aadhya\'s Education',
+      targetAmount: 4365740,
+      currentAmount: 1050000,
+      targetDate: '2041-06-17',
+      monthlyContribution: 9636,
+      category: 'education',
+      expectedReturnRate: 10,
+      isInflationAdjusted: true,
+    },
+    {
+      id: '5',
+      name: 'Aadhya\'s Marriage',
+      targetAmount: 8016615,
+      currentAmount: 0,
+      targetDate: '2048-06-17',
+      monthlyContribution: 8040,
+      category: 'marriage',
+      expectedReturnRate: 8,
+      isInflationAdjusted: true,
+    },
+  ];
+
+  // Demo LIC policies
+  const demoLicPolicies: LICPolicy[] = [
+    { id: '1', policyNumber: 'LIC001', maturityYear: 2036, maturityAmount: 310800 },
+    { id: '2', policyNumber: 'LIC002', maturityYear: 2037, maturityAmount: 306250 },
+    { id: '3', policyNumber: 'LIC003', maturityYear: 2038, maturityAmount: 301250 },
+    { id: '4', policyNumber: 'LIC004', maturityYear: 2039, maturityAmount: 295800 },
+    { id: '5', policyNumber: 'LIC005', maturityYear: 2040, maturityAmount: 301200 },
+    { id: '6', policyNumber: 'LIC006', maturityYear: 2041, maturityAmount: 295075 },
+    { id: '7', policyNumber: 'LIC007', maturityYear: 2042, maturityAmount: 300250 },
+    { id: '8', policyNumber: 'LIC008', maturityYear: 2043, maturityAmount: 293450 },
+    { id: '9', policyNumber: 'LIC009', maturityYear: 2044, maturityAmount: 286200 },
+    { id: '10', policyNumber: 'LIC010', maturityYear: 2045, maturityAmount: 278500 },
+    { id: '11', policyNumber: 'LIC011', maturityYear: 2046, maturityAmount: 283000 },
+    { id: '12', policyNumber: 'LIC012', maturityYear: 2047, maturityAmount: 287500 },
+    { id: '13', policyNumber: 'LIC013', maturityYear: 2048, maturityAmount: 292000 },
+    { id: '14', policyNumber: 'LIC014', maturityYear: 2049, maturityAmount: 296500 },
+    { id: '15', policyNumber: 'LIC015', maturityYear: 2050, maturityAmount: 301000 },
+    { id: '16', policyNumber: 'LIC016', maturityYear: 2051, maturityAmount: 305500 },
+    { id: '17', policyNumber: 'LIC017', maturityYear: 2052, maturityAmount: 310000 },
+    { id: '18', policyNumber: 'LIC018', maturityYear: 2053, maturityAmount: 314500 },
+    { id: '19', policyNumber: 'LIC019', maturityYear: 2054, maturityAmount: 319000 },
+    { id: '20', policyNumber: 'LIC020', maturityYear: 2055, maturityAmount: 338175 },
+    { id: '21', policyNumber: 'LIC021', maturityYear: 2056, maturityAmount: 357800 },
+    { id: '22', policyNumber: 'LIC022', maturityYear: 2057, maturityAmount: 377875 },
+    { id: '23', policyNumber: 'LIC023', maturityYear: 2058, maturityAmount: 398400 },
+    { id: '24', policyNumber: 'LIC024', maturityYear: 2059, maturityAmount: 403800 },
+    { id: '25', policyNumber: 'LIC025', maturityYear: 2060, maturityAmount: 425000 },
+  ];
+
+  // Demo monthly budget
+  const demoMonthlyBudget: MonthlyBudget = {
+    income: 230857,
+    expenses: {
+      household: 35000,
+      insurance: 16852,
+      loans: 19355,
+      investments: 47876,
+      other: 104167, // Chit fund
+    },
+    surplus: 7607,
+  };
+
+  // Demo transactions
+  const demoTransactions: Transaction[] = [
+    {
+      id: '1',
+      date: '2025-09-01',
+      description: 'Salary Credit',
+      category: 'Salary',
+      type: 'income',
+      amount: 223857,
+    },
+    {
+      id: '2',
+      date: '2025-09-01',
+      description: 'Loan Interest Income',
+      category: 'Interest',
+      type: 'income',
+      amount: 7000,
+    },
+    {
+      id: '3',
+      date: '2025-09-05',
+      description: 'Household Expenses',
+      category: 'Living',
+      type: 'expense',
+      amount: 35000,
+    },
+    {
+      id: '4',
+      date: '2025-09-10',
+      description: 'Personal Loan EMI',
+      category: 'Loan',
+      type: 'expense',
+      amount: 19355,
+    },
+    {
+      id: '5',
+      date: '2025-09-15',
+      description: 'Chit Fund Payment',
+      category: 'Investment',
+      type: 'investment',
+      amount: 104167,
+    },
+    {
+      id: '6',
+      date: '2025-09-20',
+      description: 'Vidhuna SIP',
+      category: 'Education Goal',
+      type: 'investment',
+      amount: 28026,
+    },
+    {
+      id: '7',
+      date: '2025-09-20',
+      description: 'Aadhya SIP',
+      category: 'Education Goal',
+      type: 'investment',
+      amount: 19850,
+    },
+  ];
+
+  // Store demo data
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
+  const existingUserIndex = users.findIndex((u: any) => u.email === demoUser.email);
+  
+  if (existingUserIndex >= 0) {
+    users[existingUserIndex] = demoUser;
+  } else {
+    users.push(demoUser);
+  }
+  
+  localStorage.setItem('users', JSON.stringify(users));
+
+  // Store demo user data
+  const demoUserData = {
+    userProfile: demoUserProfile,
+    assets: demoAssets,
+    insurance: demoInsurance,
+    goals: demoGoals,
+    licPolicies: demoLicPolicies,
+    monthlyBudget: demoMonthlyBudget,
+    transactions: demoTransactions,
+  };
+
+  localStorage.setItem(`userData_${demoUser.id}`, JSON.stringify(demoUserData));
+};
+
+// Initialize demo data on app load
+export const initializeDemoData = () => {
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
+  const demoExists = users.some((u: any) => u.email === 'demo@example.com');
+  
+  if (!demoExists) {
+    createDemoAccount();
+  }
+};
