@@ -58,8 +58,13 @@ export class FirebaseService {
       
       if (docSnap.exists()) {
         // Update existing document
+        // Filter out undefined values as Firebase doesn't support them
+        const cleanProfile = Object.fromEntries(
+          Object.entries(profile).filter(([_, value]) => value !== undefined)
+        );
+        
         await updateDoc(docRef, {
-          ...profile,
+          ...cleanProfile,
           updatedAt: serverTimestamp()
         });
       } else {
@@ -114,8 +119,13 @@ export class FirebaseService {
 
   static async addTransaction(userId: string, transaction: Omit<Transaction, 'id'>): Promise<string> {
     try {
+      // Filter out undefined values as Firebase doesn't support them
+      const cleanTransaction = Object.fromEntries(
+        Object.entries(transaction).filter(([_, value]) => value !== undefined)
+      );
+      
       const docRef = await addDoc(collection(db, this.COLLECTIONS.TRANSACTIONS), {
-        ...transaction,
+        ...cleanTransaction,
         userId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -129,9 +139,14 @@ export class FirebaseService {
 
   static async updateTransaction(transactionId: string, updates: Partial<Transaction>): Promise<void> {
     try {
+      // Filter out undefined values as Firebase doesn't support them
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, value]) => value !== undefined)
+      );
+      
       const docRef = doc(db, this.COLLECTIONS.TRANSACTIONS, transactionId);
       await updateDoc(docRef, {
-        ...updates,
+        ...cleanUpdates,
         updatedAt: serverTimestamp()
       });
     } catch (error) {
@@ -155,9 +170,14 @@ export class FirebaseService {
       const batch = writeBatch(db);
       
       transactions.forEach(transaction => {
+        // Filter out undefined values as Firebase doesn't support them
+        const cleanTransaction = Object.fromEntries(
+          Object.entries(transaction).filter(([_, value]) => value !== undefined)
+        );
+        
         const docRef = doc(collection(db, this.COLLECTIONS.TRANSACTIONS));
         batch.set(docRef, {
-          ...transaction,
+          ...cleanTransaction,
           userId,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
@@ -215,9 +235,14 @@ export class FirebaseService {
 
   static async updateAsset(assetId: string, updates: Partial<Asset>): Promise<void> {
     try {
+      // Filter out undefined values as Firebase doesn't support them
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, value]) => value !== undefined)
+      );
+      
       const docRef = doc(db, this.COLLECTIONS.ASSETS, assetId);
       await updateDoc(docRef, {
-        ...updates,
+        ...cleanUpdates,
         updatedAt: serverTimestamp()
       });
     } catch (error) {
@@ -260,8 +285,13 @@ export class FirebaseService {
 
   static async addInsurance(userId: string, insurance: Omit<Insurance, 'id'>): Promise<string> {
     try {
+      // Filter out undefined values as Firebase doesn't support them
+      const cleanInsurance = Object.fromEntries(
+        Object.entries(insurance).filter(([_, value]) => value !== undefined)
+      );
+      
       const docRef = await addDoc(collection(db, this.COLLECTIONS.INSURANCE), {
-        ...insurance,
+        ...cleanInsurance,
         userId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -275,9 +305,14 @@ export class FirebaseService {
 
   static async updateInsurance(insuranceId: string, updates: Partial<Insurance>): Promise<void> {
     try {
+      // Filter out undefined values as Firebase doesn't support them
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, value]) => value !== undefined)
+      );
+      
       const docRef = doc(db, this.COLLECTIONS.INSURANCE, insuranceId);
       await updateDoc(docRef, {
-        ...updates,
+        ...cleanUpdates,
         updatedAt: serverTimestamp()
       });
     } catch (error) {
@@ -320,8 +355,13 @@ export class FirebaseService {
 
   static async addGoal(userId: string, goal: Omit<Goal, 'id'>): Promise<string> {
     try {
+      // Filter out undefined values as Firebase doesn't support them
+      const cleanGoal = Object.fromEntries(
+        Object.entries(goal).filter(([_, value]) => value !== undefined)
+      );
+      
       const docRef = await addDoc(collection(db, this.COLLECTIONS.GOALS), {
-        ...goal,
+        ...cleanGoal,
         userId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -335,9 +375,14 @@ export class FirebaseService {
 
   static async updateGoal(goalId: string, updates: Partial<Goal>): Promise<void> {
     try {
+      // Filter out undefined values as Firebase doesn't support them
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, value]) => value !== undefined)
+      );
+      
       const docRef = doc(db, this.COLLECTIONS.GOALS, goalId);
       await updateDoc(docRef, {
-        ...updates,
+        ...cleanUpdates,
         updatedAt: serverTimestamp()
       });
     } catch (error) {
@@ -388,14 +433,24 @@ export class FirebaseService {
       if (!querySnapshot.empty) {
         // Update existing
         const docRef = querySnapshot.docs[0].ref;
+        // Filter out undefined values as Firebase doesn't support them
+        const cleanBudget = Object.fromEntries(
+          Object.entries(budget).filter(([_, value]) => value !== undefined)
+        );
+        
         await updateDoc(docRef, {
-          ...budget,
+          ...cleanBudget,
           updatedAt: serverTimestamp()
         });
       } else {
         // Create new
+        // Filter out undefined values as Firebase doesn't support them
+        const cleanBudget = Object.fromEntries(
+          Object.entries(budget).filter(([_, value]) => value !== undefined)
+        );
+        
         await addDoc(collection(db, this.COLLECTIONS.MONTHLY_BUDGETS), {
-          ...budget,
+          ...cleanBudget,
           userId,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
@@ -450,9 +505,14 @@ export class FirebaseService {
 
   static async updateBankAccount(accountId: string, updates: Partial<BankAccount>): Promise<void> {
     try {
+      // Filter out undefined values as Firebase doesn't support them
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, value]) => value !== undefined)
+      );
+      
       const docRef = doc(db, this.COLLECTIONS.BANK_ACCOUNTS, accountId);
       await updateDoc(docRef, {
-        ...updates,
+        ...cleanUpdates,
         updatedAt: serverTimestamp()
       });
     } catch (error) {
@@ -665,8 +725,13 @@ export class FirebaseService {
 
   static async addRecurringTransaction(userId: string, recurringTransaction: Omit<RecurringTransaction, 'id'>): Promise<string> {
     try {
+      // Filter out undefined values as Firebase doesn't support them
+      const cleanRecurringTransaction = Object.fromEntries(
+        Object.entries(recurringTransaction).filter(([_, value]) => value !== undefined)
+      );
+      
       const docRef = await addDoc(collection(db, this.COLLECTIONS.RECURRING_TRANSACTIONS), {
-        ...recurringTransaction,
+        ...cleanRecurringTransaction,
         userId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -680,9 +745,14 @@ export class FirebaseService {
 
   static async updateRecurringTransaction(id: string, recurringTransaction: Partial<RecurringTransaction>): Promise<void> {
     try {
+      // Filter out undefined values as Firebase doesn't support them
+      const cleanRecurringTransaction = Object.fromEntries(
+        Object.entries(recurringTransaction).filter(([_, value]) => value !== undefined)
+      );
+      
       const docRef = doc(db, this.COLLECTIONS.RECURRING_TRANSACTIONS, id);
       await updateDoc(docRef, {
-        ...recurringTransaction,
+        ...cleanRecurringTransaction,
         updatedAt: new Date().toISOString()
       });
     } catch (error) {
@@ -718,8 +788,13 @@ export class FirebaseService {
 
   static async addBill(userId: string, bill: Omit<Bill, 'id'>): Promise<string> {
     try {
+      // Filter out undefined values as Firebase doesn't support them
+      const cleanBill = Object.fromEntries(
+        Object.entries(bill).filter(([_, value]) => value !== undefined)
+      );
+      
       const docRef = await addDoc(collection(db, this.COLLECTIONS.BILLS), {
-        ...bill,
+        ...cleanBill,
         userId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -733,9 +808,14 @@ export class FirebaseService {
 
   static async updateBill(id: string, bill: Partial<Bill>): Promise<void> {
     try {
+      // Filter out undefined values as Firebase doesn't support them
+      const cleanBill = Object.fromEntries(
+        Object.entries(bill).filter(([_, value]) => value !== undefined)
+      );
+      
       const docRef = doc(db, this.COLLECTIONS.BILLS, id);
       await updateDoc(docRef, {
-        ...bill,
+        ...cleanBill,
         updatedAt: new Date().toISOString()
       });
     } catch (error) {

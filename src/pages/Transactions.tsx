@@ -13,7 +13,6 @@ import BankAccountForm from '../components/forms/BankAccountForm';
 import TransactionDetailModal from '../components/transactions/TransactionDetailModal';
 import { ParsedTransaction } from '../services/excelParser';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
-import TransactionDebug from '../components/debug/TransactionDebug';
 
 const Transactions: React.FC = () => {
   const { 
@@ -170,23 +169,16 @@ const Transactions: React.FC = () => {
   };
 
   const handleTransactionSubmit = async (transactionData: Omit<Transaction, 'id'>) => {
-    console.log('🔍 Transactions page - handleTransactionSubmit called');
-    console.log('Transaction data:', transactionData);
-    console.log('Editing transaction:', editingTransaction);
-    
     try {
       if (editingTransaction) {
-        console.log('Updating existing transaction...');
         await updateTransaction(editingTransaction.id, transactionData);
       } else {
-        console.log('Adding new transaction...');
         await addTransaction(transactionData);
       }
-      console.log('✅ Transaction operation completed');
       setShowTransactionForm(false);
       setEditingTransaction(null);
     } catch (error) {
-      console.error('❌ Error in handleTransactionSubmit:', error);
+      console.error('Error in handleTransactionSubmit:', error);
     }
   };
 
@@ -536,9 +528,6 @@ const Transactions: React.FC = () => {
       </div>
 
       <div className="px-6 py-6 space-y-6">
-        {/* Debug Panel - Remove after fixing */}
-        <TransactionDebug />
-        
         {/* Dark Account Balance Card */}
         {currentAccount && (
           <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-6 text-white">

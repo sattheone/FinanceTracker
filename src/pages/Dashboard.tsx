@@ -47,13 +47,18 @@ const Dashboard: React.FC = () => {
            transactionDate.getMonth() === currentMonth;
   });
   
-  const currentMonthIncome = currentMonthTransactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
+  // Use React.useMemo to ensure calculations update when transactions change
+  const currentMonthIncome = React.useMemo(() => {
+    return currentMonthTransactions
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [currentMonthTransactions]);
     
-  const currentMonthExpenses = currentMonthTransactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0);
+  const currentMonthExpenses = React.useMemo(() => {
+    return currentMonthTransactions
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [currentMonthTransactions]);
     
   const currentMonthSurplus = currentMonthIncome - currentMonthExpenses;
   

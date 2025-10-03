@@ -121,12 +121,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log('🔍 TransactionForm - Form submitted');
-    console.log('Form data:', formData);
-    console.log('Entity links:', entityLinks);
-    
     if (!validateForm()) {
-      console.log('❌ Form validation failed');
       return;
     }
 
@@ -143,7 +138,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
       autoLinked: entityLinks.some(link => link.linkType === 'auto' || link.linkType === 'rule-based')
     };
     
-    console.log('✅ Submitting transaction:', transactionData);
     onSubmit(transactionData);
   };
 
