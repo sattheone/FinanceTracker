@@ -13,7 +13,9 @@ import {
   User,
   TrendingDown,
   Moon,
-  Sun
+  Sun,
+  Link2,
+  Tag
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useData } from '../contexts/DataContext';
@@ -29,6 +31,8 @@ const Layout: React.FC = () => {
   const navItems = [
     { to: '/', icon: Home, label: 'Dashboard' },
     { to: '/transactions', icon: CreditCard, label: 'Transactions' },
+    { to: '/categories', icon: Tag, label: 'Categories' },
+    { to: '/transaction-linking', icon: Link2, label: 'Transaction Linking' },
     { to: '/recurring', icon: Calendar, label: 'Recurring & Bills' },
     { to: '/assets', icon: TrendingUp, label: 'Assets' },
     { to: '/liabilities', icon: TrendingDown, label: 'Liabilities' },

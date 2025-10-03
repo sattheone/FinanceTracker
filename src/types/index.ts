@@ -8,6 +8,118 @@ export interface Transaction {
   paymentMethod?: string;
   bankAccountId?: string; // Link to bank account
   recurringTransactionId?: string; // Link to recurring transaction if auto-generated
+  // Transaction linking system
+  entityLinks?: TransactionEntityLink[]; // Links to goals, budgets, insurance, etc.
+  isLinked?: boolean; // Quick check if transaction has any links
+  autoLinked?: boolean; // Whether this was auto-linked by rules
+  linkingConfidence?: number; // AI confidence score for auto-linking (0-1)
+  tags?: string[]; // User-defined tags for better categorization
+}
+
+// Transaction Entity Linking System
+export interface TransactionEntityLink {
+  id: string;
+  transactionId: string;
+  entityType: 'goal' | 'budget' | 'insurance' | 'asset' | 'liability' | 'custom';
+  entityId: string;
+  entityName: string; // Cached for performance
+  amount: number; // Amount allocated to this entity
+  percentage: number; // Percentage of transaction amount
+  linkType: 'manual' | 'auto' | 'rule-based';
+  ruleId?: string; // If linked by a rule
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Auto-linking Rules System
+export interface LinkingRule {
+  id: string;
+  name: string;
+  description: string;
+  isActive: boolean;
+  priority: number; // Higher priority rules execute first
+  conditions: LinkingCondition[];
+  actions: LinkingAction[];
+  createdAt: string;
+  updatedAt: string;
+  lastTriggered?: string;
+  triggerCount: number;
+}
+
+export interface LinkingCondition {
+  field: 'amount' | 'description' | 'category' | 'type' | 'bankAccount' | 'paymentMethod';
+  operator: 'equals' | 'contains' | 'startsWith' | 'endsWith' | 'greaterThan' | 'lessThan' | 'between' | 'regex';
+  value: string | number;
+  secondValue?: string | number; // For 'between' operator
+  caseSensitive?: boolean;
+}
+
+export interface LinkingAction {
+  entityType: 'goal' | 'budget' | 'insurance' | 'asset' | 'liability';
+  entityId: string;
+  allocationMethod: 'fixed_amount' | 'percentage' | 'remaining_amount';
+  amount?: number;
+  percentage?: number;
+  notes?: string;
+}
+
+// Entity Progress Tracking
+export interface EntityProgress {
+  entityType: 'goal' | 'budget' | 'insurance' | 'asset' | 'liability';
+  entityId: string;
+  entityName: string;
+  targetAmount: number;
+  currentAmount: number;
+  progressPercentage: number;
+  monthlyContribution: number;
+  projectedCompletion?: string;
+  lastUpdated: string;
+  linkedTransactions: string[]; // Transaction IDs
+  milestones: ProgressMilestone[];
+}
+
+export interface ProgressMilestone {
+  id: string;
+  name: string;
+  targetAmount: number;
+  achievedDate?: string;
+  isAchieved: boolean;
+}
+
+// Hierarchical Entity Views
+export interface EntityHierarchy {
+  id: string;
+  name: string;
+  type: 'goal' | 'budget' | 'insurance';
+  totalAmount: number;
+  children: EntityHierarchyItem[];
+  progress: EntityProgress;
+}
+
+export interface EntityHierarchyItem {
+  id: string;
+  name: string;
+  type: 'investment' | 'insurance' | 'savings' | 'other';
+  amount: number;
+  percentage: number;
+  transactions: Transaction[];
+  lastContribution?: string;
+}
+
+// Notification System for Linking
+export interface LinkingNotification {
+  id: string;
+  type: 'milestone_achieved' | 'goal_progress' | 'auto_link_suggestion' | 'link_broken' | 'rule_triggered';
+  title: string;
+  message: string;
+  entityType: string;
+  entityId: string;
+  transactionId?: string;
+  isRead: boolean;
+  createdAt: string;
+  actionRequired?: boolean;
+  actionUrl?: string;
 }
 
 export interface Asset {

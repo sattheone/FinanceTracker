@@ -3,6 +3,7 @@ import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAcco
 import { UserProfile } from '../types/user';
 import { useAuth } from './AuthContext';
 import FirebaseService from '../services/firebaseService';
+import { transactionLinkingService } from '../services/transactionLinkingService';
 
 // Utility function to calculate next due date
 const calculateNextDueDate = (currentDueDate: string, frequency: RecurringTransaction['frequency']): string => {
@@ -225,6 +226,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setLiabilities(liabilitiesData);
       setRecurringTransactions(recurringTransactionsData);
       setBills(billsData);
+
+      // Initialize transaction linking rules if not already done
+      const existingRules = transactionLinkingService.getLinkingRules();
+      if (existingRules.length === 0) {
+        transactionLinkingService.initializeDefaultRules();
+      }
 
       setIsDataLoaded(true);
     } catch (error) {

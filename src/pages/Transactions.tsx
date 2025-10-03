@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Search, Filter, Camera, Edit3, Trash2, FileSpreadsheet, CheckSquare, Square, Tag, Type, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown } from 'lucide-react';
+import { Plus, Search, Filter, Camera, Edit3, Trash2, FileSpreadsheet, CheckSquare, Square, Tag, Type, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown, Link2 } from 'lucide-react';
 import { Transaction, BankAccount } from '../types';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, formatDate } from '../utils/formatters';
@@ -10,6 +10,7 @@ import DataConfirmationDialog from '../components/common/DataConfirmationDialog'
 import Modal from '../components/common/Modal';
 import TransactionForm from '../components/forms/TransactionForm';
 import BankAccountForm from '../components/forms/BankAccountForm';
+import TransactionDetailModal from '../components/transactions/TransactionDetailModal';
 import { ParsedTransaction } from '../services/excelParser';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
 
@@ -55,6 +56,8 @@ const Transactions: React.FC = () => {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
   const [activeTab, setActiveTab] = useState<'summary' | 'transactions'>('summary');
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedTransactionForDetail, setSelectedTransactionForDetail] = useState<Transaction | null>(null);
 
   // Handle category filtering from URL params (from dashboard navigation)
   useEffect(() => {
@@ -142,6 +145,21 @@ const Transactions: React.FC = () => {
   const handleEditTransaction = (transaction: Transaction) => {
     setEditingTransaction(transaction);
     setShowTransactionForm(true);
+  };
+
+  const handleTransactionClick = (transaction: Transaction) => {
+    setSelectedTransactionForDetail(transaction);
+    setShowDetailModal(true);
+  };
+
+  const handleDetailModalClose = () => {
+    setShowDetailModal(false);
+    setSelectedTransactionForDetail(null);
+  };
+
+  const handleTransactionUpdate = (updatedTransaction: Transaction) => {
+    // The transaction is already updated in the modal, just refresh the view
+    setSelectedTransactionForDetail(updatedTransaction);
   };
 
   const handleDeleteTransaction = (transactionId: string) => {
@@ -920,6 +938,9 @@ const Transactions: React.FC = () => {
                             <th className={theme.tableHeader}>
                               Description
                             </th>
+                            <th className={cn(theme.tableHeader, 'w-16 text-center')}>
+                              Links
+                            </th>
                             <th className={theme.tableHeader}>
                               Category
                             </th>
@@ -938,8 +959,10 @@ const Transactions: React.FC = () => {
                           {filteredTransactions.map((transaction) => (
                             <tr 
                               key={transaction.id} 
+                              onClick={() => handleTransactionClick(transaction)}
                               className={cn(
                                 theme.tableRow,
+                                'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700',
                                 selectedTransactions.has(transaction.id) && 'bg-blue-50 dark:bg-blue-900/30'
                               )}
                             >
@@ -963,6 +986,18 @@ const Transactions: React.FC = () => {
                               </td>
                               <td className={cn(theme.tableCell, 'text-sm font-medium max-w-xs truncate')} title={transaction.description}>
                                 <span className={theme.textPrimary}>{transaction.description}</span>
+                              </td>
+                              <td className={cn(theme.tableCell, 'text-center')}>
+                                {transaction.isLinked ? (
+                                  <div className="flex items-center justify-center space-x-1">
+                                    <Link2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+                                    {transaction.autoLinked && (
+                                      <span className="w-2 h-2 bg-blue-500 rounded-full" title="Auto-linked"></span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="w-4 h-4 border border-gray-300 dark:border-gray-600 rounded opacity-30" title="Not linked"></div>
+                                )}
                               </td>
                               <td className={cn(theme.tableCell, 'whitespace-nowrap text-sm')}>
                                 <span className={theme.textSecondary}>{transaction.category}</span>
@@ -1150,6 +1185,16 @@ const Transactions: React.FC = () => {
         type="transactions"
         title="Confirm Extracted Transactions"
       />
+
+      {/* Transaction Detail Modal */}
+      {selectedTransactionForDetail && (
+        <TransactionDetailModal
+          transaction={selectedTransactionForDetail}
+          isOpen={showDetailModal}
+          onClose={handleDetailModalClose}
+          onUpdate={handleTransactionUpdate}
+        />
+      )}
     </div>
   );
 };

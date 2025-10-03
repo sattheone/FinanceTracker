@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Transaction } from '../../types';
+import { Transaction, TransactionEntityLink } from '../../types';
 import { useData } from '../../contexts/DataContext';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
+import { transactionLinkingService } from '../../services/transactionLinkingService';
+import { Link2, Brain, Target, Shield, TrendingUp, Plus, X } from 'lucide-react';
 
 interface TransactionFormProps {
   transaction?: Transaction;
@@ -11,7 +13,7 @@ interface TransactionFormProps {
 }
 
 const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit, onCancel, defaultBankAccountId }) => {
-  const { bankAccounts } = useData();
+  const { bankAccounts, goals, insurance, assets, monthlyBudget } = useData();
   const theme = useThemeClasses();
   
   const [formData, setFormData] = useState({
@@ -25,6 +27,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [entityLinks, setEntityLinks] = useState<TransactionEntityLink[]>([]);
+  const [showLinkingSection, setShowLinkingSection] = useState(false);
+  const [suggestedLinks, setSuggestedLinks] = useState<TransactionEntityLink[]>([]);
+  const [isGeneratingLinks, setIsGeneratingLinks] = useState(false);
 
   useEffect(() => {
     if (transaction) {
@@ -37,8 +43,39 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
         paymentMethod: transaction.paymentMethod || '',
         bankAccountId: transaction.bankAccountId || bankAccounts[0]?.id || '',
       });
+      setEntityLinks(transaction.entityLinks || []);
     }
   }, [transaction, bankAccounts]);
+
+  // Auto-generate suggested links when form data changes
+  useEffect(() => {
+    if (formData.description && formData.amount > 0) {
+      generateSuggestedLinks();
+    }
+  }, [formData.description, formData.amount, formData.type]);
+
+  const generateSuggestedLinks = async () => {
+    if (isGeneratingLinks) return;
+    
+    setIsGeneratingLinks(true);
+    try {
+      const mockTransaction: Transaction = {
+        id: 'temp',
+        ...formData
+      };
+      
+      const suggestions = await transactionLinkingService.autoLinkTransaction(
+        mockTransaction,
+        { goals, insurance, assets, budget: monthlyBudget }
+      );
+      
+      setSuggestedLinks(suggestions);
+    } catch (error) {
+      console.error('Error generating suggested links:', error);
+    } finally {
+      setIsGeneratingLinks(false);
+    }
+  };
 
   const transactionTypes = [
     { value: 'income', label: 'Income', icon: '💰', color: 'text-green-600' },
@@ -96,6 +133,9 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
       amount: formData.amount,
       paymentMethod: formData.paymentMethod || undefined,
       bankAccountId: formData.bankAccountId || undefined,
+      entityLinks: entityLinks.length > 0 ? entityLinks : undefined,
+      isLinked: entityLinks.length > 0,
+      autoLinked: entityLinks.some(link => link.linkType === 'auto' || link.linkType === 'rule-based')
     });
   };
 
@@ -282,6 +322,152 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Entity Linking Section */}
+      <div className="border-t border-gray-200 dark:border-gray-600 pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            <Link2 className="w-5 h-5 text-blue-600" />
+            <h3 className={cn(theme.textPrimary, 'font-medium')}>Entity Linking</h3>
+            {entityLinks.length > 0 && (
+              <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full">
+                {entityLinks.length} linked
+              </span>
+            )}
+          </div>
+          <div className="flex items-center space-x-2">
+            {suggestedLinks.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setEntityLinks(suggestedLinks)}
+                className={cn(theme.btnSecondary, 'text-sm flex items-center')}
+                disabled={isGeneratingLinks}
+              >
+                <Brain className="w-4 h-4 mr-1" />
+                Apply Suggestions ({suggestedLinks.length})
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowLinkingSection(!showLinkingSection)}
+              className={cn(theme.btnSecondary, 'text-sm')}
+            >
+              {showLinkingSection ? 'Hide' : 'Show'} Links
+            </button>
+          </div>
+        </div>
+
+        {/* Current Links */}
+        {entityLinks.length > 0 && (
+          <div className="mb-4">
+            <h4 className={cn(theme.textMuted, 'text-sm mb-2')}>Current Links</h4>
+            <div className="space-y-2">
+              {entityLinks.map((link, index) => {
+                const Icon = link.entityType === 'goal' ? Target : 
+                           link.entityType === 'insurance' ? Shield : TrendingUp;
+                return (
+                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <Icon className={cn(
+                        'w-4 h-4',
+                        link.entityType === 'goal' ? 'text-blue-600' :
+                        link.entityType === 'insurance' ? 'text-green-600' : 'text-purple-600'
+                      )} />
+                      <div>
+                        <p className={theme.textPrimary}>{link.entityName}</p>
+                        <p className={cn(theme.textMuted, 'text-sm')}>
+                          ₹{link.amount.toLocaleString()} ({link.percentage.toFixed(1)}%)
+                          {link.linkType === 'auto' && (
+                            <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">Auto</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEntityLinks(prev => prev.filter((_, i) => i !== index))}
+                      className="p-1 text-red-600 hover:bg-red-50 rounded"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Suggested Links */}
+        {suggestedLinks.length > 0 && entityLinks.length === 0 && (
+          <div className="mb-4">
+            <h4 className={cn(theme.textMuted, 'text-sm mb-2')}>
+              Suggested Links {isGeneratingLinks && <span className="animate-pulse">(Generating...)</span>}
+            </h4>
+            <div className="space-y-2">
+              {suggestedLinks.slice(0, 3).map((link, index) => {
+                const Icon = link.entityType === 'goal' ? Target : 
+                           link.entityType === 'insurance' ? Shield : TrendingUp;
+                return (
+                  <div key={index} className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <Icon className={cn(
+                        'w-4 h-4',
+                        link.entityType === 'goal' ? 'text-blue-600' :
+                        link.entityType === 'insurance' ? 'text-green-600' : 'text-purple-600'
+                      )} />
+                      <div>
+                        <p className={theme.textPrimary}>{link.entityName}</p>
+                        <p className={cn(theme.textMuted, 'text-sm')}>
+                          ₹{formData.amount.toLocaleString()} (100%)
+                          <span className="ml-2 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded">
+                            Suggested
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEntityLinks([{...link, amount: formData.amount}])}
+                      className={cn(theme.btnSecondary, 'text-sm')}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Manual Link Form */}
+        {showLinkingSection && (
+          <div className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+            <h4 className={cn(theme.textPrimary, 'font-medium mb-3')}>Add Manual Link</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <select className={theme.select}>
+                <option value="">Select entity type...</option>
+                <option value="goal">Goal</option>
+                <option value="insurance">Insurance</option>
+                <option value="asset">Asset</option>
+              </select>
+              <select className={theme.select}>
+                <option value="">Select entity...</option>
+                {goals.map(goal => (
+                  <option key={goal.id} value={goal.id}>{goal.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className={cn(theme.btnSecondary, 'flex items-center justify-center')}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add Link
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-600">

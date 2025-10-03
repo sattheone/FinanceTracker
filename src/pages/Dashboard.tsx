@@ -6,13 +6,19 @@ import {
   Wallet,
   Calendar,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  Link2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import MetricCard from '../components/MetricCard';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, formatLargeNumber, formatDate } from '../utils/formatters';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
+import SpendingInsightsWidget from '../components/insights/SpendingInsightsWidget';
+import AIInsightsDashboard from '../components/dashboard/AIInsightsDashboard';
+import SmartAlertsWidget from '../components/dashboard/SmartAlertsWidget';
+import FinancialWellnessWidget from '../components/dashboard/FinancialWellnessWidget';
+import MarketInsightsWidget from '../components/dashboard/MarketInsightsWidget';
 
 const Dashboard: React.FC = () => {
   const { assets, goals, insurance, licPolicies, transactions, bankAccounts, liabilities, userProfile, recurringTransactions, getUpcomingBills, getOverdueBills } = useData();
@@ -774,6 +780,77 @@ const Dashboard: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Smart Alerts - High Priority */}
+      <SmartAlertsWidget />
+
+      {/* AI-Powered Financial Insights */}
+      <AIInsightsDashboard />
+
+      {/* Financial Wellness Score */}
+      <FinancialWellnessWidget />
+
+      {/* Market Insights & Analysis */}
+      <MarketInsightsWidget />
+
+      {/* Mint-like Spending Insights */}
+      <SpendingInsightsWidget />
+
+      {/* Transaction Linking Quick Access */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center justify-center w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <Link2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Transaction Linking</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Connect transactions to your financial goals</p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/transaction-linking')}
+            className={cn(theme.btnPrimary, 'flex items-center')}
+          >
+            Manage Links
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400 mb-1">
+              {transactions.filter(t => t.isLinked).length}
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300">Linked Transactions</p>
+          </div>
+          
+          <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-1">
+              {transactions.filter(t => t.autoLinked).length}
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300">Auto-Linked</p>
+          </div>
+          
+          <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 mb-1">
+              {goals.filter(g => transactions.some(t => t.entityLinks?.some(l => l.entityType === 'goal' && l.entityId === g.id))).length}
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300">Connected Goals</p>
+          </div>
+        </div>
+
+        {transactions.filter(t => !t.isLinked).length > 0 && (
+          <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                You have {transactions.filter(t => !t.isLinked).length} unlinked transactions that could benefit from entity connections.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
