@@ -348,20 +348,42 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   // Transaction operations
   const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
-    if (!user) return;
+    console.log('🔍 DataContext - addTransaction called');
+    console.log('User:', user);
+    console.log('Transaction:', transaction);
+    
+    if (!user) {
+      console.log('❌ No user found');
+      return;
+    }
 
     try {
+      console.log('📤 Adding transaction to Firebase...');
       const id = await FirebaseService.addTransaction(user.id, transaction);
+      console.log('✅ Firebase returned ID:', id);
+      
       const newTransaction: Transaction = { ...transaction, id };
-      setTransactions(prev => [...prev, newTransaction]);
+      console.log('📝 New transaction object:', newTransaction);
+      
+      setTransactions(prev => {
+        console.log('📊 Previous transactions count:', prev.length);
+        const updated = [...prev, newTransaction];
+        console.log('📊 New transactions count:', updated.length);
+        return updated;
+      });
 
       // Update bank account balance when transaction is added
       if (transaction.bankAccountId) {
+        console.log('💰 Updating bank account balance...');
         const balanceChange = transaction.type === 'income' ? transaction.amount : -transaction.amount;
         await updateBankAccountBalance(transaction.bankAccountId, balanceChange);
+        console.log('✅ Bank account balance updated');
       }
+      
+      console.log('🎉 Transaction added successfully!');
     } catch (error) {
-      console.error('Error adding transaction:', error);
+      console.error('❌ Error adding transaction:', error);
+      throw error; // Re-throw to let the UI handle it
     }
   };
 

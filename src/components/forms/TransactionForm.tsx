@@ -121,11 +121,16 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('🔍 TransactionForm - Form submitted');
+    console.log('Form data:', formData);
+    console.log('Entity links:', entityLinks);
+    
     if (!validateForm()) {
+      console.log('❌ Form validation failed');
       return;
     }
 
-    onSubmit({
+    const transactionData = {
       date: formData.date,
       description: formData.description.trim(),
       category: formData.category,
@@ -136,7 +141,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ transaction, onSubmit
       entityLinks: entityLinks.length > 0 ? entityLinks : undefined,
       isLinked: entityLinks.length > 0,
       autoLinked: entityLinks.some(link => link.linkType === 'auto' || link.linkType === 'rule-based')
-    });
+    };
+    
+    console.log('✅ Submitting transaction:', transactionData);
+    onSubmit(transactionData);
   };
 
   const handleChange = (field: string, value: any) => {
