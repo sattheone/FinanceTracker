@@ -753,6 +753,23 @@ export class FirebaseService {
       throw error;
     }
   }
+
+  // SIP Transaction Operations (stub methods for now)
+  static async addSIPTransaction(userId: string, sipTransaction: any): Promise<string> {
+    // TODO: Implement SIP transaction storage
+    console.log('SIP transaction add requested for user:', userId, sipTransaction);
+    return 'temp-id-' + Date.now();
+  }
+
+  static async updateSIPTransaction(sipTransactionId: string, updates: any): Promise<void> {
+    // TODO: Implement SIP transaction update
+    console.log('SIP transaction update requested:', sipTransactionId, updates);
+  }
+
+  static async deleteSIPTransaction(sipTransactionId: string): Promise<void> {
+    // TODO: Implement SIP transaction deletion
+    console.log('SIP transaction delete requested:', sipTransactionId);
+  }
 }
 
 export default FirebaseService;

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill } from '../types';
+import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction } from '../types';
 import { UserProfile } from '../types/user';
 import { useAuth } from './AuthContext';
 import FirebaseService from '../services/firebaseService';
@@ -45,6 +45,7 @@ interface DataContextType {
   liabilities: Liability[];
   recurringTransactions: RecurringTransaction[];
   bills: Bill[];
+  sipTransactions: SIPTransaction[];
 
   // CRUD Operations
   addAsset: (asset: Omit<Asset, 'id'>) => void;
@@ -80,6 +81,10 @@ interface DataContextType {
   updateBill: (id: string, bill: Partial<Bill>) => void;
   deleteBill: (id: string) => void;
   markBillAsPaid: (id: string, paidAmount?: number, paidDate?: string) => void;
+
+  addSIPTransaction: (sipTransaction: Omit<SIPTransaction, 'id'>) => void;
+  updateSIPTransaction: (id: string, sipTransaction: Partial<SIPTransaction>) => void;
+  deleteSIPTransaction: (id: string) => void;
 
   updateMonthlyBudget: (budget: Partial<MonthlyBudget>) => void;
 
@@ -155,6 +160,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [liabilities, setLiabilities] = useState<Liability[]>([]);
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
   const [bills, setBills] = useState<Bill[]>([]);
+  const [sipTransactions, setSipTransactions] = useState<SIPTransaction[]>([]);
 
   // Load user data when user changes
   useEffect(() => {
@@ -603,6 +609,37 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
+  // SIP Transaction operations
+  const addSIPTransaction = async (sipTransaction: Omit<SIPTransaction, 'id'>) => {
+    if (!user) return;
+
+    try {
+      const id = await FirebaseService.addSIPTransaction(user.id, sipTransaction);
+      const newSIPTransaction: SIPTransaction = { ...sipTransaction, id };
+      setSipTransactions(prev => [...prev, newSIPTransaction]);
+    } catch (error) {
+      console.error('Error adding SIP transaction:', error);
+    }
+  };
+
+  const updateSIPTransaction = async (id: string, sipTransaction: Partial<SIPTransaction>) => {
+    try {
+      await FirebaseService.updateSIPTransaction(id, sipTransaction);
+      setSipTransactions(prev => prev.map(s => s.id === id ? { ...s, ...sipTransaction } : s));
+    } catch (error) {
+      console.error('Error updating SIP transaction:', error);
+    }
+  };
+
+  const deleteSIPTransaction = async (id: string) => {
+    try {
+      await FirebaseService.deleteSIPTransaction(id);
+      setSipTransactions(prev => prev.filter(s => s.id !== id));
+    } catch (error) {
+      console.error('Error deleting SIP transaction:', error);
+    }
+  };
+
   // Utility functions
   const processRecurringTransactions = async () => {
     const today = new Date();
@@ -688,6 +725,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     liabilities,
     recurringTransactions,
     bills,
+    sipTransactions,
     addAsset,
     updateAsset,
     deleteAsset,
@@ -714,6 +752,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     updateBill,
     deleteBill,
     markBillAsPaid,
+    addSIPTransaction,
+    updateSIPTransaction,
+    deleteSIPTransaction,
     updateMonthlyBudget,
     resetUserData,
     isDataLoaded,

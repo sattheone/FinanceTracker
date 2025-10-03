@@ -17,6 +17,37 @@ export interface Asset {
   currentValue: number;
   purchaseValue?: number;
   purchaseDate?: string;
+  // Enhanced investment tracking
+  symbol?: string; // Stock/MF symbol for API calls
+  isin?: string; // ISIN code for mutual funds
+  quantity?: number; // Number of units/shares
+  averagePrice?: number; // Average purchase price per unit
+  lastUpdated?: string; // Last price update timestamp
+  marketPrice?: number; // Current market price per unit
+  dayChange?: number; // Day's change in value
+  dayChangePercent?: number; // Day's change percentage
+  totalReturn?: number; // Total return amount
+  totalReturnPercent?: number; // Total return percentage
+  xirr?: number; // XIRR (annualized return)
+  // SIP specific data
+  sipAmount?: number; // Monthly SIP amount
+  sipStartDate?: string; // SIP start date
+  sipTransactions?: SIPTransaction[]; // SIP transaction history
+  // Portfolio allocation
+  targetAllocation?: number; // Target allocation percentage
+  currentAllocation?: number; // Current allocation percentage
+  rebalanceAction?: 'buy' | 'sell' | 'hold'; // Rebalancing suggestion
+}
+
+export interface SIPTransaction {
+  id: string;
+  date: string;
+  amount: number;
+  units: number;
+  nav: number; // Net Asset Value at purchase
+  assetId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Insurance {
