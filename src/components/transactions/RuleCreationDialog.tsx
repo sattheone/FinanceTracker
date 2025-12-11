@@ -10,10 +10,9 @@ interface RuleCreationDialogProps {
     onClose: () => void;
     transaction: Transaction;
     newCategoryId?: string;
-    newCategoryName?: string;
     newType?: Transaction['type'];
-    newTypeName?: string;
     transactions: Transaction[]; // All transactions for preview
+    categories: any[]; // Passed from parent
     onCreateRule: (rule: Omit<CategoryRule, 'id'>) => void;
 }
 
@@ -22,39 +21,41 @@ const RuleCreationDialog: React.FC<RuleCreationDialogProps> = ({
     onClose,
     transaction,
     newCategoryId,
-    newCategoryName,
     newType,
     transactions,
+    categories,
     onCreateRule
 }) => {
     const [matchType, setMatchType] = useState<'partial' | 'exact'>('partial');
     const [pattern, setPattern] = useState(transaction.description);
-    const [includeType, setIncludeType] = useState(false);
+
+    // Initialize selected category from props or empty if manual add
+    const [selectedCategoryId, setSelectedCategoryId] = useState(newCategoryId || '');
 
     // Determine the target type (either from props or defaulting to transaction's current/new type)
     const [selectedType, setSelectedType] = useState<Transaction['type']>(newType || transaction.type);
 
-    // Update selected type if props change
+    // Update state if props change (e.g. re-opening dialog)
     useEffect(() => {
-        if (newType) {
-            setSelectedType(newType);
-        }
-    }, [newType]);
+        if (newCategoryId) setSelectedCategoryId(newCategoryId);
+        if (newType) setSelectedType(newType);
+        setPattern(transaction.description);
+    }, [newCategoryId, newType, transaction]);
 
     // Create temporary rule for preview (only for category changes)
     const previewRule: CategoryRule | null = useMemo(() => {
-        if (!newCategoryId) return null;
+        if (!selectedCategoryId) return null;
         return {
             id: 'preview',
             name: pattern,
-            categoryId: newCategoryId,
-            transactionType: includeType ? selectedType : undefined,
+            categoryId: selectedCategoryId,
+            transactionType: selectedType, // Always include type now as it's a direct selection
             matchType,
             createdAt: new Date().toISOString(),
             matchCount: 0,
             isActive: true
         };
-    }, [pattern, newCategoryId, matchType, includeType, selectedType]);
+    }, [pattern, selectedCategoryId, matchType, selectedType]);
 
     // Get preview of matching transactions
     const preview = useMemo(() => {
@@ -63,13 +64,21 @@ const RuleCreationDialog: React.FC<RuleCreationDialogProps> = ({
     }, [transactions, previewRule]);
 
     const handleSubmit = () => {
-        if (!newCategoryId) return;
-        const rule = CategoryRuleService.createRuleFromTransaction(
-            { ...transaction, description: pattern },
-            newCategoryId,
+        if (!selectedCategoryId) return;
+
+        // Ensure we create a valid rule object
+        const rule: Omit<CategoryRule, 'id'> = {
+            name: pattern,
+            categoryId: selectedCategoryId,
+            // Always set the type from the dropdown
+            transactionType: selectedType,
             matchType,
-            includeType ? selectedType : undefined
-        );
+            isActive: true,
+            createdAt: new Date().toISOString(),
+            matchCount: 0,
+            lastUsed: new Date().toISOString()
+        };
+
         onCreateRule(rule);
         onClose();
     };
@@ -185,61 +194,42 @@ const RuleCreationDialog: React.FC<RuleCreationDialogProps> = ({
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                                 Rule Actions
                             </label>
-                            <div className="space-y-3">
-                                {/* Category Action */}
-                                <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                                    <p className="text-sm font-medium text-green-900 dark:text-green-300 mb-1">
-                                        Set Category to:
-                                    </p>
-                                    <p className="text-lg font-semibold text-green-700 dark:text-green-400">
-                                        {newCategoryName}
-                                    </p>
+                            <div className="grid grid-cols-2 gap-4">
+                                {/* Category Selection */}
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                                        Set Category
+                                    </label>
+                                    <select
+                                        value={selectedCategoryId}
+                                        onChange={(e) => setSelectedCategoryId(e.target.value)}
+                                        className="w-full p-2.5 bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 dark:text-white"
+                                    >
+                                        <option value="" disabled>Select Category</option>
+                                        {categories.map(cat => (
+                                            <option key={cat.id} value={cat.id}>
+                                                {cat.icon} {cat.name}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
 
-                                {/* Transaction Type Action Toggle */}
-                                <div
-                                    className={`w-full p-4 rounded-lg border-2 transition-all text-left ${includeType
-                                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
-                                        }`}
-                                >
-                                    <div className="flex items-center justify-between cursor-pointer" onClick={() => setIncludeType(!includeType)}>
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="font-semibold text-gray-900 dark:text-white">Also Change Transaction Type</span>
-                                                {includeType && (
-                                                    <ToggleRight className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                                                )}
-                                            </div>
-                                            {!includeType && (
-                                                <p className="text-sm text-gray-600 dark:text-gray-400">
-                                                    Set matching transactions to type: <span className="font-semibold capitalize">{selectedType}</span>
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {includeType && (
-                                        <div className="mt-4 pt-4 border-t border-purple-200 dark:border-purple-800/30 animate-fade-in">
-                                            <label className="block text-xs font-medium text-purple-900 dark:text-purple-300 mb-2 uppercase tracking-wide">
-                                                Set matching transactions to type:
-                                            </label>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                {(['expense', 'income', 'investment', 'insurance'] as const).map((type) => (
-                                                    <button
-                                                        key={type}
-                                                        onClick={() => setSelectedType(type)}
-                                                        className={`px-3 py-2 text-sm font-medium rounded-md transition-colors capitalize ${selectedType === type
-                                                            ? 'bg-purple-600 text-white shadow-sm'
-                                                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
-                                                            }`}
-                                                    >
-                                                        {type}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                                {/* Transaction Type Selection */}
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                                        Set Transaction Type
+                                    </label>
+                                    <select
+                                        value={selectedType}
+                                        onChange={(e) => setSelectedType(e.target.value as Transaction['type'])}
+                                        className="w-full p-2.5 bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm text-gray-900 dark:text-white capitalize"
+                                    >
+                                        {['expense', 'income', 'investment', 'insurance'].map(type => (
+                                            <option key={type} value={type} className="capitalize">
+                                                {type}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -279,7 +269,7 @@ const RuleCreationDialog: React.FC<RuleCreationDialogProps> = ({
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center gap-3 ml-4">
-                                                    {includeType && t.type !== selectedType && (
+                                                    {t.type !== selectedType && (
                                                         <span className="text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 px-2 py-1 rounded">
                                                             {t.type} → {selectedType}
                                                         </span>

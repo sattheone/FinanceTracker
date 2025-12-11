@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, DollarSign, Tag, CreditCard, Edit3, Check, Save, Repeat } from 'lucide-react';
+import { X, Calendar, DollarSign, Tag, CreditCard, Edit3, Save, Repeat } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { useData } from '../../contexts/DataContext';
 import { Transaction } from '../../types';
@@ -32,8 +32,6 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
-  const [isEditingCategory, setIsEditingCategory] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(transaction.category || 'other');
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedTransaction, setEditedTransaction] = useState({
     description: transaction.description,
@@ -43,6 +41,17 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
     date: transaction.date,
     paymentMethod: transaction.paymentMethod || ''
   });
+
+  useEffect(() => {
+    setEditedTransaction({
+      description: transaction.description,
+      amount: transaction.amount,
+      category: transaction.category || 'other',
+      type: transaction.type,
+      date: transaction.date,
+      paymentMethod: transaction.paymentMethod || ''
+    });
+  }, [transaction]);
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -101,10 +110,7 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
     };
   };
 
-  const handleCategoryChange = async (categoryId: string) => {
-    setSelectedCategory(categoryId);
-    await updateTransaction(transaction.id, { ...transaction, category: categoryId });
-  };
+
 
   const handleSaveTransaction = async () => {
     await updateTransaction(transaction.id, {
@@ -215,12 +221,11 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
               <Tag className="w-5 h-5 text-gray-500" />
               <div className="flex-1">
                 <p className={theme.textMuted}>Category</p>
-                {isEditingCategory ? (
+                {isEditMode ? (
                   <select
-                    value={selectedCategory}
-                    onChange={(e) => handleCategoryChange(e.target.value)}
+                    value={editedTransaction.category}
+                    onChange={(e) => handleEditChange('category', e.target.value)}
                     className="mt-1 input-field theme-input"
-                    autoFocus
                   >
                     {categories
                       .filter(c => transaction.type !== 'expense' || c.id !== 'salary')
@@ -233,18 +238,11 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
                 ) : (
                   <div className="flex items-center space-x-2">
                     <div className="flex items-center space-x-2">
-                      <span>{getCategoryById(selectedCategory).icon}</span>
+                      <span>{getCategoryById(transaction.category || 'other').icon}</span>
                       <span className={cn(theme.textPrimary, 'capitalize')}>
-                        {getCategoryById(selectedCategory).name}
+                        {getCategoryById(transaction.category || 'other').name}
                       </span>
                     </div>
-                    <button
-                      onClick={() => setIsEditingCategory(true)}
-                      className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
-                      title="Edit Category"
-                    >
-                      <Edit3 className="w-3 h-3" />
-                    </button>
                   </div>
                 )}
               </div>
@@ -318,24 +316,6 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
             </div>
           )}
 
-          {/* Category Actions */}
-          {isEditingCategory && (
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={() => setIsEditingCategory(false)}
-                className={cn(theme.btnSecondary, 'text-sm')}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => setIsEditingCategory(false)}
-                className={cn(theme.btnPrimary, 'text-sm flex items-center')}
-              >
-                <Check className="w-3 h-3 mr-1" />
-                Save
-              </button>
-            </div>
-          )}
 
           {/* Action Buttons */}
           <div className="flex justify-between">

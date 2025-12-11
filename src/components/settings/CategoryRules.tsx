@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { Trash2, ToggleLeft, ToggleRight, AlertCircle } from 'lucide-react';
-import { CategoryRule } from '../../types';
+import { Trash2, ToggleLeft, ToggleRight, AlertCircle, Plus } from 'lucide-react';
+import { CategoryRule, Transaction } from '../../types';
 import { useData } from '../../contexts/DataContext';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
+import RuleCreationDialog from '../transactions/RuleCreationDialog';
 
 const CategoryRules: React.FC = () => {
     const theme = useThemeClasses();
-    const { categoryRules, deleteCategoryRule, updateCategoryRule } = useData();
+    const { categoryRules, deleteCategoryRule, updateCategoryRule, addCategoryRule, transactions } = useData();
     const [searchTerm, setSearchTerm] = useState('');
     const [categories, setCategories] = useState<any[]>([]);
+    const [showAddDialog, setShowAddDialog] = useState(false);
 
     // Load categories from localStorage
     React.useEffect(() => {
@@ -44,14 +46,35 @@ const CategoryRules: React.FC = () => {
         return date.toLocaleDateString();
     };
 
+    // Dummy transaction for manual rule creation
+    const dummyTransaction: Transaction = {
+        id: 'new-rule',
+        description: '',
+        amount: 0,
+        date: new Date().toISOString(),
+        category: '',
+        type: 'expense',
+        bankAccountId: '',
+        tags: []
+    };
+
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h2 className={cn(theme.heading2, 'mb-2')}>Category Rules</h2>
-                <p className={theme.textSecondary}>
-                    Manage auto-categorization rules for transactions
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className={cn(theme.heading2, 'mb-2')}>Category Rules</h2>
+                    <p className={theme.textSecondary}>
+                        Manage auto-categorization rules for transactions
+                    </p>
+                </div>
+                <button
+                    onClick={() => setShowAddDialog(true)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm"
+                >
+                    <Plus className="w-5 h-5" />
+                    <span>Add Rule</span>
+                </button>
             </div>
 
             {/* Search */}
@@ -175,8 +198,24 @@ const CategoryRules: React.FC = () => {
                     <li>• <strong>Exact Match:</strong> Rule applies only if transaction description exactly matches the pattern</li>
                     <li>• Active rules automatically categorize new transactions</li>
                     <li>• Create rules by changing transaction categories and clicking "Create Rule"</li>
+                    <li>• Rules can now also set the Transaction Type (e.g. Income vs Expense)</li>
                 </ul>
             </div>
+
+            {/* Manual Rule Creation Dialog */}
+            {showAddDialog && (
+                <RuleCreationDialog
+                    isOpen={showAddDialog}
+                    onClose={() => setShowAddDialog(false)}
+                    transaction={dummyTransaction}
+                    transactions={transactions}
+                    categories={categories}
+                    onCreateRule={(rule) => {
+                        addCategoryRule(rule);
+                        setShowAddDialog(false);
+                    }}
+                />
+            )}
         </div>
     );
 };

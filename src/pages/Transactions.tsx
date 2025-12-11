@@ -1810,10 +1810,9 @@ const Transactions: React.FC = () => {
             }}
             transaction={rulePromptData.transaction}
             newCategoryId={rulePromptData.newCategoryId}
-            newCategoryName={rulePromptData.newCategoryName}
             newType={rulePromptData.newType}
-            newTypeName={rulePromptData.newTypeName}
             transactions={transactions}
+            categories={categories}
             onCreateRule={(rule) => {
               addCategoryRule(rule);
               setShowRuleDialog(false);
