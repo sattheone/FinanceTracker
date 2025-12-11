@@ -1,65 +1,104 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    function isDocumentOwner() {
+      return request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    function isNewDocumentOwner() {
+      return request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+    
     // Users can only access their own profile
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isOwner(userId);
+    }
+    
+    // User profiles collection
+    match /userProfiles/{userId} {
+      allow read, write: if isOwner(userId);
     }
     
     // Users can only access their own transactions
     match /transactions/{transactionId} {
-      allow read, write: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.userId;
+      allow read, write, delete: if isDocumentOwner();
+      allow create: if isNewDocumentOwner();
+      allow list: if request.auth != null;
     }
     
     // Users can only access their own assets
     match /assets/{assetId} {
-      allow read, write: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.userId;
+      allow read, write, delete: if isDocumentOwner();
+      allow create: if isNewDocumentOwner();
+      allow list: if request.auth != null;
     }
     
     // Users can only access their own insurance
     match /insurance/{insuranceId} {
-      allow read, write: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.userId;
+      allow read, write, delete: if isDocumentOwner();
+      allow create: if isNewDocumentOwner();
+      allow list: if request.auth != null;
     }
     
     // Users can only access their own goals
     match /goals/{goalId} {
-      allow read, write: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.userId;
+      allow read, write, delete: if isDocumentOwner();
+      allow create: if isNewDocumentOwner();
+      allow list: if request.auth != null;
+    }
+    
+    // Users can only access their own liabilities
+    match /liabilities/{liabilityId} {
+      allow read, write, delete: if isDocumentOwner();
+      allow create: if isNewDocumentOwner();
+      allow list: if request.auth != null;
     }
     
     // Users can only access their own monthly budgets
     match /monthlyBudgets/{budgetId} {
-      allow read, write: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.userId;
+      allow read, write, delete: if isDocumentOwner();
+      allow create: if isNewDocumentOwner();
+      allow list: if request.auth != null;
     }
     
     // Users can only access their own LIC policies
     match /licPolicies/{policyId} {
-      allow read, write: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.userId;
+      allow read, write, delete: if isDocumentOwner();
+      allow create: if isNewDocumentOwner();
+      allow list: if request.auth != null;
     }
     
     // Users can only access their own bank accounts
     match /bankAccounts/{accountId} {
-      allow read, write: if request.auth != null && 
-        request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && 
-        request.auth.uid == request.resource.data.userId;
+      allow read, write, delete: if isDocumentOwner();
+      allow create: if isNewDocumentOwner();
+      allow list: if request.auth != null;
+    }
+    
+    // Users can only access their own recurring transactions
+    match /recurringTransactions/{transactionId} {
+      allow read, write, delete: if isDocumentOwner();
+      allow create: if isNewDocumentOwner();
+      allow list: if request.auth != null;
+    }
+    
+    // Users can only access their own bills
+    match /bills/{billId} {
+      allow read, write, delete: if isDocumentOwner();
+      allow create: if isNewDocumentOwner();
+      allow list: if request.auth != null;
+    }
+
+    // Users can only access their own category rules
+    match /categoryRules/{ruleId} {
+      allow read, write, delete: if isDocumentOwner();
+      allow create: if isNewDocumentOwner();
+      allow list: if request.auth != null;
     }
   }
 }

@@ -72,9 +72,21 @@ const FinancialInfoStep: React.FC = () => {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Financial Overview</h2>
-        <p className="text-gray-600 dark:text-gray-300">
+        <p className="text-gray-600 dark:text-gray-300 mb-4">
           Tell us about your current financial situation to help us create a personalized plan.
         </p>
+        
+        {/* Value Proposition */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6">
+          <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">🎯 Why We Need This Information</h3>
+          <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+            <p>• <strong>Retirement Planning:</strong> Calculate how much you need to save for a comfortable retirement</p>
+            <p>• <strong>Financial Health Score:</strong> Get personalized insights on your financial wellness</p>
+            <p>• <strong>Smart Budgeting:</strong> Set realistic budgets based on your actual income and expenses</p>
+            <p>• <strong>Goal Recommendations:</strong> Suggest achievable financial goals based on your situation</p>
+            <p>• <strong>AI Insights:</strong> Receive personalized tips to improve your financial health</p>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -87,7 +99,7 @@ const FinancialInfoStep: React.FC = () => {
           
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-              Monthly Income (Take-home)
+              Monthly Income (Take-home) <span className="text-gray-400 text-xs">(Optional)</span>
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
@@ -95,16 +107,19 @@ const FinancialInfoStep: React.FC = () => {
                 type="number"
                 value={userProfile?.financialInfo.monthlyIncome || ''}
                 onChange={(e) => handleFinancialChange('monthlyIncome', Number(e.target.value))}
-                className="input-field pl-8"
-                placeholder="0"
+                className="input-field pl-8 theme-input"
+                placeholder="e.g., 75000"
                 min="0"
               />
             </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Used for retirement planning and financial health analysis
+            </p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-              Monthly Expenses
+              Monthly Expenses <span className="text-gray-400 text-xs">(Optional)</span>
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
@@ -112,11 +127,14 @@ const FinancialInfoStep: React.FC = () => {
                 type="number"
                 value={userProfile?.financialInfo.monthlyExpenses || ''}
                 onChange={(e) => handleFinancialChange('monthlyExpenses', Number(e.target.value))}
-                className="input-field pl-8"
-                placeholder="0"
+                className="input-field pl-8 theme-input"
+                placeholder="e.g., 45000"
                 min="0"
               />
             </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Used for budgeting and savings rate calculation
+            </p>
           </div>
         </div>
 
@@ -135,7 +153,7 @@ const FinancialInfoStep: React.FC = () => {
               type="number"
               value={currentAge}
               readOnly
-              className="input-field bg-gray-50 dark:bg-gray-700"
+              className="input-field bg-gray-50 dark:bg-gray-700 theme-input"
               placeholder="Calculated from date of birth"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -145,17 +163,20 @@ const FinancialInfoStep: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-              Target Retirement Age
+              Target Retirement Age <span className="text-gray-400 text-xs">(Optional)</span>
             </label>
             <input
               type="number"
               value={userProfile?.financialInfo?.retirementAge || 60}
               onChange={(e) => handleFinancialChange('retirementAge', Number(e.target.value))}
-              className="input-field"
+              className="input-field theme-input"
               placeholder="60"
               min={currentAge + 1}
               max="80"
             />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Used for retirement corpus calculation and goal planning
+            </p>
           </div>
         </div>
       </div>
@@ -202,10 +223,10 @@ const FinancialInfoStep: React.FC = () => {
         </div>
 
         {/* Recommendations */}
-        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <h4 className="font-medium text-blue-900 mb-2">💡 Financial Health Tips</h4>
-          <ul className="text-sm text-blue-700 space-y-1">
-            {savingsRate < 10 && (
+        <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+          <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">💡 Financial Health Tips</h4>
+          <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+            {savingsRate < 10 && monthlyIncome > 0 && (
               <li>• Consider increasing your savings rate to at least 10-20% of income</li>
             )}
             {savingsRate >= 20 && (
@@ -217,8 +238,32 @@ const FinancialInfoStep: React.FC = () => {
             {yearsToRetirement >= 20 && (
               <li>• You have plenty of time to build wealth - consider growth-oriented investments</li>
             )}
-            <li>• Emergency fund should cover 6-12 months of expenses ({formatCurrency(monthlyExpenses * 6)} - {formatCurrency(monthlyExpenses * 12)})</li>
+            {monthlyExpenses > 0 && (
+              <li>• Emergency fund should cover 6-12 months of expenses ({formatCurrency(monthlyExpenses * 6)} - {formatCurrency(monthlyExpenses * 12)})</li>
+            )}
+            {monthlyIncome === 0 && monthlyExpenses === 0 && (
+              <li>• You can add this information later in Settings to get personalized financial insights</li>
+            )}
           </ul>
+        </div>
+
+        {/* Skip Option */}
+        <div className="mt-4 text-center">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Don't have this information handy? You can{' '}
+            <button 
+              onClick={() => {
+                // Set default values
+                handleFinancialChange('monthlyIncome', 0);
+                handleFinancialChange('monthlyExpenses', 0);
+                handleFinancialChange('retirementAge', 60);
+              }}
+              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
+            >
+              skip this step
+            </button>
+            {' '}and add it later in Settings.
+          </p>
         </div>
       </div>
     </div>

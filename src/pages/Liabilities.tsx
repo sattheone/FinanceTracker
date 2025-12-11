@@ -5,11 +5,15 @@ import { formatCurrency, formatDate, formatLargeNumber } from '../utils/formatte
 import Modal from '../components/common/Modal';
 import LiabilityForm from '../components/forms/LiabilityForm';
 import { Liability } from '../types';
+import { calculateAmortizationDetails, generateAmortizationSchedule } from '../utils/loanCalculations';
+import RepaymentScheduleModal from '../components/liabilities/RepaymentScheduleModal';
 
 const Liabilities: React.FC = () => {
   const { liabilities, addLiability, updateLiability, deleteLiability } = useData();
   const [showLiabilityForm, setShowLiabilityForm] = useState(false);
   const [editingLiability, setEditingLiability] = useState<Liability | null>(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [selectedLiabilityForSchedule, setSelectedLiabilityForSchedule] = useState<Liability | null>(null);
 
   const getLiabilityIcon = (type: string) => {
     switch (type) {
@@ -25,34 +29,14 @@ const Liabilities: React.FC = () => {
 
   const getLiabilityColor = (type: string) => {
     switch (type) {
-      case 'home_loan': return 'border-blue-200 bg-blue-50';
-      case 'personal_loan': return 'border-yellow-200 bg-yellow-50';
-      case 'car_loan': return 'border-green-200 bg-green-50';
-      case 'credit_card': return 'border-red-200 bg-red-50';
-      case 'education_loan': return 'border-purple-200 bg-purple-50';
-      case 'business_loan': return 'border-indigo-200 bg-indigo-50';
+      case 'home_loan': return 'border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20';
+      case 'personal_loan': return 'border-yellow-200 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20';
+      case 'car_loan': return 'border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20';
+      case 'credit_card': return 'border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20';
+      case 'education_loan': return 'border-purple-200 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20';
+      case 'business_loan': return 'border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20';
       default: return 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700';
     }
-  };
-
-  const calculateRemainingTenure = (liability: Liability) => {
-    if (liability.emiAmount <= 0 || liability.currentBalance <= 0 || liability.interestRate <= 0) {
-      return 0;
-    }
-
-    const monthlyRate = liability.interestRate / 100 / 12;
-    const balance = liability.currentBalance;
-    const emi = liability.emiAmount;
-
-    // Calculate remaining months using loan balance formula
-    const remainingMonths = Math.log(1 + (balance * monthlyRate) / emi) / Math.log(1 + monthlyRate);
-    return Math.ceil(remainingMonths);
-  };
-
-  const calculateTotalInterest = (liability: Liability) => {
-    const remainingMonths = calculateRemainingTenure(liability);
-    const totalPayments = remainingMonths * liability.emiAmount;
-    return Math.max(0, totalPayments - liability.currentBalance);
   };
 
   // Handler functions
@@ -73,9 +57,12 @@ const Liabilities: React.FC = () => {
   };
 
   const handleLiabilitySubmit = (liabilityData: Omit<Liability, 'id'>) => {
+    console.log('Submitting liability:', liabilityData);
     if (editingLiability) {
+      console.log('Updating liability:', editingLiability.id);
       updateLiability(editingLiability.id, liabilityData);
     } else {
+      console.log('Adding new liability');
       addLiability(liabilityData);
     }
     setShowLiabilityForm(false);
@@ -87,15 +74,27 @@ const Liabilities: React.FC = () => {
     setEditingLiability(null);
   };
 
+  const handleViewSchedule = (liability: Liability) => {
+    setSelectedLiabilityForSchedule(liability);
+    setShowScheduleModal(true);
+  };
+
   // Calculate totals
   const totalPrincipal = liabilities.reduce((sum, liability) => sum + liability.principalAmount, 0);
   const totalOutstanding = liabilities.reduce((sum, liability) => sum + liability.currentBalance, 0);
   const totalMonthlyEMI = liabilities.reduce((sum, liability) => sum + liability.emiAmount, 0);
-  const totalInterestRemaining = liabilities.reduce((sum, liability) => sum + calculateTotalInterest(liability), 0);
 
-  // Upcoming EMI payments (next 30 days)
-  const today = new Date();
-  
+  // Calculate total interest remaining for all liabilities
+  const totalInterestRemaining = liabilities.reduce((sum, liability) => {
+    const amort = calculateAmortizationDetails(
+      liability.currentBalance,
+      liability.interestRate,
+      liability.emiAmount,
+      new Date().toISOString().split('T')[0]
+    );
+    return sum + amort.totalInterestPaid;
+  }, 0);
+
   return (
     <div className="space-y-6">
       <div>
@@ -150,20 +149,25 @@ const Liabilities: React.FC = () => {
       {/* Liabilities List */}
       <div className="space-y-4">
         {liabilities.map((liability) => {
-          const progress = liability.principalAmount > 0 
-            ? ((liability.principalAmount - liability.currentBalance) / liability.principalAmount) * 100 
+          // Calculate amortization from current balance (not from principal)
+          const amortization = calculateAmortizationDetails(
+            liability.currentBalance, // Use current balance as the starting point
+            liability.interestRate,
+            liability.emiAmount,
+            new Date().toISOString().split('T')[0] // Calculate from today
+          );
+
+          const progress = liability.principalAmount > 0
+            ? ((liability.principalAmount - liability.currentBalance) / liability.principalAmount) * 100
             : 0;
-          const remainingMonths = calculateRemainingTenure(liability);
-          const remainingYears = Math.floor(remainingMonths / 12);
-          const remainingMonthsOnly = remainingMonths % 12;
-          const totalInterest = calculateTotalInterest(liability);
-          
+
           // Check if EMI is due soon (assuming EMI date is start date + monthly intervals)
-          const startDate = new Date(liability.startDate);
-          const dayOfMonth = startDate.getDate();
-          const currentDay = today.getDate();
-          const isEMIDueSoon = Math.abs(currentDay - dayOfMonth) <= 3 || (dayOfMonth - currentDay) <= 3;
-          
+          const nextDueDate = amortization.nextInstallmentDate;
+          const today = new Date();
+          const diffTime = nextDueDate.getTime() - today.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          const isEMIDueSoon = diffDays >= 0 && diffDays <= 5;
+
           return (
             <div key={liability.id} className={`card border-l-4 ${getLiabilityColor(liability.type)}`}>
               <div className="flex items-start justify-between">
@@ -174,7 +178,7 @@ const Liabilities: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">{liability.name}</h3>
                         {isEMIDueSoon && (
-                          <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800">
+                          <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:text-orange-200">
                             EMI Due Soon
                           </span>
                         )}
@@ -188,7 +192,7 @@ const Liabilities: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                     <div>
                       <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Principal Amount</p>
@@ -209,10 +213,9 @@ const Liabilities: React.FC = () => {
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Remaining Tenure</p>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
-                        {remainingYears > 0 && `${remainingYears}y `}
-                        {remainingMonthsOnly}m
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Repayments</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                        {amortization.paidInstallments}/{amortization.paidInstallments + amortization.remainingInstallments}
                       </p>
                     </div>
                   </div>
@@ -223,7 +226,7 @@ const Liabilities: React.FC = () => {
                       <span className="text-gray-600 dark:text-gray-300">Repayment Progress</span>
                       <span className="font-medium">{progress.toFixed(1)}%</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                       <div
                         className="bg-gradient-to-r from-green-500 to-blue-500 h-3 rounded-full transition-all duration-300"
                         style={{ width: `${Math.min(progress, 100)}%` }}
@@ -240,14 +243,28 @@ const Liabilities: React.FC = () => {
                     <div>
                       <span className="text-gray-600 dark:text-gray-300">Interest Remaining:</span>
                       <span className="ml-2 font-medium text-orange-600">
-                        {formatCurrency(totalInterest)}
+                        {formatCurrency(amortization.totalInterestPaid)}
                       </span>
                     </div>
                     <div>
                       <span className="text-gray-600 dark:text-gray-300">Loan End Date:</span>
-                      <span className="ml-2 font-medium text-gray-900 dark:text-white dark:text-white">
-                        {formatDate(liability.endDate)}
+                      <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                        {formatDate(amortization.completionDate.toISOString())}
                       </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600 dark:text-gray-300">Next Due:</span>
+                      <span className="ml-2 font-medium text-blue-600">
+                        {amortization.remainingInstallments > 0 ? formatDate(amortization.nextInstallmentDate.toISOString()) : 'Completed'}
+                      </span>
+                    </div>
+                    <div>
+                      <button
+                        onClick={() => handleViewSchedule(liability)}
+                        className="text-left text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 underline"
+                      >
+                        View Full Schedule
+                      </button>
                     </div>
                   </div>
 
@@ -266,18 +283,18 @@ const Liabilities: React.FC = () => {
                         <span className="ml-4">Account: {liability.accountNumber}</span>
                       )}
                     </div>
-                    
+
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleEditLiability(liability)}
-                        className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:bg-blue-900/20 rounded-lg transition-colors"
                         title="Edit Liability"
                       >
                         <Edit3 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteLiability(liability.id)}
-                        className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 rounded-lg transition-colors"
                         title="Delete Liability"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -367,6 +384,24 @@ const Liabilities: React.FC = () => {
           onCancel={handleLiabilityCancel}
         />
       </Modal>
+
+      {/* Repayment Schedule Modal */}
+      {selectedLiabilityForSchedule && (
+        <RepaymentScheduleModal
+          isOpen={showScheduleModal}
+          onClose={() => {
+            setShowScheduleModal(false);
+            setSelectedLiabilityForSchedule(null);
+          }}
+          schedule={generateAmortizationSchedule(
+            selectedLiabilityForSchedule.currentBalance,
+            selectedLiabilityForSchedule.interestRate,
+            selectedLiabilityForSchedule.emiAmount,
+            new Date().toISOString().split('T')[0] // Start from today
+          )}
+          liabilityName={selectedLiabilityForSchedule.name}
+        />
+      )}
     </div>
   );
 };

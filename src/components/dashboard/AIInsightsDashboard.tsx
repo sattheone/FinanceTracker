@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Brain, 
-  TrendingUp, 
-  AlertTriangle, 
-  Lightbulb, 
-  Shield, 
+import {
+  Brain,
+  TrendingUp,
+  AlertTriangle,
+  Lightbulb,
+  Shield,
   Target,
   DollarSign,
   ArrowRight,
@@ -22,7 +22,7 @@ import { aiInsightsService, AIInsight, FinancialHealthScore } from '../../servic
 const AIInsightsDashboard: React.FC = () => {
   const theme = useThemeClasses();
   const { transactions, goals, assets, insurance, monthlyBudget, userProfile } = useData();
-  
+
   const [insights, setInsights] = useState<AIInsight[]>([]);
   const [healthScore, setHealthScore] = useState<FinancialHealthScore | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -40,26 +40,26 @@ const AIInsightsDashboard: React.FC = () => {
     setIsLoading(true);
     try {
       console.log('🤖 Generating AI insights...');
-      
+
       // Generate comprehensive insights
       const aiInsights = await aiInsightsService.generateComprehensiveInsights(
-        transactions,
+        transactions.filter(t => t.category !== 'transfer'),
         goals,
         assets,
         insurance,
         monthlyBudget,
         userProfile
       );
-      
+
       // Calculate financial health score
       const score = aiInsightsService.calculateFinancialHealthScore(
-        transactions,
+        transactions.filter(t => t.category !== 'transfer'),
         assets,
         insurance,
         monthlyBudget,
         goals
       );
-      
+
       setInsights(aiInsights);
       setHealthScore(score);
     } catch (error) {
@@ -71,13 +71,13 @@ const AIInsightsDashboard: React.FC = () => {
 
   const handleChatQuery = async () => {
     if (!chatQuery.trim()) return;
-    
+
     setIsChatLoading(true);
     try {
       const response = await aiInsightsService.generatePersonalizedAdvice(
         chatQuery,
         {
-          _transactions: transactions,
+          _transactions: transactions.filter(t => t.category !== 'transfer'),
           goals,
           assets,
           insurance,
@@ -113,14 +113,14 @@ const AIInsightsDashboard: React.FC = () => {
   };
 
   const getInsightColor = (type: string, priority: string) => {
-    if (priority === 'critical') return 'text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200';
-    if (priority === 'high') return 'text-orange-600 bg-orange-50 dark:bg-orange-900/20 border-orange-200';
-    
+    if (priority === 'critical') return 'text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700';
+    if (priority === 'high') return 'text-orange-600 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700';
+
     switch (type) {
-      case 'opportunity': return 'text-green-600 bg-green-50 dark:bg-green-900/20 border-green-200';
-      case 'warning': return 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200';
-      case 'investment_advice': return 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 border-blue-200';
-      case 'tax_planning': return 'text-purple-600 bg-purple-50 dark:bg-purple-900/20 border-purple-200';
+      case 'opportunity': return 'text-green-600 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700';
+      case 'warning': return 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700';
+      case 'investment_advice': return 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700';
+      case 'tax_planning': return 'text-purple-600 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700';
       default: return 'text-gray-600 bg-gray-50 dark:bg-gray-700 border-gray-200';
     }
   };
@@ -169,7 +169,7 @@ const AIInsightsDashboard: React.FC = () => {
               <p className={theme.textMuted}>Powered by Google Gemini AI</p>
             </div>
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setShowChat(!showChat)}
@@ -203,11 +203,11 @@ const AIInsightsDashboard: React.FC = () => {
               <p className={theme.textPrimary}>Financial Health Score</p>
               <p className={theme.textMuted}>
                 {healthScore.overall >= 80 ? 'Excellent' :
-                 healthScore.overall >= 60 ? 'Good' :
-                 healthScore.overall >= 40 ? 'Fair' : 'Needs Improvement'}
+                  healthScore.overall >= 60 ? 'Good' :
+                    healthScore.overall >= 40 ? 'Fair' : 'Needs Improvement'}
               </p>
             </div>
-            
+
             <div className="space-y-2">
               {Object.entries(healthScore.breakdown).map(([key, value]) => (
                 <div key={key} className="flex items-center justify-between">
@@ -220,7 +220,7 @@ const AIInsightsDashboard: React.FC = () => {
                         className={cn(
                           'h-2 rounded-full transition-all duration-300',
                           value >= 80 ? 'bg-green-500' :
-                          value >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                            value >= 60 ? 'bg-yellow-50 dark:bg-yellow-900/200' : 'bg-red-500'
                         )}
                         style={{ width: `${value}%` }}
                       ></div>
@@ -240,7 +240,7 @@ const AIInsightsDashboard: React.FC = () => {
       {showChat && (
         <div className={theme.card}>
           <h4 className={cn(theme.textPrimary, 'font-medium mb-4')}>Ask Your AI Financial Advisor</h4>
-          
+
           <div className="space-y-4">
             <div className="flex space-x-2">
               <input
@@ -263,7 +263,7 @@ const AIInsightsDashboard: React.FC = () => {
                 )}
               </button>
             </div>
-            
+
             {chatResponse && (
               <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
                 <div className="flex items-start space-x-2">
@@ -344,7 +344,7 @@ const AIInsightsDashboard: React.FC = () => {
                       <Icon className="w-6 h-6" />
                     </div>
                   </div>
-                  
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="font-semibold text-gray-900 dark:text-white">
@@ -357,11 +357,11 @@ const AIInsightsDashboard: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    
+
                     <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
                       {insight.description}
                     </p>
-                    
+
                     {/* Impact Metrics */}
                     <div className="flex items-center space-x-6 mb-4 text-sm">
                       {insight.impact.financial > 0 && (
@@ -387,7 +387,7 @@ const AIInsightsDashboard: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    
+
                     {/* Action Buttons */}
                     {insight.actionable && insight.actions && insight.actions.length > 0 && (
                       <div className="flex flex-wrap gap-2">
@@ -423,7 +423,7 @@ const AIInsightsDashboard: React.FC = () => {
               {selectedInsightType === 'all' ? 'No insights available' : `No ${selectedInsightType} insights`}
             </h4>
             <p className={theme.textMuted}>
-              {selectedInsightType === 'all' 
+              {selectedInsightType === 'all'
                 ? 'Add more financial data to get personalized AI insights'
                 : `No ${selectedInsightType} insights found for your current financial situation`
               }

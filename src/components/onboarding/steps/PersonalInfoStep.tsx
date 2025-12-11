@@ -79,7 +79,7 @@ const PersonalInfoStep: React.FC = () => {
               type="text"
               value={userProfile?.personalInfo?.name || ''}
               onChange={(e) => handleChange('name', e.target.value)}
-              className="input-field"
+              className="input-field theme-input"
               placeholder="Enter your full name"
             />
           </div>
@@ -94,7 +94,7 @@ const PersonalInfoStep: React.FC = () => {
                 type="email"
                 value={userProfile?.personalInfo?.email || ''}
                 onChange={(e) => handleChange('email', e.target.value)}
-                className="input-field pl-10"
+                className="input-field pl-10 theme-input"
                 placeholder="Enter your email"
               />
             </div>
@@ -110,7 +110,7 @@ const PersonalInfoStep: React.FC = () => {
                 type="date"
                 value={userProfile?.personalInfo?.dateOfBirth || ''}
                 onChange={(e) => handleChange('dateOfBirth', e.target.value)}
-                className="input-field pl-10"
+                className="input-field pl-10 theme-input"
               />
             </div>
           </div>
@@ -118,10 +118,15 @@ const PersonalInfoStep: React.FC = () => {
 
         {/* Spouse Information */}
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-            <Users className="w-5 h-5 mr-2" />
-            Spouse Information (Optional)
-          </h3>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+              <Users className="w-5 h-5 mr-2" />
+              Spouse Information (Optional)
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Used for joint financial goals, insurance beneficiaries, and family budget planning
+            </p>
+          </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
@@ -131,7 +136,7 @@ const PersonalInfoStep: React.FC = () => {
               type="text"
               value={userProfile?.personalInfo?.spouseName || ''}
               onChange={(e) => handleChange('spouseName', e.target.value)}
-              className="input-field"
+              className="input-field theme-input"
               placeholder="Enter spouse name"
             />
           </div>
@@ -146,7 +151,7 @@ const PersonalInfoStep: React.FC = () => {
                 type="date"
                 value={userProfile?.personalInfo?.spouseDateOfBirth || ''}
                 onChange={(e) => handleChange('spouseDateOfBirth', e.target.value)}
-                className="input-field pl-10"
+                className="input-field pl-10 theme-input"
               />
             </div>
           </div>
@@ -155,11 +160,16 @@ const PersonalInfoStep: React.FC = () => {
 
       {/* Children Information */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Children (Optional)</h3>
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Children (Optional)</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Used for education savings goals, insurance planning, and family expense tracking
+            </p>
+          </div>
           <button
             onClick={addChild}
-            className="btn-primary text-sm"
+            className="btn-primary text-sm ml-4 flex-shrink-0"
           >
             Add Child
           </button>
@@ -175,7 +185,7 @@ const PersonalInfoStep: React.FC = () => {
                 type="text"
                 value={child.name}
                 onChange={(e) => handleChildChange(index, 'name', e.target.value)}
-                className="input-field"
+                className="input-field theme-input"
                 placeholder="Enter child name"
               />
             </div>
@@ -190,12 +200,12 @@ const PersonalInfoStep: React.FC = () => {
                     type="date"
                     value={child.dateOfBirth}
                     onChange={(e) => handleChildChange(index, 'dateOfBirth', e.target.value)}
-                    className="input-field pl-10"
+                    className="input-field pl-10 theme-input"
                   />
                 </div>
                 <button
                   onClick={() => removeChild(index)}
-                  className="px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 rounded-lg border border-red-200"
+                  className="px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-700"
                 >
                   Remove
                 </button>

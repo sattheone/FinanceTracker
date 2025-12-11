@@ -204,28 +204,28 @@ const Reports: React.FC = () => {
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Key Financial Ratios</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-4 bg-blue-50 rounded-lg text-center">
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center">
             <p className="text-sm text-gray-600 dark:text-gray-300">Debt-to-Income Ratio</p>
             <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {((329030 / (monthlyBudget.income * 12)) * 100).toFixed(1)}%
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">Excellent (&lt;20%)</p>
           </div>
-          <div className="p-4 bg-green-50 rounded-lg text-center">
+          <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg text-center">
             <p className="text-sm text-gray-600 dark:text-gray-300">Emergency Fund Ratio</p>
             <p className="text-2xl font-bold text-green-600 dark:text-green-400">
               {(700000 / (monthlyBudget.expenses.household * 6)).toFixed(1)}x
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">6 months expenses</p>
           </div>
-          <div className="p-4 bg-yellow-50 rounded-lg text-center">
+          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-center">
             <p className="text-sm text-gray-600 dark:text-gray-300">Investment Rate</p>
             <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {(((monthlyBudget.expenses.investments + monthlyBudget.expenses.other) / monthlyBudget.income) * 100).toFixed(1)}%
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">Of gross income</p>
           </div>
-          <div className="p-4 bg-purple-50 rounded-lg text-center">
+          <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-center">
             <p className="text-sm text-gray-600 dark:text-gray-300">Liquidity Ratio</p>
             <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {totalAssets > 0 ? ((assets.filter(a => ['cash', 'stocks', 'mutual_funds'].includes(a.category))

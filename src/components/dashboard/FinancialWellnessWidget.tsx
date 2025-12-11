@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Heart, 
+import {
+  Heart,
   Target,
   Info,
   CheckCircle,
@@ -44,7 +44,10 @@ const FinancialWellnessWidget: React.FC = () => {
     const monthlyExpenses = Math.abs(transactions
       .filter(t => {
         const tDate = new Date(t.date);
-        return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear && t.amount < 0;
+        return tDate.getMonth() === currentMonth &&
+          tDate.getFullYear() === currentYear &&
+          t.amount < 0 &&
+          t.category !== 'transfer';
       })
       .reduce((sum, t) => sum + t.amount, 0));
 
@@ -55,7 +58,7 @@ const FinancialWellnessWidget: React.FC = () => {
     const emergencyFund = assets
       .filter(asset => asset.category === 'cash' || asset.category === 'fixed_deposit')
       .reduce((sum, asset) => sum + asset.currentValue, 0);
-    
+
     const emergencyFundMonths = monthlyExpenses > 0 ? emergencyFund / monthlyExpenses : 0;
     const emergencyScore = Math.min(100, (emergencyFundMonths / 6) * 100);
 
@@ -63,7 +66,7 @@ const FinancialWellnessWidget: React.FC = () => {
     const monthlyDebtPayments = bills
       .filter(bill => bill.category === 'loan' || bill.category === 'credit_card')
       .reduce((sum, bill) => sum + bill.amount, 0);
-    
+
     const debtToIncomeRatio = monthlyIncome > 0 ? (monthlyDebtPayments / monthlyIncome) * 100 : 0;
     const debtScore = Math.max(0, 100 - (debtToIncomeRatio * 2.5)); // Penalty increases with ratio
 
@@ -78,7 +81,7 @@ const FinancialWellnessWidget: React.FC = () => {
     const diversificationScore = totalInvestments > 0 ? Math.min(100, assetTypes * 20) : 0;
 
     // 5. Goal Progress (10% weight)
-    const goalProgress = goals.length > 0 
+    const goalProgress = goals.length > 0
       ? goals.reduce((sum, goal) => sum + Math.min(100, (goal.currentAmount / goal.targetAmount) * 100), 0) / goals.length
       : 0;
 
@@ -169,8 +172,8 @@ const FinancialWellnessWidget: React.FC = () => {
 
   const getScoreBgColor = (score: number) => {
     if (score >= 80) return 'bg-green-500';
-    if (score >= 60) return 'bg-yellow-500';
-    if (score >= 40) return 'bg-orange-500';
+    if (score >= 60) return 'bg-yellow-50 dark:bg-yellow-900/200';
+    if (score >= 40) return 'bg-orange-50 dark:bg-orange-900/200';
     return 'bg-red-500';
   };
 
@@ -267,8 +270,8 @@ const FinancialWellnessWidget: React.FC = () => {
               onClick={() => setSelectedMetric(isSelected ? null : metric.id)}
               className={cn(
                 'p-4 rounded-lg border cursor-pointer transition-all duration-200',
-                isSelected 
-                  ? 'border-blue-300 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20' 
+                isSelected
+                  ? 'border-blue-300 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20'
                   : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
               )}
             >
@@ -347,13 +350,13 @@ const FinancialWellnessWidget: React.FC = () => {
               Wellness Tip
             </p>
             <p className="text-xs text-yellow-700 dark:text-yellow-300">
-              {wellnessScore >= 80 
+              {wellnessScore >= 80
                 ? "Excellent financial health! Consider exploring advanced investment strategies."
                 : wellnessScore >= 60
-                ? "Good progress! Focus on building your emergency fund and reducing debt."
-                : wellnessScore >= 40
-                ? "You're on the right track. Prioritize emergency savings and debt reduction."
-                : "Start with the basics: create a budget, build emergency savings, and track expenses."
+                  ? "Good progress! Focus on building your emergency fund and reducing debt."
+                  : wellnessScore >= 40
+                    ? "You're on the right track. Prioritize emergency savings and debt reduction."
+                    : "Start with the basics: create a budget, build emergency savings, and track expenses."
               }
             </p>
           </div>

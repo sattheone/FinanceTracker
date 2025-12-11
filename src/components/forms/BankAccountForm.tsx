@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BankAccount } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface BankAccountFormProps {
   account?: BankAccount;
@@ -12,6 +13,7 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
   onSubmit,
   onCancel,
 }) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     bank: account?.bank || '',
     accountNumber: account?.number ? account.number.replace('xx', '') : '',
@@ -47,17 +49,13 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
       newErrors.accountNumber = 'Account number must be at least 4 characters';
     }
 
-    if (formData.balance < 0) {
-      newErrors.balance = 'Balance cannot be negative';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -70,6 +68,7 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
       number: maskedNumber,
       balance: formData.balance,
       logo: formData.logo,
+      userId: user?.id || '',
     });
   };
 
@@ -94,11 +93,10 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
               key={bank.name}
               type="button"
               onClick={() => handleBankSelect(bank.name, bank.logo)}
-              className={`flex items-center space-x-2 p-3 border-2 rounded-lg transition-all ${
-                formData.bank === bank.name
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
+              className={`flex items-center space-x-2 p-3 border-2 rounded-lg transition-all ${formData.bank === bank.name
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                : 'border-gray-200 hover:border-gray-300'
+                }`}
             >
               <span className="text-xl">{bank.logo}</span>
               <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
@@ -122,7 +120,7 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
             type="text"
             value={formData.bank === 'Other' ? '' : formData.bank}
             onChange={(e) => setFormData(prev => ({ ...prev, bank: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="theme-input"
             placeholder="Enter bank name"
           />
         </div>
@@ -137,7 +135,7 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
           type="text"
           value={formData.accountNumber}
           onChange={(e) => setFormData(prev => ({ ...prev, accountNumber: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="theme-input"
           placeholder="Enter account number"
         />
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -158,15 +156,12 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
           step="0.01"
           value={formData.balance}
           onChange={(e) => setFormData(prev => ({ ...prev, balance: parseFloat(e.target.value) || 0 }))}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="theme-input"
           placeholder="0.00"
         />
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          This is your current account balance. New transactions will automatically update this balance.
+          Enter your current account balance. You can update this anytime.
         </p>
-        {errors.balance && (
-          <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.balance}</p>
-        )}
       </div>
 
       {/* Form Actions */}

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Trash2, CreditCard } from 'lucide-react';
 import { BankAccount } from '../../../types';
 import BankAccountForm from '../../forms/BankAccountForm';
+import { useData } from '../../../contexts/DataContext';
 
 interface BankAccountStepProps {
   onNext?: () => void;
@@ -9,7 +10,7 @@ interface BankAccountStepProps {
 }
 
 const BankAccountStep: React.FC<BankAccountStepProps> = ({ onNext }) => {
-  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const { bankAccounts, addBankAccount, updateBankAccount, deleteBankAccount } = useData();
   const [showForm, setShowForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
 
@@ -24,22 +25,16 @@ const BankAccountStep: React.FC<BankAccountStepProps> = ({ onNext }) => {
   };
 
   const handleDeleteAccount = (accountId: string) => {
-    setAccounts(prev => prev.filter(acc => acc.id !== accountId));
+    if (window.confirm('Are you sure you want to delete this bank account?')) {
+      deleteBankAccount(accountId);
+    }
   };
 
-  const handleAccountSubmit = (accountData: Omit<BankAccount, 'id'>) => {
+  const handleAccountSubmit = async (accountData: Omit<BankAccount, 'id'>) => {
     if (editingAccount) {
-      setAccounts(prev => prev.map(acc => 
-        acc.id === editingAccount.id 
-          ? { ...acc, ...accountData }
-          : acc
-      ));
+      await updateBankAccount(editingAccount.id, accountData);
     } else {
-      const newAccount: BankAccount = {
-        id: Date.now().toString(),
-        ...accountData
-      };
-      setAccounts(prev => [...prev, newAccount]);
+      await addBankAccount(accountData);
     }
     setShowForm(false);
     setEditingAccount(null);
@@ -53,7 +48,6 @@ const BankAccountStep: React.FC<BankAccountStepProps> = ({ onNext }) => {
 
 
   const handleContinue = () => {
-    // Save accounts to context/storage here if needed
     if (onNext) onNext();
   };
 
@@ -88,11 +82,11 @@ const BankAccountStep: React.FC<BankAccountStepProps> = ({ onNext }) => {
         </p>
       </div>
 
-      {accounts.length > 0 ? (
+      {bankAccounts.length > 0 ? (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Bank Accounts</h3>
           <div className="grid gap-4">
-            {accounts.map((account) => (
+            {bankAccounts.map((account) => (
               <div
                 key={account.id}
                 className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:border-gray-300 dark:border-gray-500 transition-colors"
@@ -149,13 +143,13 @@ const BankAccountStep: React.FC<BankAccountStepProps> = ({ onNext }) => {
         </button>
       </div>
 
-      {accounts.length > 0 && (
+      {bankAccounts.length > 0 && (
         <div className="flex justify-end pt-6 border-t border-gray-200 dark:border-gray-600">
           <button
             onClick={handleContinue}
             className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
-            Continue with {accounts.length} account{accounts.length !== 1 ? 's' : ''}
+            Continue with {bankAccounts.length} account{bankAccounts.length !== 1 ? 's' : ''}
           </button>
         </div>
       )}

@@ -12,6 +12,7 @@ interface MetricCardProps {
   };
   color?: 'blue' | 'green' | 'yellow' | 'red' | 'purple';
   format?: 'currency' | 'large' | 'number';
+  tooltipContent?: React.ReactNode;
 }
 
 const MetricCard: React.FC<MetricCardProps> = ({
@@ -20,7 +21,8 @@ const MetricCard: React.FC<MetricCardProps> = ({
   icon: Icon,
   trend,
   color = 'blue',
-  format = 'currency'
+  format = 'currency',
+  tooltipContent
 }) => {
   const colorClasses = {
     blue: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700',
@@ -42,7 +44,13 @@ const MetricCard: React.FC<MetricCardProps> = ({
   };
 
   return (
-    <div className="metric-card">
+    <div className="metric-card relative group cursor-help">
+      {tooltipContent && (
+        <div className="absolute z-50 invisible group-hover:visible bg-gray-900 text-white text-xs rounded-lg py-2 px-3 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 shadow-lg pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          {tooltipContent}
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-700 dark:text-gray-200 dark:text-gray-200">{title}</p>

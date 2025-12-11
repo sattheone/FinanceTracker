@@ -46,6 +46,19 @@ const OnboardingWizard: React.FC = () => {
     }
   };
 
+  const handleSkip = () => {
+    if (window.confirm('Are you an existing user? Skip onboarding and go to dashboard?')) {
+      localStorage.setItem('bypassOnboarding', 'true');
+      if (user) {
+        updateUser({
+          ...user,
+          onboardingCompleted: true,
+        });
+      }
+      window.location.reload();
+    }
+  };
+
   const CurrentStepComponent = steps[currentStep].component;
 
   return (
@@ -115,20 +128,27 @@ const OnboardingWizard: React.FC = () => {
         </div>
 
         {/* Navigation */}
-        <div className="flex justify-between mt-8">
+        <div className="flex justify-between items-center mt-8">
           <button
             onClick={handlePrevious}
             disabled={currentStep === 0}
-            className="flex items-center px-4 py-2 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center px-4 py-2 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft className="w-4 h-4 mr-2" />
             Previous
           </button>
 
+          <button
+            onClick={handleSkip}
+            className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline"
+          >
+            Already have an account? Skip to Dashboard
+          </button>
+
           {currentStep === steps.length - 1 ? (
             <button
               onClick={handleComplete}
-              className="flex items-center px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              className="flex items-center px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
             >
               Complete Setup
               <Check className="w-4 h-4 ml-2" />
@@ -136,7 +156,7 @@ const OnboardingWizard: React.FC = () => {
           ) : (
             <button
               onClick={handleNext}
-              className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
             >
               Next
               <ChevronRight className="w-4 h-4 ml-2" />

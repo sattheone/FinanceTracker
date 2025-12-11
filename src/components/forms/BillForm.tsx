@@ -12,7 +12,7 @@ interface BillFormProps {
 const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
   const { bankAccounts, addBill, updateBill } = useData();
   const theme = useThemeClasses();
-  
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -28,6 +28,32 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [tagInput, setTagInput] = useState('');
+  const [categories, setCategories] = useState<any[]>([]);
+
+  // Load categories from localStorage (same as other forms)
+  useEffect(() => {
+    const savedCategories = localStorage.getItem('categories');
+    if (savedCategories) {
+      setCategories(JSON.parse(savedCategories));
+    } else {
+      // Default categories if none exist
+      const defaultCategories = [
+        { id: 'food', name: 'Food & Dining', color: '#EF4444', icon: '🍽️', isCustom: false },
+        { id: 'transport', name: 'Transportation', color: '#3B82F6', icon: '🚗', isCustom: false },
+        { id: 'shopping', name: 'Shopping', color: '#8B5CF6', icon: '🛍️', isCustom: false },
+        { id: 'entertainment', name: 'Entertainment', color: '#F59E0B', icon: '🎬', isCustom: false },
+        { id: 'bills', name: 'Bills & Utilities', color: '#10B981', icon: '⚡', isCustom: false },
+        { id: 'healthcare', name: 'Healthcare', color: '#EC4899', icon: '🏥', isCustom: false },
+        { id: 'education', name: 'Education', color: '#6366F1', icon: '📚', isCustom: false },
+        { id: 'travel', name: 'Travel', color: '#14B8A6', icon: '✈️', isCustom: false },
+        { id: 'salary', name: 'Salary', color: '#22C55E', icon: '💰', isCustom: false },
+        { id: 'investment', name: 'Investment', color: '#059669', icon: '📈', isCustom: false },
+        { id: 'other', name: 'Other', color: '#6B7280', icon: '📋', isCustom: false },
+      ];
+      setCategories(defaultCategories);
+      localStorage.setItem('categories', JSON.stringify(defaultCategories));
+    }
+  }, []);
 
   useEffect(() => {
     if (bill) {
@@ -46,19 +72,7 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
     }
   }, [bill, bankAccounts]);
 
-  const billCategories = [
-    'Utilities',
-    'Internet & Phone',
-    'Insurance',
-    'Rent & Mortgage',
-    'Subscriptions',
-    'Loan EMI',
-    'Credit Card',
-    'Taxes',
-    'Healthcare',
-    'Education',
-    'Other'
-  ];
+
 
   const frequencies = [
     { value: 'monthly', label: 'Monthly' },
@@ -111,7 +125,7 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     const billData = {
@@ -162,11 +176,13 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
             className={cn(theme.select, errors.category && 'border-red-500 dark:border-red-400')}
           >
             <option value="">Select a category</option>
-            {billCategories.map(category => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
+            {categories
+              .filter(c => c.id !== 'salary')
+              .map(category => (
+                <option key={category.id} value={category.id}>
+                  {category.icon} {category.name}
+                </option>
+              ))}
           </select>
           {errors.category && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.category}</p>}
         </div>
@@ -320,7 +336,7 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
               <button
                 type="button"
                 onClick={() => removeTag(tag)}
-                className="ml-1 text-blue-600 hover:text-blue-800"
+                className="ml-1 text-blue-600 hover:text-blue-800 dark:text-blue-200"
               >
                 ×
               </button>

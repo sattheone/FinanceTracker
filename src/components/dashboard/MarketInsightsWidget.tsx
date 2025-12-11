@@ -207,9 +207,9 @@ const MarketInsightsWidget: React.FC = () => {
   };
 
   const getInsightColor = (type: string, impact: string) => {
-    if (type === 'risk_alert') return 'text-red-600 bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-700';
-    if (impact === 'high') return 'text-green-600 bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-700';
-    if (impact === 'medium') return 'text-blue-600 bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-700';
+    if (type === 'risk_alert') return 'text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:bg-red-900/20 dark:border-red-700';
+    if (impact === 'high') return 'text-green-600 bg-green-50 dark:bg-green-900/20 border-green-200 dark:bg-green-900/20 dark:border-green-700';
+    if (impact === 'medium') return 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:bg-blue-900/20 dark:border-blue-700';
     return 'text-gray-600 bg-gray-50 border-gray-200 dark:bg-gray-700 dark:border-gray-600';
   };
 

@@ -107,7 +107,7 @@ const Forecast: React.FC = () => {
               type="number"
               value={returnRate}
               onChange={(e) => setReturnRate(Number(e.target.value))}
-              className="input-field"
+              className="input-field theme-input"
               min="1"
               max="30"
             />
@@ -120,7 +120,7 @@ const Forecast: React.FC = () => {
               type="number"
               value={inflationRate}
               onChange={(e) => setInflationRate(Number(e.target.value))}
-              className="input-field"
+              className="input-field theme-input"
               min="1"
               max="15"
             />
@@ -133,7 +133,7 @@ const Forecast: React.FC = () => {
               type="number"
               value={forecastYears}
               onChange={(e) => setForecastYears(Number(e.target.value))}
-              className="input-field"
+              className="input-field theme-input"
               min="5"
               max="25"
             />

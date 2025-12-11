@@ -1,40 +1,44 @@
-import React, { useState } from 'react';
-import { Target, TrendingUp, Calendar, DollarSign, Plus, Edit3, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Target, Plus } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
-import { formatCurrency, formatDate, formatLargeNumber } from '../utils/formatters';
+
 import Modal from '../components/common/Modal';
 import GoalForm from '../components/forms/GoalForm';
+import GoalSIPService from '../services/goalSIPService';
+
+import UnifiedGoalCard from '../components/goals/UnifiedGoalCard';
 import { Goal } from '../types';
 
 const Goals: React.FC = () => {
-  const { goals, addGoal, updateGoal, deleteGoal } = useData();
+  const { goals, addGoal, updateGoal, deleteGoal, assets } = useData();
   const [showGoalForm, setShowGoalForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'retirement': return '🏖️';
-      case 'education': return '🎓';
-      case 'marriage': return '💒';
-      default: return '🎯';
-    }
+
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
   };
 
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'retirement': return 'border-purple-200 bg-purple-50';
-      case 'education': return 'border-blue-200 bg-blue-50';
-      case 'marriage': return 'border-pink-200 bg-pink-50';
-      default: return 'border-gray-200 bg-gray-50';
-    }
-  };
+  // Get SIP assets (mutual funds and EPF with SIP enabled)
+  const sipAssets = assets.filter(a => a.isSIP && (a.category === 'mutual_funds' || a.category === 'epf'));
 
-  const calculateMonthsRemaining = (targetDate: string) => {
-    const target = new Date(targetDate);
-    const now = new Date();
-    const diffTime = target.getTime() - now.getTime();
-    const diffMonths = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30));
-    return Math.max(0, diffMonths);
-  };
+  // Auto-update goals from SIP contributions on mount
+  useEffect(() => {
+    const updateGoalsFromSIPs = () => {
+      goals.forEach(goal => {
+        const updatedGoal = GoalSIPService.updateGoalFromSIPs(goal, assets);
+        if (updatedGoal.currentAmount !== goal.currentAmount) {
+          updateGoal(goal.id, updatedGoal);
+        }
+      });
+    };
+
+    updateGoalsFromSIPs();
+  }, []); // Run once on mount
 
   // Handler functions
   const handleAddGoal = () => {
@@ -47,11 +51,7 @@ const Goals: React.FC = () => {
     setShowGoalForm(true);
   };
 
-  const handleDeleteGoal = (goalId: string) => {
-    if (window.confirm('Are you sure you want to delete this goal?')) {
-      deleteGoal(goalId);
-    }
-  };
+
 
   const handleGoalSubmit = (goalData: Omit<Goal, 'id'>) => {
     if (editingGoal) {
@@ -68,34 +68,17 @@ const Goals: React.FC = () => {
     setEditingGoal(null);
   };
 
+  const handleDeleteGoal = (goal: Goal) => {
+    deleteGoal(goal.id);
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white dark:text-white">Financial Goals</h1>
-        <p className="text-gray-600 dark:text-gray-300 dark:text-gray-400 mt-1">Track progress towards your financial objectives</p>
-      </div>
-
-      {/* Goals Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="metric-card text-center">
-          <Target className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Goals</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">{goals.length}</p>
-        </div>
-        <div className="metric-card text-center">
-          <TrendingUp className="h-8 w-8 text-green-600 dark:text-green-400 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Target</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">
-            {formatLargeNumber(goals.reduce((sum, goal) => sum + goal.targetAmount, 0))}
-          </p>
-        </div>
-        <div className="metric-card text-center">
-          <DollarSign className="h-8 w-8 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Monthly Investment</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">
-            {formatCurrency(goals.reduce((sum, goal) => sum + goal.monthlyContribution, 0))}
-          </p>
-        </div>
+        <p className="font-medium text-gray-600 dark:text-gray-300 mt-1">
+            Monthly Investment: {formatCurrency(goals.reduce((sum, goal) => sum + goal.monthlyContribution, 0))}
+        </p>
       </div>
 
       {/* Quick Actions */}
@@ -110,150 +93,42 @@ const Goals: React.FC = () => {
         </button>
       </div>
 
-      {/* Goals List */}
-      <div className="space-y-4">
-        {goals.map((goal) => {
-          const progress = (goal.currentAmount / goal.targetAmount) * 100;
-          const monthsRemaining = calculateMonthsRemaining(goal.targetDate);
-          const yearsRemaining = Math.floor(monthsRemaining / 12);
-          const remainingMonths = monthsRemaining % 12;
-          
-          return (
-            <div key={goal.id} className={`card border-l-4 ${getCategoryColor(goal.category)}`}>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center mb-2">
-                    <span className="text-2xl mr-3">{getCategoryIcon(goal.category)}</span>
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{goal.name}</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 capitalize">{goal.category} Goal</p>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Target Amount</p>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {formatLargeNumber(goal.targetAmount)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Current Amount</p>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {formatLargeNumber(goal.currentAmount)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Monthly SIP</p>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {formatCurrency(goal.monthlyContribution)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Time Remaining</p>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {yearsRemaining > 0 && `${yearsRemaining}y `}
-                        {remainingMonths}m
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Progress Bar */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-300">Progress</span>
-                      <span className="font-medium">{progress.toFixed(1)}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(progress, 100)}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                      <span>₹0</span>
-                      <span>{formatLargeNumber(goal.targetAmount)}</span>
-                    </div>
-                  </div>
-
-                  {/* Target Date */}
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-300">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      Target Date: {formatDate(goal.targetDate)}
-                    </div>
-                    
-                    {/* Action Buttons */}
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleEditGoal(goal)}
-                        className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Edit Goal"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteGoal(goal.id)}
-                        className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete Goal"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Goal Categories Summary */}
-      <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Goals by Category</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {['retirement', 'education', 'marriage'].map((category) => {
-            const categoryGoals = goals.filter(g => g.category === category);
-            const totalTarget = categoryGoals.reduce((sum, g) => sum + g.targetAmount, 0);
-            const totalCurrent = categoryGoals.reduce((sum, g) => sum + g.currentAmount, 0);
-            const totalMonthly = categoryGoals.reduce((sum, g) => sum + g.monthlyContribution, 0);
-            const avgProgress = categoryGoals.length > 0 
-              ? categoryGoals.reduce((sum, g) => sum + (g.currentAmount / g.targetAmount * 100), 0) / categoryGoals.length 
-              : 0;
-
-            return (
-              <div key={category} className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
-                <div className="flex items-center mb-3">
-                  <span className="text-xl mr-2">{getCategoryIcon(category)}</span>
-                  <h4 className="font-medium text-gray-900 dark:text-white capitalize">{category}</h4>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Goals:</span>
-                    <span className="font-medium">{categoryGoals.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Target:</span>
-                    <span className="font-medium">{formatLargeNumber(totalTarget)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Current:</span>
-                    <span className="font-medium">{formatLargeNumber(totalCurrent)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Monthly:</span>
-                    <span className="font-medium">{formatCurrency(totalMonthly)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Avg Progress:</span>
-                    <span className="font-medium">{avgProgress.toFixed(1)}%</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      {/* Goals List - Using Unified Goal Cards */}
+      {goals.length > 0 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {goals.map((goal) => (
+            <UnifiedGoalCard
+              key={goal.id}
+              goal={goal}
+              sipAssets={sipAssets}
+              size="large"
+              showDetails={true}
+              onEdit={handleEditGoal}
+              onDelete={handleDeleteGoal}
+            />
+          ))}
         </div>
-      </div>
+      ) : (
+        <div className="card text-center py-12">
+          <div className="text-gray-400 mb-4">
+            <Target className="h-16 w-16 mx-auto" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No financial goals set</h3>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">
+            Create your first financial goal to start tracking your progress
+          </p>
+          <button
+            onClick={handleAddGoal}
+            className="btn-primary flex items-center mx-auto"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Your First Goal
+          </button>
+        </div>
+      )
+      }
+
+      
 
       {/* Goal Form Modal */}
       <Modal
@@ -268,7 +143,7 @@ const Goals: React.FC = () => {
           onCancel={handleGoalCancel}
         />
       </Modal>
-    </div>
+    </div >
   );
 };
 

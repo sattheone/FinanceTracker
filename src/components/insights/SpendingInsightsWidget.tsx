@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  TrendingUp, 
+import {
+  TrendingUp,
   AlertTriangle,
   PieChart,
   BarChart3,
@@ -16,7 +16,7 @@ import { mintLikeFeatures, SpendingInsight } from '../../services/mintLikeFeatur
 const SpendingInsightsWidget: React.FC = () => {
   const theme = useThemeClasses();
   const { transactions, monthlyBudget } = useData();
-  
+
   const [insights, setInsights] = useState<SpendingInsight[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'trend' | 'alert' | 'achievement'>('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -32,19 +32,23 @@ const SpendingInsightsWidget: React.FC = () => {
       const now = new Date();
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
-      
+
       const currentMonthTransactions = transactions.filter(t => {
         const date = new Date(t.date);
-        return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+        return date.getMonth() === currentMonth &&
+          date.getFullYear() === currentYear &&
+          t.category !== 'transfer';
       });
 
       // Get previous month transactions for comparison
       const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
       const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-      
+
       const previousMonthTransactions = transactions.filter(t => {
         const date = new Date(t.date);
-        return date.getMonth() === previousMonth && date.getFullYear() === previousYear;
+        return date.getMonth() === previousMonth &&
+          date.getFullYear() === previousYear &&
+          t.category !== 'transfer';
       });
 
       // Generate insights
@@ -62,7 +66,7 @@ const SpendingInsightsWidget: React.FC = () => {
     }
   };
 
-  const filteredInsights = insights.filter(insight => 
+  const filteredInsights = insights.filter(insight =>
     selectedFilter === 'all' || insight.type === selectedFilter
   );
 
@@ -142,7 +146,7 @@ const SpendingInsightsWidget: React.FC = () => {
           </h3>
           <p className={theme.textMuted}>AI-powered analysis of your spending patterns</p>
         </div>
-        
+
         {/* Filter Buttons */}
         <div className="flex items-center space-x-2">
           <Filter className="w-4 h-4 text-gray-500" />
@@ -192,7 +196,7 @@ const SpendingInsightsWidget: React.FC = () => {
                   <div className="flex-shrink-0">
                     <Icon className="w-6 h-6" />
                   </div>
-                  
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-medium text-gray-900 dark:text-white">
@@ -205,11 +209,11 @@ const SpendingInsightsWidget: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    
+
                     <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
                       {insight.description}
                     </p>
-                    
+
                     {/* Insight Metrics */}
                     {(insight.amount || insight.percentage) && (
                       <div className="flex items-center space-x-4 mb-3">
@@ -237,16 +241,16 @@ const SpendingInsightsWidget: React.FC = () => {
                         )}
                       </div>
                     )}
-                    
+
                     {/* Action Button */}
                     {insight.actionable && insight.action && (
                       <button
                         onClick={() => handleInsightAction(insight)}
                         className={cn(
                           'flex items-center text-sm font-medium transition-colors',
-                          insight.type === 'alert' ? 'text-red-700 hover:text-red-800' :
-                          insight.type === 'trend' ? 'text-blue-700 hover:text-blue-800' :
-                          'text-green-700 hover:text-green-800'
+                          insight.type === 'alert' ? 'text-red-700 dark:text-red-300 hover:text-red-800 dark:text-red-200' :
+                            insight.type === 'trend' ? 'text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:text-blue-200' :
+                              'text-green-700 dark:text-green-300 hover:text-green-800 dark:text-green-200'
                         )}
                       >
                         {insight.action.label}
@@ -265,7 +269,7 @@ const SpendingInsightsWidget: React.FC = () => {
               {selectedFilter === 'all' ? 'No insights yet' : `No ${selectedFilter} insights`}
             </h4>
             <p className={theme.textMuted}>
-              {selectedFilter === 'all' 
+              {selectedFilter === 'all'
                 ? 'Add more transactions to get personalized spending insights'
                 : `No ${selectedFilter} insights available for this period`
               }

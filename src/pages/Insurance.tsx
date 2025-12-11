@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Heart, User, Calendar, Plus, Edit3, Trash2 } from 'lucide-react';
+import { Shield, Heart, User, Calendar, Plus, Edit3, Trash2, Copy } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, formatDate, formatLargeNumber } from '../utils/formatters';
 import Modal from '../components/common/Modal';
@@ -7,12 +7,46 @@ import InsuranceForm from '../components/forms/InsuranceForm';
 import type { Insurance } from '../types';
 
 const Insurance: React.FC = () => {
-  const { insurance, licPolicies, addInsurance, updateInsurance, deleteInsurance } = useData();
+  const { insurance, addInsurance, updateInsurance, deleteInsurance } = useData();
   const [showInsuranceForm, setShowInsuranceForm] = useState(false);
   const [editingInsurance, setEditingInsurance] = useState<Insurance | null>(null);
   const totalCover = insurance.reduce((sum, policy) => sum + policy.coverAmount, 0);
-  const totalPremiums = insurance.reduce((sum, policy) => sum + policy.premiumAmount, 0);
-  const totalLICMaturity = licPolicies.reduce((sum, policy) => sum + policy.maturityAmount, 0);
+
+  // Calculate total annual premiums by normalizing all frequencies to yearly
+  // Only include policies where premium paying term is not yet over
+  const totalPremiums = insurance.reduce((sum, policy) => {
+    // Check if premium paying term is over
+    if (policy.policyStartDate && policy.premiumPayingTerm) {
+      const startDate = new Date(policy.policyStartDate);
+      const premiumEndDate = new Date(startDate);
+      premiumEndDate.setFullYear(startDate.getFullYear() + policy.premiumPayingTerm);
+
+      const today = new Date();
+      // If premium paying term is over, don't include this policy
+      if (today > premiumEndDate) {
+        return sum;
+      }
+    }
+
+    // Calculate annual premium based on frequency
+    let annualPremium = policy.premiumAmount;
+    if (policy.premiumFrequency === 'monthly') {
+      annualPremium = policy.premiumAmount * 12;
+    } else if (policy.premiumFrequency === 'quarterly') {
+      annualPremium = policy.premiumAmount * 4;
+    }
+    // If yearly, use as-is
+    return sum + annualPremium;
+  }, 0);
+
+  const licPolicies = insurance
+    .filter(p => (p.type === 'endowment' || p.type === 'other') && p.maturityAmount)
+    .map(p => ({
+      ...p,
+      maturityYear: p.maturityDate ? new Date(p.maturityDate).getFullYear() : 0,
+    }));
+
+  const totalLICMaturity = licPolicies.reduce((sum, policy) => sum + (policy.maturityAmount || 0), 0);
 
   const getInsuranceIcon = (type: string) => {
     switch (type) {
@@ -32,15 +66,15 @@ const Insurance: React.FC = () => {
     }
   };
 
-  const licByYear = licPolicies.reduce((acc, policy) => {
-    if (!acc[policy.maturityYear]) {
-      acc[policy.maturityYear] = [];
+  const calculatePayoutYear = (policy: Insurance) => {
+    if (policy.usePremiumPayingTermForMaturity && policy.policyStartDate && policy.premiumPayingTerm) {
+      const policyStart = new Date(policy.policyStartDate);
+      const premiumEndDate = new Date(policyStart.getFullYear() + policy.premiumPayingTerm, policyStart.getMonth(), policyStart.getDate());
+      const payoutYear = premiumEndDate.getFullYear() + 1;
+      return payoutYear;
     }
-    acc[policy.maturityYear].push(policy);
-    return acc;
-  }, {} as Record<number, typeof licPolicies>);
-
-  const sortedYears = Object.keys(licByYear).map(Number).sort();
+    return null;
+  };
 
   // Handler functions
   const handleAddInsurance = () => {
@@ -59,7 +93,16 @@ const Insurance: React.FC = () => {
     }
   };
 
+  const handleDuplicateInsurance = (policy: Insurance) => {
+    const { id, ...policyData } = policy;
+    addInsurance({
+      ...policyData,
+      policyName: `${policyData.policyName} (Copy)`,
+    });
+  };
+
   const handleInsuranceSubmit = (insuranceData: Omit<Insurance, 'id'>) => {
+    console.log('Submitting insurance data:', insuranceData);
     if (editingInsurance) {
       updateInsurance(editingInsurance.id, insuranceData);
     } else {
@@ -85,7 +128,7 @@ const Insurance: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="metric-card text-center">
           <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Cover</p>
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Sum Assured</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">{formatLargeNumber(totalCover)}</p>
         </div>
         <div className="metric-card text-center">
@@ -96,7 +139,7 @@ const Insurance: React.FC = () => {
         <div className="metric-card text-center">
           <User className="h-8 w-8 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
           <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Active Policies</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{insurance.length + licPolicies.length}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{insurance.length}</p>
         </div>
         <div className="metric-card text-center">
           <Heart className="h-8 w-8 text-red-600 dark:text-red-400 mx-auto mb-2" />
@@ -131,10 +174,10 @@ const Insurance: React.FC = () => {
                       <p className="text-sm text-gray-600 dark:text-gray-300 capitalize">{policy.type} Insurance</p>
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Cover Amount</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Sum Assured</p>
                       <p className="text-lg font-semibold text-gray-900 dark:text-white">
                         {formatLargeNumber(policy.coverAmount)}
                       </p>
@@ -154,6 +197,14 @@ const Insurance: React.FC = () => {
                         </p>
                       </div>
                     )}
+                    {policy.usePremiumPayingTermForMaturity && calculatePayoutYear(policy) && (
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Payout Year</p>
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {calculatePayoutYear(policy)}
+                        </p>
+                      </div>
+                    )}
                     {policy.maturityAmount && (
                       <div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Maturity Amount</p>
@@ -164,19 +215,26 @@ const Insurance: React.FC = () => {
                     )}
                   </div>
                 </div>
-                
+
                 {/* Action Buttons */}
                 <div className="flex gap-2 ml-4">
                   <button
+                    onClick={() => handleDuplicateInsurance(policy)}
+                    className="p-2 text-green-600 dark:text-green-400 hover:bg-green-50 dark:bg-green-900/20 rounded-lg transition-colors"
+                    title="Duplicate Policy"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                  <button
                     onClick={() => handleEditInsurance(policy)}
-                    className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors"
+                    className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:bg-blue-900/20 rounded-lg transition-colors"
                     title="Edit Policy"
                   >
                     <Edit3 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteInsurance(policy.id)}
-                    className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 rounded-lg transition-colors"
                     title="Delete Policy"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -188,156 +246,9 @@ const Insurance: React.FC = () => {
         </div>
       </div>
 
-      {/* LIC Policies Maturity Schedule */}
-      <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          LIC Policies Maturity Schedule (25 Policies)
-        </h3>
-        <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-          Post-retirement income stream from {licPolicies.length} LIC policies maturing between 2036-2060
-        </p>
-        
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
-            <thead className="bg-gray-50 dark:bg-gray-700 dark:bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 dark:text-gray-300 uppercase tracking-wider">
-                  Year
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Policies Maturing
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Total Maturity Amount
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Age at Maturity
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
-              {sortedYears.map((year) => {
-                const yearPolicies = licByYear[year];
-                const yearTotal = yearPolicies.reduce((sum, p) => sum + p.maturityAmount, 0);
-                const ageAtMaturity = 40 + (year - 2025); // Current age is 40 in 2025
-                
-                return (
-                  <tr key={year} className="hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white dark:text-white">
-                      {year}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {yearPolicies.length} {yearPolicies.length === 1 ? 'policy' : 'policies'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-green-600 dark:text-green-400">
-                      {formatCurrency(yearTotal)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">
-                      {ageAtMaturity} years
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot className="bg-gray-50 dark:bg-gray-700 dark:bg-gray-700">
-              <tr>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white dark:text-white">
-                  Total
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  {licPolicies.length} policies
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-green-600 dark:text-green-400">
-                  {formatLargeNumber(totalLICMaturity)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">
-                  25 years
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
 
-      {/* Insurance Analysis */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Coverage Analysis</h3>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900 dark:text-white">Life Insurance Coverage</p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">Term + Endowment policies</p>
-              </div>
-              <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                {formatLargeNumber(
-                  insurance
-                    .filter(p => ['term', 'endowment'].includes(p.type))
-                    .reduce((sum, p) => sum + p.coverAmount, 0)
-                )}
-              </p>
-            </div>
-            
-            <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900 dark:text-white">Health Insurance Coverage</p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">Family floater policy</p>
-              </div>
-              <p className="text-lg font-bold text-red-600 dark:text-red-400">
-                {formatLargeNumber(
-                  insurance
-                    .filter(p => p.type === 'health')
-                    .reduce((sum, p) => sum + p.coverAmount, 0)
-                )}
-              </p>
-            </div>
 
-            <div className="pt-3 border-t border-gray-200 dark:border-gray-600">
-              <div className="flex justify-between items-center">
-                <span className="font-medium text-gray-900 dark:text-white">Coverage to Income Ratio</span>
-                <span className="text-lg font-bold text-green-600 dark:text-green-400">
-                  {(totalCover / (223857 * 12)).toFixed(1)}x
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Recommended: 10-15x annual income
-              </p>
-            </div>
-          </div>
-        </div>
 
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Premium Efficiency</h3>
-          <div className="space-y-4">
-            {insurance.map((policy) => {
-              const efficiency = (policy.coverAmount / policy.premiumAmount).toFixed(0);
-              return (
-                <div key={policy.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 dark:bg-gray-700 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white dark:text-white">{policy.policyName}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">Cover per ₹1 premium</p>
-                  </div>
-                  <p className="text-lg font-bold text-purple-600 dark:text-purple-400">
-                    ₹{efficiency}
-                  </p>
-                </div>
-              );
-            })}
-            
-            <div className="pt-3 border-t border-gray-200 dark:border-gray-600">
-              <div className="flex justify-between items-center">
-                <span className="font-medium text-gray-900 dark:text-white">Total Annual Premium</span>
-                <span className="text-lg font-bold text-red-600 dark:text-red-400">
-                  {formatCurrency(totalPremiums)}
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {((totalPremiums / (223857 * 12)) * 100).toFixed(1)}% of annual income
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Insurance Form Modal */}
       <Modal

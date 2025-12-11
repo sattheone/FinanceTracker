@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Shield } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { useData } from '../../../contexts/DataContext';
 import { Insurance } from '../../../types';
 import { formatCurrency } from '../../../utils/formatters';
@@ -103,7 +103,7 @@ const InsuranceStep: React.FC = () => {
                 type="text"
                 value={newInsurance.policyName}
                 onChange={(e) => setNewInsurance({ ...newInsurance, policyName: e.target.value })}
-                className="input-field"
+                className="input-field theme-input"
                 placeholder="e.g., HDFC Life Term Plan, Star Health Policy"
               />
             </div>
@@ -114,7 +114,7 @@ const InsuranceStep: React.FC = () => {
               <select
                 value={newInsurance.type}
                 onChange={(e) => setNewInsurance({ ...newInsurance, type: e.target.value as Insurance['type'] })}
-                className="input-field"
+                className="input-field theme-input"
               >
                 {insuranceTypes.map(type => (
                   <option key={type.value} value={type.value}>
@@ -133,7 +133,7 @@ const InsuranceStep: React.FC = () => {
                   type="number"
                   value={newInsurance.coverAmount || ''}
                   onChange={(e) => setNewInsurance({ ...newInsurance, coverAmount: Number(e.target.value) })}
-                  className="input-field pl-8"
+                  className="input-field pl-8 theme-input"
                   placeholder="0"
                   min="0"
                 />
@@ -149,7 +149,7 @@ const InsuranceStep: React.FC = () => {
                   type="number"
                   value={newInsurance.premiumAmount || ''}
                   onChange={(e) => setNewInsurance({ ...newInsurance, premiumAmount: Number(e.target.value) })}
-                  className="input-field pl-8"
+                  className="input-field pl-8 theme-input"
                   placeholder="0"
                   min="0"
                 />
@@ -162,7 +162,7 @@ const InsuranceStep: React.FC = () => {
               <select
                 value={newInsurance.premiumFrequency}
                 onChange={(e) => setNewInsurance({ ...newInsurance, premiumFrequency: e.target.value as Insurance['premiumFrequency'] })}
-                className="input-field"
+                className="input-field theme-input"
               >
                 <option value="monthly">Monthly</option>
                 <option value="quarterly">Quarterly</option>
@@ -179,7 +179,7 @@ const InsuranceStep: React.FC = () => {
                     type="date"
                     value={newInsurance.maturityDate}
                     onChange={(e) => setNewInsurance({ ...newInsurance, maturityDate: e.target.value })}
-                    className="input-field"
+                    className="input-field theme-input"
                   />
                 </div>
                 <div>
@@ -192,7 +192,7 @@ const InsuranceStep: React.FC = () => {
                       type="number"
                       value={newInsurance.maturityAmount || ''}
                       onChange={(e) => setNewInsurance({ ...newInsurance, maturityAmount: Number(e.target.value) })}
-                      className="input-field pl-8"
+                      className="input-field pl-8 theme-input"
                       placeholder="0"
                       min="0"
                     />
@@ -217,22 +217,7 @@ const InsuranceStep: React.FC = () => {
 
       {/* Insurance List */}
       <div className="space-y-4">
-        {insurance.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-            <Shield className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No insurance policies added</h3>
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
-              Protect yourself and your family by adding your insurance policies.
-            </p>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="btn-primary"
-            >
-              Add Your First Policy
-            </button>
-          </div>
-        ) : (
-          insurance.map((policy) => {
+        {insurance.map((policy) => {
             const insuranceType = insuranceTypes.find(type => type.value === policy.type);
             const annualPremium = policy.premiumFrequency === 'monthly' ? policy.premiumAmount * 12 :
                                  policy.premiumFrequency === 'quarterly' ? policy.premiumAmount * 4 :
@@ -288,22 +273,21 @@ const InsuranceStep: React.FC = () => {
                   
                   <button
                     onClick={() => deleteInsurance(policy.id)}
-                    className="text-red-600 dark:text-red-400 hover:bg-red-50 p-2 rounded-lg ml-4"
+                    className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 p-2 rounded-lg ml-4"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             );
-          })
-        )}
+          })}
       </div>
 
       {/* Insurance Recommendations */}
       {insurance.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-6">
           <h4 className="font-medium text-blue-900 mb-3">💡 Insurance Recommendations</h4>
-          <div className="text-sm text-blue-700 space-y-2">
+          <div className="text-sm text-blue-700 dark:text-blue-300 space-y-2">
             {!insurance.some(p => p.type === 'term') && (
               <p>• Consider adding term life insurance for comprehensive life coverage</p>
             )}

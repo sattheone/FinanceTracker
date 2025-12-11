@@ -185,7 +185,7 @@ const CategoryManager: React.FC = () => {
                   setEditingCategory(category);
                   setShowAddForm(true);
                 }}
-                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                className="p-2 text-blue-600 hover:bg-blue-50 dark:bg-blue-900/20 rounded-lg transition-colors"
                 title="Edit Category"
               >
                 <Edit3 className="w-4 h-4" />
@@ -196,7 +196,7 @@ const CategoryManager: React.FC = () => {
                     e.stopPropagation();
                     // Handle delete subcategory
                   }}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="p-2 text-red-600 hover:bg-red-50 dark:bg-red-900/20 rounded-lg transition-colors"
                   title="Delete Category"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -214,7 +214,7 @@ const CategoryManager: React.FC = () => {
                 className={cn(
                   'h-2 rounded-full transition-all duration-300',
                   budgetStatus.status === 'exceeded' ? 'bg-red-500' :
-                  budgetStatus.status === 'warning' ? 'bg-yellow-500' : 'bg-green-500'
+                  budgetStatus.status === 'warning' ? 'bg-yellow-50 dark:bg-yellow-900/200' : 'bg-green-500'
                 )}
                 style={{ width: `${Math.min(budgetStatus.percentage, 100)}%` }}
               ></div>

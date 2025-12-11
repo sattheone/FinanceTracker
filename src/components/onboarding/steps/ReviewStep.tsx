@@ -67,25 +67,25 @@ const ReviewStep: React.FC = () => {
           Financial Overview
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 bg-green-50 rounded-lg">
+          <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
             <p className="text-sm text-gray-600 dark:text-gray-300">Monthly Income</p>
             <p className="text-xl font-bold text-green-600 dark:text-green-400">
               {formatCurrency(monthlyBudget.income)}
             </p>
           </div>
-          <div className="text-center p-4 bg-red-50 rounded-lg">
+          <div className="text-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
             <p className="text-sm text-gray-600 dark:text-gray-300">Monthly Expenses</p>
             <p className="text-xl font-bold text-red-600 dark:text-red-400">
               {formatCurrency(monthlyBudget.expenses.household)}
             </p>
           </div>
-          <div className="text-center p-4 bg-blue-50 rounded-lg">
+          <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
             <p className="text-sm text-gray-600 dark:text-gray-300">Savings Rate</p>
             <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
               {savingsRate.toFixed(1)}%
             </p>
           </div>
-          <div className="text-center p-4 bg-purple-50 rounded-lg">
+          <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
             <p className="text-sm text-gray-600 dark:text-gray-300">Retirement Age</p>
             <p className="text-xl font-bold text-purple-600 dark:text-purple-400">
               {userProfile?.financialInfo.retirementAge} years
@@ -175,9 +175,9 @@ const ReviewStep: React.FC = () => {
       </div>
 
       {/* Next Steps */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 dark:border-blue-700 rounded-lg p-6">
         <h3 className="text-lg font-semibold text-blue-900 mb-3">🎉 What's Next?</h3>
-        <div className="text-sm text-blue-700 space-y-2">
+        <div className="text-sm text-blue-700 dark:text-blue-300 space-y-2">
           <p>• Your personalized dashboard will show real-time financial insights</p>
           <p>• Track your progress towards goals with interactive charts</p>
           <p>• Get forecasts and scenarios for your financial future</p>
@@ -187,11 +187,11 @@ const ReviewStep: React.FC = () => {
       </div>
 
       {/* Completion Message */}
-      <div className="text-center bg-green-50 border border-green-200 rounded-lg p-6">
+      <div className="text-center bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-6">
         <h4 className="font-medium text-green-900 mb-2">
           🚀 Ready to Take Control of Your Finances!
         </h4>
-        <p className="text-green-700">
+        <p className="text-green-700 dark:text-green-300">
           Click "Complete Setup" to access your personalized financial dashboard and start your journey towards financial freedom.
         </p>
       </div>

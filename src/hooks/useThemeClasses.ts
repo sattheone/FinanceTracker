@@ -86,14 +86,40 @@ export const useThemeClasses = () => {
     metricLabel: 'text-sm font-medium theme-text-muted',
     
     // Progress & Charts
-    progressBar: 'w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2',
-    progressFill: 'h-2 rounded-full transition-all duration-300',
+    progressBar: 'w-full bg-gray-200 dark:bg-gray-700 dark:bg-gray-700 rounded-full h-2 overflow-hidden',
+    progressFill: 'h-full rounded-full transition-all duration-300 bg-gradient-to-r',
+    progressBarLarge: 'w-full bg-gray-200 dark:bg-gray-700 dark:bg-gray-700 rounded-full h-4 overflow-hidden',
+    progressFillLarge: 'h-full rounded-full transition-all duration-300 bg-gradient-to-r',
     
     // Alerts & Notifications
     alertSuccess: 'theme-success rounded-lg p-4 border',
     alertWarning: 'theme-warning rounded-lg p-4 border',
     alertError: 'theme-error rounded-lg p-4 border',
     alertInfo: 'theme-info rounded-lg p-4 border',
+    
+    // Color-specific backgrounds (dark theme compatible)
+    bgBlue: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700',
+    bgGreen: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700',
+    bgYellow: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700',
+    bgRed: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700',
+    bgPurple: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700',
+    bgOrange: 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700',
+    
+    // Text colors for colored backgrounds
+    textBlue: 'text-blue-800 dark:text-blue-200',
+    textGreen: 'text-green-800 dark:text-green-200',
+    textYellow: 'text-yellow-800 dark:text-yellow-200',
+    textRed: 'text-red-800 dark:text-red-200',
+    textPurple: 'text-purple-800 dark:text-purple-200',
+    textOrange: 'text-orange-800 dark:text-orange-200',
+    
+    // Secondary text colors
+    textBlueSecondary: 'text-blue-700 dark:text-blue-300',
+    textGreenSecondary: 'text-green-700 dark:text-green-300',
+    textYellowSecondary: 'text-yellow-700 dark:text-yellow-300',
+    textRedSecondary: 'text-red-700 dark:text-red-300',
+    textPurpleSecondary: 'text-purple-700 dark:text-purple-300',
+    textOrangeSecondary: 'text-orange-700 dark:text-orange-300',
   }), []);
 };
 

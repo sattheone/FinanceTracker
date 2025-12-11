@@ -8,9 +8,13 @@ import OnboardingWizard from './components/onboarding/OnboardingWizard';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
-import TransactionLinking from './pages/TransactionLinking';
-import Categories from './pages/Categories';
+import Calendar from './pages/Calendar';
 import RecurringTransactions from './pages/RecurringTransactions';
+
+// Import test utility for development
+if (process.env.NODE_ENV === 'development') {
+  import('./utils/testDuplicateDetection');
+}
 import Assets from './pages/Assets';
 import Goals from './pages/Goals';
 import Insurance from './pages/Insurance';
@@ -18,6 +22,7 @@ import Liabilities from './pages/Liabilities';
 import Reports from './pages/Reports';
 import Forecast from './pages/Forecast';
 import Settings from './pages/Settings';
+import Alerts from './pages/Alerts';
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -37,7 +42,26 @@ const AppContent: React.FC = () => {
     return <AuthPage />;
   }
 
-  if (!user?.onboardingCompleted) {
+  // Check for manual onboarding bypass (for existing users with data issues)
+  const bypassOnboarding = localStorage.getItem('bypassOnboarding') === 'true';
+
+  // Log for debugging
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Onboarding check:', {
+      onboardingCompleted: user?.onboardingCompleted,
+      bypassOnboarding,
+      userEmail: user?.email
+    });
+  }
+
+  // Skip onboarding if:
+  // 1. User has completed onboarding
+  // 2. Manual bypass is set
+  // 3. User has been registered for more than 1 day (likely existing user)
+  const userCreatedAt = user?.createdAt ? new Date(user.createdAt) : null;
+  const isOldUser = userCreatedAt && (Date.now() - userCreatedAt.getTime()) > 24 * 60 * 60 * 1000;
+
+  if (!user?.onboardingCompleted && !bypassOnboarding && !isOldUser) {
     return <OnboardingWizard />;
   }
 
@@ -46,8 +70,7 @@ const AppContent: React.FC = () => {
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="transactions" element={<Transactions />} />
-        <Route path="categories" element={<Categories />} />
-        <Route path="transaction-linking" element={<TransactionLinking />} />
+        <Route path="calendar" element={<Calendar />} />
         <Route path="recurring" element={<RecurringTransactions />} />
         <Route path="assets" element={<Assets />} />
         <Route path="goals" element={<Goals />} />
@@ -55,6 +78,7 @@ const AppContent: React.FC = () => {
         <Route path="liabilities" element={<Liabilities />} />
         <Route path="reports" element={<Reports />} />
         <Route path="forecast" element={<Forecast />} />
+        <Route path="alerts" element={<Alerts />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>

@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction } from '../types';
+import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction, CategoryRule } from '../types';
 import { UserProfile } from '../types/user';
 import { useAuth } from './AuthContext';
 import FirebaseService from '../services/firebaseService';
-import { transactionLinkingService } from '../services/transactionLinkingService';
+import GoalMigrationService from '../services/goalMigration';
+import CategoryRuleService from '../services/categoryRuleService';
+
 
 // Utility function to calculate next due date
 const calculateNextDueDate = (currentDueDate: string, frequency: RecurringTransaction['frequency']): string => {
@@ -47,6 +49,7 @@ interface DataContextType {
   recurringTransactions: RecurringTransaction[];
   bills: Bill[];
   sipTransactions: SIPTransaction[];
+  categoryRules: CategoryRule[];
 
   // CRUD Operations
   addAsset: (asset: Omit<Asset, 'id'>) => void;
@@ -62,7 +65,7 @@ interface DataContextType {
   deleteGoal: (id: string) => void;
 
   addTransaction: (transaction: Omit<Transaction, 'id'>) => void;
-  addTransactionsBulk: (transactions: Omit<Transaction, 'id'>[]) => void;
+  addTransactionsBulk: (transactions: Omit<Transaction, 'id'>[]) => Promise<{ success: boolean; summary?: any; error?: string }>;
   updateTransaction: (id: string, transaction: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
 
@@ -86,6 +89,11 @@ interface DataContextType {
   addSIPTransaction: (sipTransaction: Omit<SIPTransaction, 'id'>) => void;
   updateSIPTransaction: (id: string, sipTransaction: Partial<SIPTransaction>) => void;
   deleteSIPTransaction: (id: string) => void;
+
+  addCategoryRule: (rule: Omit<CategoryRule, 'id'>) => void;
+  updateCategoryRule: (id: string, rule: Partial<CategoryRule>) => void;
+  deleteCategoryRule: (id: string) => void;
+  applyRuleToTransactions: (ruleId: string) => void;
 
   updateMonthlyBudget: (budget: Partial<MonthlyBudget>) => void;
 
@@ -162,6 +170,16 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
   const [bills, setBills] = useState<Bill[]>([]);
   const [sipTransactions, setSipTransactions] = useState<SIPTransaction[]>([]);
+  const [categoryRules, setCategoryRules] = useState<CategoryRule[]>([]);
+
+  // Update localStorage for notification scheduler whenever data changes
+  useEffect(() => {
+    if (isDataLoaded) {
+      localStorage.setItem('bills', JSON.stringify(bills));
+      localStorage.setItem('recurringTransactions', JSON.stringify(recurringTransactions));
+      localStorage.setItem('transactions', JSON.stringify(transactions));
+    }
+  }, [bills, recurringTransactions, transactions, isDataLoaded]);
 
   // Load user data when user changes
   useEffect(() => {
@@ -201,7 +219,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         bankAccountsData,
         liabilitiesData,
         recurringTransactionsData,
-        billsData
+        billsData,
+        categoryRulesData
       ] = await Promise.all([
         FirebaseService.getAssets(userId),
         FirebaseService.getInsurance(userId),
@@ -211,12 +230,17 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         FirebaseService.getBankAccounts(userId),
         FirebaseService.getLiabilities(userId),
         FirebaseService.getRecurringTransactions(userId),
-        FirebaseService.getBills(userId)
+        FirebaseService.getBills(userId),
+        FirebaseService.getCategoryRules(userId)
       ]);
 
       setAssets(assetsData);
       setInsurance(insuranceData);
-      setGoals(goalsData);
+
+      // Migrate goals to new format if needed
+      const migratedGoals = GoalMigrationService.migrateGoals(goalsData);
+      setGoals(migratedGoals);
+
       setTransactions(transactionsData);
       setMonthlyBudget(budgetData || getDefaultMonthlyBudget());
       setLicPolicies([]); // TODO: Implement LIC policies if needed
@@ -226,12 +250,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setLiabilities(liabilitiesData);
       setRecurringTransactions(recurringTransactionsData);
       setBills(billsData);
+      setCategoryRules(categoryRulesData);
 
-      // Initialize transaction linking rules if not already done
-      const existingRules = transactionLinkingService.getLinkingRules();
-      if (existingRules.length === 0) {
-        transactionLinkingService.initializeDefaultRules();
-      }
+
 
       setIsDataLoaded(true);
     } catch (error) {
@@ -355,10 +376,33 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const newTransaction: Transaction = { ...transaction, id };
       setTransactions(prev => [...prev, newTransaction]);
 
-      // Update bank account balance when transaction is added
+      // Recalculate balance for the affected bank account
       if (transaction.bankAccountId) {
-        const balanceChange = transaction.type === 'income' ? transaction.amount : -transaction.amount;
-        await updateBankAccountBalance(transaction.bankAccountId, balanceChange);
+        const allTransactions = [...transactions, newTransaction];
+        const accountTransactions = allTransactions.filter(t => t.bankAccountId === transaction.bankAccountId);
+
+        setBankAccounts(prev => prev.map(account => {
+          if (account.id !== transaction.bankAccountId) return account;
+
+          const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
+            return sum + (t.type === 'income' ? t.amount : -t.amount);
+          }, 0);
+
+          const initialBalance = account.initialBalance ?? account.balance ?? 0;
+          const newBalance = initialBalance + totalTransactionAmount;
+
+          // Update in Firebase
+          FirebaseService.updateBankAccount(account.id, {
+            balance: newBalance,
+            initialBalance: account.initialBalance ?? account.balance ?? 0
+          });
+
+          return {
+            ...account,
+            balance: newBalance,
+            initialBalance: account.initialBalance ?? account.balance ?? 0
+          };
+        }));
       }
     } catch (error) {
       console.error('Error adding transaction:', error);
@@ -369,22 +413,82 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const updateTransaction = async (id: string, transaction: Partial<Transaction>) => {
     try {
       const oldTransaction = transactions.find(t => t.id === id);
+
       await FirebaseService.updateTransaction(id, transaction);
       setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...transaction } : t));
 
-      // Update bank account balances if transaction amount or type changed
-      if (oldTransaction && (transaction.amount !== undefined || transaction.type !== undefined || transaction.bankAccountId !== undefined)) {
-        // Reverse old transaction effect
-        if (oldTransaction.bankAccountId) {
-          const oldBalanceChange = oldTransaction.type === 'income' ? -oldTransaction.amount : oldTransaction.amount;
-          await updateBankAccountBalance(oldTransaction.bankAccountId, oldBalanceChange);
-        }
+      // Recalculate balance for affected bank account(s) ONLY if balance-affecting fields changed
+      if (oldTransaction) {
+        // Check if any balance-affecting fields changed
+        const balanceAffectingFieldsChanged =
+          transaction.amount !== undefined && transaction.amount !== oldTransaction.amount ||
+          transaction.type !== undefined && transaction.type !== oldTransaction.type ||
+          transaction.bankAccountId !== undefined && transaction.bankAccountId !== oldTransaction.bankAccountId;
 
-        // Apply new transaction effect
-        const updatedTransaction = { ...oldTransaction, ...transaction };
-        if (updatedTransaction.bankAccountId) {
-          const newBalanceChange = updatedTransaction.type === 'income' ? updatedTransaction.amount : -updatedTransaction.amount;
-          await updateBankAccountBalance(updatedTransaction.bankAccountId, newBalanceChange);
+        if (balanceAffectingFieldsChanged) {
+          const affectedAccounts = new Set<string>();
+
+          // Add old account if it exists
+          if (oldTransaction.bankAccountId) {
+            affectedAccounts.add(oldTransaction.bankAccountId);
+          }
+
+          // Add new account if it changed
+          if (transaction.bankAccountId && transaction.bankAccountId !== oldTransaction.bankAccountId) {
+            affectedAccounts.add(transaction.bankAccountId);
+          }
+
+          if (affectedAccounts.size > 0) {
+            const updatedTransactions = transactions.map(t =>
+              t.id === id ? { ...t, ...transaction } : t
+            );
+
+            setBankAccounts(prev => prev.map(account => {
+              if (!affectedAccounts.has(account.id)) return account;
+
+              const accountTransactions = updatedTransactions.filter(
+                t => t.bankAccountId === account.id
+              );
+
+              const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
+                return sum + (t.type === 'income' ? t.amount : -t.amount);
+              }, 0);
+
+              // CRITICAL: Only set initialBalance if it doesn't exist yet
+              // Never overwrite it during recalculation to avoid double-counting
+              const currentInitialBalance = account.initialBalance;
+
+              let initialBalance = currentInitialBalance;
+              if (initialBalance === undefined) {
+                // If initialBalance is missing, derive it from current balance and OLD transactions
+                // This prevents double-counting when switching types or editing amounts
+                const currentBalance = account.balance ?? 0;
+
+                const oldAccountTransactions = transactions.filter(t => t.bankAccountId === account.id);
+                const oldTotalTransactionAmount = oldAccountTransactions.reduce((sum, t) => {
+                  return sum + (t.type === 'income' ? t.amount : -t.amount);
+                }, 0);
+
+                initialBalance = currentBalance - oldTotalTransactionAmount;
+              }
+
+              const newBalance = (initialBalance ?? 0) + totalTransactionAmount;
+
+              // Update in Firebase - only set initialBalance if it wasn't set before
+              const updateData: any = { balance: newBalance };
+              if (currentInitialBalance === undefined) {
+                updateData.initialBalance = initialBalance;
+              }
+
+              FirebaseService.updateBankAccount(account.id, updateData);
+
+              return {
+                ...account,
+                balance: newBalance,
+                initialBalance: initialBalance
+              };
+            }));
+          }
         }
       }
     } catch (error) {
@@ -392,44 +496,168 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
-  const addTransactionsBulk = async (transactions: Omit<Transaction, 'id'>[]) => {
-    if (!user) return;
+  const addTransactionsBulk = async (newTransactions: Omit<Transaction, 'id'>[]): Promise<{ success: boolean; summary?: any; error?: string }> => {
+    console.log('addTransactionsBulk called with', newTransactions.length, 'transactions');
+    console.log('Current user:', user);
+
+    if (!user) {
+      console.error('User is not authenticated in addTransactionsBulk');
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    if (!user.id) {
+      console.error('User ID is missing in addTransactionsBulk', user);
+      return { success: false, error: 'User ID is missing' };
+    }
 
     try {
-      await FirebaseService.bulkAddTransactions(user.id, transactions);
+      // Check user's duplicate detection preferences
+      const duplicateSettings = JSON.parse(localStorage.getItem('duplicateDetectionSettings') || '{"enabled": true, "smartMode": true, "strictMode": false}');
 
-      // Update bank account balances for bulk transactions
-      const balanceUpdates: Record<string, number> = {};
-      transactions.forEach(transaction => {
-        if (transaction.bankAccountId) {
-          const balanceChange = transaction.type === 'income' ? transaction.amount : -transaction.amount;
-          balanceUpdates[transaction.bankAccountId] = (balanceUpdates[transaction.bankAccountId] || 0) + balanceChange;
+      let transactionsToImport: Omit<Transaction, 'id'>[] = newTransactions;
+      let duplicateCheck: any = null;
+
+      // Only check for duplicates if user has it enabled
+      if (duplicateSettings.enabled) {
+        const { default: duplicateDetectionService } = await import('../services/duplicateDetectionService');
+
+        // Convert to full transactions for duplicate checking
+        const fullTransactions: Transaction[] = newTransactions.map(t => ({
+          ...t,
+          id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        }));
+
+        // Determine mode based on user preferences
+        const useSmartMode = duplicateSettings.smartMode && !duplicateSettings.strictMode;
+
+        // Check for duplicates against EXISTING transactions (from state)
+        duplicateCheck = duplicateDetectionService.checkBulkDuplicates(fullTransactions, transactions, useSmartMode);
+
+        if (duplicateCheck.duplicateTransactions > 0) {
+          // If we have duplicates, we need to handle them
+          // For now, we'll just return the duplicate check result and let the UI handle it
+          // The UI should show a dialog to resolve duplicates
+          return {
+            success: false,
+            summary: duplicateCheck
+          };
         }
+      }
+
+      console.log('Calling FirebaseService.bulkAddTransactions with userId:', user.id);
+
+      // Clean transactions by removing undefined values
+      const cleanedTransactions = transactionsToImport.map(transaction => {
+        const cleaned = Object.fromEntries(
+          Object.entries(transaction).filter(([_, value]) => value !== undefined)
+        );
+        return cleaned as Omit<Transaction, 'id'>;
       });
 
-      // Apply balance updates
-      for (const [accountId, balanceChange] of Object.entries(balanceUpdates)) {
-        await updateBankAccountBalance(accountId, balanceChange);
-      }
+      await FirebaseService.bulkAddTransactions(user.id, cleanedTransactions);
+
+      // Update local state
+      // We need to fetch the new transactions to get their IDs
+      // But for immediate UI feedback, we can add them locally with temp IDs
+      // However, since we're bulk adding, it's better to refresh from server
+      // to ensure we have the correct IDs and data consistency
+
+      // Optimistic update (optional, skipping for now to ensure data integrity)
+      // const newTransactions = transactionsToImport.map(t => ({ ...t, id: 'temp-' + Date.now() + Math.random() })) as Transaction[];
+      // setTransactions(prev => [...prev, ...newTransactions]);
 
       // Reload transactions to get the new ones with IDs
       const updatedTransactions = await FirebaseService.getTransactions(user.id);
       setTransactions(updatedTransactions);
+
+      // Recalculate balance for affected bank accounts
+      // Group transactions by bank account
+      const accountsToUpdate = new Set(transactionsToImport.map(t => t.bankAccountId).filter(Boolean));
+
+      if (accountsToUpdate.size > 0) {
+        setBankAccounts(prev => prev.map(account => {
+          if (!accountsToUpdate.has(account.id)) return account;
+
+          // Calculate new balance from initialBalance + all transactions
+          const accountTransactions = updatedTransactions.filter(t => t.bankAccountId === account.id);
+          const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
+            return sum + (t.type === 'income' ? t.amount : -t.amount);
+          }, 0);
+
+          const initialBalance = account.initialBalance ?? account.balance ?? 0;
+          const newBalance = initialBalance + totalTransactionAmount;
+
+          // Update both balance and initialBalance if not set
+          const updatedAccount = {
+            ...account,
+            balance: newBalance,
+            initialBalance: account.initialBalance ?? account.balance ?? 0
+          };
+
+          // Update in Firebase
+          FirebaseService.updateBankAccount(account.id, {
+            balance: newBalance,
+            initialBalance: updatedAccount.initialBalance
+          });
+
+          return updatedAccount;
+        }));
+      }
+
+      return {
+        success: true,
+        summary: duplicateCheck || {
+          totalTransactions: newTransactions.length,
+          newTransactions: transactionsToImport.length,
+          duplicateTransactions: 0
+        }
+      };
     } catch (error) {
       console.error('Error bulk adding transactions:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
     }
   };
 
   const deleteTransaction = async (id: string) => {
     try {
-      const transaction = transactions.find(t => t.id === id);
+      // Get the transaction before deleting to know which account to update
+      const transactionToDelete = transactions.find(t => t.id === id);
+
       await FirebaseService.deleteTransaction(id);
       setTransactions(prev => prev.filter(t => t.id !== id));
 
-      // Reverse transaction effect on bank account balance
-      if (transaction && transaction.bankAccountId) {
-        const balanceChange = transaction.type === 'income' ? -transaction.amount : transaction.amount;
-        await updateBankAccountBalance(transaction.bankAccountId, balanceChange);
+      // Recalculate balance for the affected bank account
+      if (transactionToDelete?.bankAccountId) {
+        const remainingTransactions = transactions.filter(t => t.id !== id);
+        const accountTransactions = remainingTransactions.filter(
+          t => t.bankAccountId === transactionToDelete.bankAccountId
+        );
+
+        setBankAccounts(prev => prev.map(account => {
+          if (account.id !== transactionToDelete.bankAccountId) return account;
+
+          const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
+            return sum + (t.type === 'income' ? t.amount : -t.amount);
+          }, 0);
+
+          const initialBalance = account.initialBalance ?? account.balance ?? 0;
+          const newBalance = initialBalance + totalTransactionAmount;
+
+          // Update in Firebase
+          FirebaseService.updateBankAccount(account.id, {
+            balance: newBalance,
+            initialBalance: account.initialBalance ?? account.balance ?? 0
+          });
+
+          return {
+            ...account,
+            balance: newBalance,
+            initialBalance: account.initialBalance ?? account.balance ?? 0
+          };
+        }));
       }
     } catch (error) {
       console.error('Error deleting transaction:', error);
@@ -451,8 +679,29 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const updateBankAccount = async (id: string, account: Partial<BankAccount>) => {
     try {
-      await FirebaseService.updateBankAccount(id, account);
-      setBankAccounts(prev => prev.map(a => a.id === id ? { ...a, ...account } : a));
+      let updateData = { ...account };
+
+      // If balance is being updated manually (e.g. from Settings), recalculate initialBalance
+      // to ensure the Current Balance matches what the user entered, accounting for existing transactions.
+      // Formula: CurrentBalance = InitialBalance + Sum(Transactions)
+      // Therefore: InitialBalance = CurrentBalance - Sum(Transactions)
+      if (typeof account.balance === 'number') {
+        const accountTransactions = transactions.filter(t => t.bankAccountId === id);
+        const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
+          return sum + (t.type === 'income' ? t.amount : -t.amount);
+        }, 0);
+
+        const newInitialBalance = account.balance - totalTransactionAmount;
+        updateData.initialBalance = newInitialBalance;
+        console.log(`Recalculating initial balance for account ${id}:`, {
+          targetBalance: account.balance,
+          totalTransactions: totalTransactionAmount,
+          newInitialBalance
+        });
+      }
+
+      await FirebaseService.updateBankAccount(id, updateData);
+      setBankAccounts(prev => prev.map(a => a.id === id ? { ...a, ...updateData } : a));
     } catch (error) {
       console.error('Error updating bank account:', error);
     }
@@ -467,7 +716,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
-  // Helper function to update bank account balance
+  // Helper function to update bank account balance - DEPRECATED
+  // Balances are now calculated dynamically
+  /*
   const updateBankAccountBalance = async (accountId: string, balanceChange: number) => {
     try {
       const account = bankAccounts.find(acc => acc.id === accountId);
@@ -482,6 +733,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       console.error('Error updating bank account balance:', error);
     }
   };
+  */
 
   // Liability operations
   const addLiability = async (liability: Omit<Liability, 'id'>) => {
@@ -497,8 +749,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   const updateLiability = async (id: string, liability: Partial<Liability>) => {
+    console.log('DataContext: Updating liability', id, liability);
     try {
       await FirebaseService.updateLiability(id, liability);
+      console.log('DataContext: Firebase update success');
       setLiabilities(prev => prev.map(l => l.id === id ? { ...l, ...liability } : l));
     } catch (error) {
       console.error('Error updating liability:', error);
@@ -705,6 +959,74 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   };
 
+  // Category Rules operations
+  // Category Rules operations
+  const addCategoryRule = async (rule: Omit<CategoryRule, 'id'>) => {
+    if (!user) return;
+
+    try {
+      // 1. Apply rule to existing transactions first to get match count
+      // We need a temp rule object for matching logic
+      const tempRule: CategoryRule = { ...rule, id: 'temp' };
+
+      const matchCount = CategoryRuleService.applyRuleBulk(
+        transactions,
+        tempRule,
+        (transactionId, updates) => {
+          updateTransaction(transactionId, updates);
+        }
+      );
+
+      // 2. Update rule stats
+      const ruleWithStats = CategoryRuleService.updateRuleStats(tempRule, matchCount);
+
+      // 3. Remove temp ID and save to Firebase
+      const { id: _, ...ruleToSave } = ruleWithStats;
+      const newId = await FirebaseService.addCategoryRule(user.id, ruleToSave);
+
+      // 4. Update state with real ID
+      const finalRule = { ...ruleWithStats, id: newId };
+      setCategoryRules(prev => [...prev, finalRule]);
+    } catch (error) {
+      console.error('Error adding category rule:', error);
+    }
+  };
+
+  const updateCategoryRule = async (id: string, updates: Partial<CategoryRule>) => {
+    try {
+      await FirebaseService.updateCategoryRule(id, updates);
+      setCategoryRules(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+    } catch (error) {
+      console.error('Error updating category rule:', error);
+    }
+  };
+
+  const deleteCategoryRule = async (id: string) => {
+    try {
+      await FirebaseService.deleteCategoryRule(id);
+      setCategoryRules(prev => prev.filter(r => r.id !== id));
+    } catch (error) {
+      console.error('Error deleting category rule:', error);
+    }
+  };
+
+  const applyRuleToTransactions = (ruleId: string) => {
+    const rule = categoryRules.find(r => r.id === ruleId);
+    if (!rule) return;
+
+    const matchCount = CategoryRuleService.applyRuleBulk(
+      transactions,
+      rule,
+      (transactionId, updates) => {
+        updateTransaction(transactionId, updates);
+      }
+    );
+
+    // Update rule stats
+    const updatedRule = CategoryRuleService.updateRuleStats(rule, matchCount);
+    updateCategoryRule(ruleId, updatedRule);
+  };
+
   const resetUserData = () => {
     setUserProfile(getDefaultUserProfile());
     setAssets([]);
@@ -717,6 +1039,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     setLiabilities([]);
     setRecurringTransactions([]);
     setBills([]);
+    setCategoryRules([]);
     setIsDataLoaded(false);
   };
 
@@ -763,6 +1086,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     addSIPTransaction,
     updateSIPTransaction,
     deleteSIPTransaction,
+    categoryRules,
+    addCategoryRule,
+    updateCategoryRule,
+    deleteCategoryRule,
+    applyRuleToTransactions,
     updateMonthlyBudget,
     resetUserData,
     isDataLoaded,

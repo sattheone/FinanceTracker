@@ -8,126 +8,44 @@ export interface Transaction {
   paymentMethod?: string;
   bankAccountId?: string; // Link to bank account
   recurringTransactionId?: string; // Link to recurring transaction if auto-generated
-  // Transaction linking system
-  entityLinks?: TransactionEntityLink[]; // Links to goals, budgets, insurance, etc.
-  isLinked?: boolean; // Quick check if transaction has any links
-  autoLinked?: boolean; // Whether this was auto-linked by rules
-  linkingConfidence?: number; // AI confidence score for auto-linking (0-1)
   tags?: string[]; // User-defined tags for better categorization
+  isLinked?: boolean;
+  autoLinked?: boolean;
+  entityLinks?: {
+    type: 'goal' | 'bill' | 'loan';
+    id: string;
+    name: string;
+  }[];
 }
 
-// Transaction Entity Linking System
-export interface TransactionEntityLink {
+// Simple Goal Contribution Tracking
+export interface GoalContribution {
   id: string;
   transactionId: string;
-  entityType: 'goal' | 'budget' | 'insurance' | 'asset' | 'liability' | 'custom';
-  entityId: string;
-  entityName: string; // Cached for performance
-  amount: number; // Amount allocated to this entity
-  percentage: number; // Percentage of transaction amount
-  linkType: 'manual' | 'auto' | 'rule-based';
-  ruleId?: string; // If linked by a rule
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// Auto-linking Rules System
-export interface LinkingRule {
-  id: string;
-  name: string;
-  description: string;
-  isActive: boolean;
-  priority: number; // Higher priority rules execute first
-  conditions: LinkingCondition[];
-  actions: LinkingAction[];
-  createdAt: string;
-  updatedAt: string;
-  lastTriggered?: string;
-  triggerCount: number;
-}
-
-export interface LinkingCondition {
-  field: 'amount' | 'description' | 'category' | 'type' | 'bankAccount' | 'paymentMethod';
-  operator: 'equals' | 'contains' | 'startsWith' | 'endsWith' | 'greaterThan' | 'lessThan' | 'between' | 'regex';
-  value: string | number;
-  secondValue?: string | number; // For 'between' operator
-  caseSensitive?: boolean;
-}
-
-export interface LinkingAction {
-  entityType: 'goal' | 'budget' | 'insurance' | 'asset' | 'liability';
-  entityId: string;
-  allocationMethod: 'fixed_amount' | 'percentage' | 'remaining_amount';
-  amount?: number;
-  percentage?: number;
-  notes?: string;
-}
-
-// Entity Progress Tracking
-export interface EntityProgress {
-  entityType: 'goal' | 'budget' | 'insurance' | 'asset' | 'liability';
-  entityId: string;
-  entityName: string;
-  targetAmount: number;
-  currentAmount: number;
-  progressPercentage: number;
-  monthlyContribution: number;
-  projectedCompletion?: string;
-  lastUpdated: string;
-  linkedTransactions: string[]; // Transaction IDs
-  milestones: ProgressMilestone[];
-}
-
-export interface ProgressMilestone {
-  id: string;
-  name: string;
-  targetAmount: number;
-  achievedDate?: string;
-  isAchieved: boolean;
-}
-
-// Hierarchical Entity Views
-export interface EntityHierarchy {
-  id: string;
-  name: string;
-  type: 'goal' | 'budget' | 'insurance';
-  totalAmount: number;
-  children: EntityHierarchyItem[];
-  progress: EntityProgress;
-}
-
-export interface EntityHierarchyItem {
-  id: string;
-  name: string;
-  type: 'investment' | 'insurance' | 'savings' | 'other';
+  goalId: string;
+  goalName: string;
   amount: number;
-  percentage: number;
-  transactions: Transaction[];
-  lastContribution?: string;
+  date: string;
+  notes?: string;
 }
 
-// Notification System for Linking
-export interface LinkingNotification {
-  id: string;
-  type: 'milestone_achieved' | 'goal_progress' | 'auto_link_suggestion' | 'link_broken' | 'rule_triggered';
-  title: string;
-  message: string;
-  entityType: string;
-  entityId: string;
-  transactionId?: string;
-  isRead: boolean;
-  createdAt: string;
-  actionRequired?: boolean;
-  actionUrl?: string;
-}
+export const assetCategories = [
+  { value: 'stocks', label: 'Stocks', icon: '📈' },
+  { value: 'mutual_funds', label: 'Mutual Funds', icon: '📊' },
+  { value: 'fixed_deposit', label: 'Fixed Deposit', icon: '🏦' },
+  { value: 'epf', label: 'EPF (Provident Fund)', icon: '🏛️' },
+  { value: 'gold', label: 'Gold', icon: '🥇' },
+  { value: 'cash', label: 'Cash/Savings', icon: '💰' },
+  { value: 'other', label: 'Other', icon: '💼' },
+];
 
 export interface Asset {
   id: string;
   name: string;
-  category: 'stocks' | 'mutual_funds' | 'fixed_deposit' | 'gold' | 'cash' | 'other';
+  category: 'stocks' | 'mutual_funds' | 'fixed_deposit' | 'gold' | 'cash' | 'epf' | 'other';
   currentValue: number;
-  purchaseValue?: number;
+  purchaseValue?: number; // Deprecated: use investedValue instead
+  investedValue?: number; // Total amount invested (replaces purchaseValue)
   purchaseDate?: string;
   // Enhanced investment tracking
   symbol?: string; // Stock/MF symbol for API calls
@@ -142,7 +60,13 @@ export interface Asset {
   totalReturnPercent?: number; // Total return percentage
   xirr?: number; // XIRR (annualized return)
   // SIP specific data
+  isSIP?: boolean; // Is this a SIP investment?
   sipAmount?: number; // Monthly SIP amount
+  sipDate?: number; // Day of month for SIP (1-31)
+  // Live price data
+  livePriceData?: any; // Raw price data from API
+  lastPriceUpdate?: string; // When price was last updated
+  schemeCode?: string; // Mutual fund scheme code
   sipStartDate?: string; // SIP start date
   sipTransactions?: SIPTransaction[]; // SIP transaction history
   // Portfolio allocation
@@ -169,6 +93,10 @@ export interface Insurance {
   coverAmount: number;
   premiumAmount: number;
   premiumFrequency: 'monthly' | 'quarterly' | 'yearly';
+  premiumPayingTerm?: number; // New field: in years
+  policyStartDate?: string; // New field: to calculate payout year
+  usePremiumPayingTermForMaturity?: boolean; // New field: toggle for payout logic
+  bonusGuaranteedAddition?: number; // New field
   maturityDate?: string;
   maturityAmount?: number;
 }
@@ -180,9 +108,26 @@ export interface Goal {
   currentAmount: number;
   targetDate: string;
   monthlyContribution: number;
-  category: 'retirement' | 'education' | 'marriage' | 'other';
+  category: 'retirement' | 'education' | 'marriage' | 'house' | 'emergency' | 'vacation' | 'other';
   expectedReturnRate: number; // Annual return rate as percentage (e.g., 12 for 12%)
   isInflationAdjusted: boolean; // Whether the target amount is inflation-adjusted
+  // Enhanced integration with SIP assets
+  linkedSIPAssets: string[]; // IDs of linked SIP assets (mutual_funds or epf with isSIP=true)
+  linkedRecurringTransactions?: string[]; // IDs of linked recurring transactions
+  lastSIPUpdate?: string; // Last date when SIP contribution was added to currentAmount
+  linkedTransactionCategories: string[]; // Categories that contribute to this goal
+  autoUpdateFromTransactions: boolean; // Auto-update progress from transactions
+  priority: 'high' | 'medium' | 'low'; // Goal priority
+  description?: string; // Goal description
+  milestones?: GoalMilestone[]; // Achievement milestones
+}
+
+export interface GoalMilestone {
+  id: string;
+  name: string;
+  targetAmount: number;
+  isCompleted: boolean;
+  completedDate?: string;
 }
 
 export interface Liability {
@@ -224,7 +169,11 @@ export interface BankAccount {
   bank: string;
   number: string;
   balance: number;
+  initialBalance?: number; // Starting balance for calculated balance approach
   logo: string;
+  userId: string;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 export interface RecurringTransaction {
@@ -235,6 +184,7 @@ export interface RecurringTransaction {
   type: 'income' | 'expense' | 'investment' | 'insurance';
   amount: number;
   frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+  interval?: number; // e.g., 2 for "every 2 weeks"
   startDate: string;
   endDate?: string; // Optional end date
   nextDueDate: string;
@@ -269,4 +219,43 @@ export interface Bill {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+// Alert System
+export type AlertType =
+  | 'budget_warning'
+  | 'budget_exceeded'
+  | 'unusual_spending'
+  | 'low_balance'
+  | 'large_transaction'
+  | 'bill_reminder'
+  | 'bill_overdue';
+
+export type AlertSeverity = 'info' | 'warning' | 'critical';
+
+export interface Alert {
+  id: string;
+  type: AlertType;
+  severity: AlertSeverity;
+  title: string;
+  message: string;
+  category?: string;
+  amount?: number;
+  relatedId?: string; // Transaction ID, Bill ID, etc.
+  createdAt: string;
+  isRead: boolean;
+  isDismissed: boolean;
+}
+
+// Auto-Categorization Rules
+export interface CategoryRule {
+  id: string;
+  name: string; // Transaction description pattern to match
+  categoryId: string; // Target category to apply
+  transactionType?: 'income' | 'expense' | 'investment' | 'insurance'; // Optional target transaction type
+  matchType: 'exact' | 'partial'; // Exact match or contains
+  createdAt: string;
+  lastUsed?: string; // Last time this rule was applied
+  matchCount: number; // Number of transactions matched
+  isActive: boolean; // Whether rule is currently active
 }

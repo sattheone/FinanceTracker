@@ -9,14 +9,14 @@ interface RecurringTransactionFormProps {
   onCancel: () => void;
 }
 
-const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({ 
-  recurringTransaction, 
-  onSubmit, 
-  onCancel 
+const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
+  recurringTransaction,
+  onSubmit,
+  onCancel
 }) => {
   const { bankAccounts, addRecurringTransaction, updateRecurringTransaction } = useData();
   const theme = useThemeClasses();
-  
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -24,6 +24,7 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
     type: 'expense' as RecurringTransaction['type'],
     amount: 0,
     frequency: 'monthly' as RecurringTransaction['frequency'],
+    interval: 1,
     startDate: new Date().toISOString().split('T')[0],
     endDate: '',
     nextDueDate: new Date().toISOString().split('T')[0],
@@ -48,6 +49,7 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
         type: recurringTransaction.type,
         amount: recurringTransaction.amount,
         frequency: recurringTransaction.frequency,
+        interval: recurringTransaction.interval || 1,
         startDate: recurringTransaction.startDate,
         endDate: recurringTransaction.endDate || '',
         nextDueDate: recurringTransaction.nextDueDate,
@@ -77,11 +79,39 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
     { value: 'yearly', label: 'Yearly', description: 'Every year' }
   ];
 
-  const categoryOptions = {
-    income: ['Salary', 'Bonus', 'Interest', 'Dividend', 'Rental', 'Business', 'Other Income'],
-    expense: ['Rent', 'Utilities', 'Internet', 'Phone', 'Insurance', 'Subscriptions', 'Loan EMI', 'Other Expense'],
-    investment: ['SIP', 'Recurring Deposit', 'PPF', 'ELSS', 'Other Investment'],
-    insurance: ['Life Insurance', 'Health Insurance', 'Vehicle Insurance', 'Other Insurance']
+  // Load categories from localStorage (same as transaction form)
+  const [categories, setCategories] = useState<any[]>([]);
+
+  useEffect(() => {
+    const savedCategories = localStorage.getItem('categories');
+    if (savedCategories) {
+      setCategories(JSON.parse(savedCategories));
+    } else {
+      // Default categories if none exist
+      const defaultCategories = [
+        { id: 'food', name: 'Food & Dining', color: '#EF4444', icon: '🍽️', isCustom: false },
+        { id: 'transport', name: 'Transportation', color: '#3B82F6', icon: '🚗', isCustom: false },
+        { id: 'shopping', name: 'Shopping', color: '#8B5CF6', icon: '🛍️', isCustom: false },
+        { id: 'entertainment', name: 'Entertainment', color: '#F59E0B', icon: '🎬', isCustom: false },
+        { id: 'bills', name: 'Bills & Utilities', color: '#10B981', icon: '⚡', isCustom: false },
+        { id: 'healthcare', name: 'Healthcare', color: '#EC4899', icon: '🏥', isCustom: false },
+        { id: 'education', name: 'Education', color: '#6366F1', icon: '📚', isCustom: false },
+        { id: 'travel', name: 'Travel', color: '#14B8A6', icon: '✈️', isCustom: false },
+        { id: 'salary', name: 'Salary', color: '#22C55E', icon: '💰', isCustom: false },
+        { id: 'investment', name: 'Investment', color: '#059669', icon: '📈', isCustom: false },
+        { id: 'other', name: 'Other', color: '#6B7280', icon: '📋', isCustom: false },
+      ];
+      setCategories(defaultCategories);
+      localStorage.setItem('categories', JSON.stringify(defaultCategories));
+    }
+  }, []);
+
+  const getCategoriesForType = () => {
+    // Filter categories based on transaction type
+    if (formData.type === 'expense') {
+      return categories.filter(c => c.id !== 'salary');
+    }
+    return categories;
   };
 
   const subscriptionVendors = [
@@ -116,25 +146,25 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
 
   const calculateNextDueDate = (startDate: string, frequency: RecurringTransaction['frequency']): string => {
     const date = new Date(startDate);
-    
+
     switch (frequency) {
       case 'daily':
-        date.setDate(date.getDate() + 1);
+        date.setDate(date.getDate() + (1 * (formData.interval || 1)));
         break;
       case 'weekly':
-        date.setDate(date.getDate() + 7);
+        date.setDate(date.getDate() + (7 * (formData.interval || 1)));
         break;
       case 'monthly':
-        date.setMonth(date.getMonth() + 1);
+        date.setMonth(date.getMonth() + (1 * (formData.interval || 1)));
         break;
       case 'quarterly':
-        date.setMonth(date.getMonth() + 3);
+        date.setMonth(date.getMonth() + (3 * (formData.interval || 1)));
         break;
       case 'yearly':
-        date.setFullYear(date.getFullYear() + 1);
+        date.setFullYear(date.getFullYear() + (1 * (formData.interval || 1)));
         break;
     }
-    
+
     return date.toISOString().split('T')[0];
   };
 
@@ -156,11 +186,11 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     const nextDueDate = calculateNextDueDate(formData.startDate, formData.frequency);
-    
+
     const recurringTransactionData = {
       ...formData,
       nextDueDate,
@@ -242,9 +272,9 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
             className={cn(theme.select, errors.category && 'border-red-500 dark:border-red-400')}
           >
             <option value="">Select a category</option>
-            {categoryOptions[formData.type].map(category => (
-              <option key={category} value={category}>
-                {category}
+            {getCategoriesForType().map(category => (
+              <option key={category.id} value={category.id}>
+                {category.icon} {category.name}
               </option>
             ))}
           </select>
@@ -292,29 +322,54 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
 
         <div>
           <label className={theme.label}>
-            Start Date *
+            Interval
           </label>
-          <input
-            type="date"
-            value={formData.startDate}
-            onChange={(e) => handleChange('startDate', e.target.value)}
-            className={cn(theme.input, errors.startDate && 'border-red-500 dark:border-red-400')}
-          />
-          {errors.startDate && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.startDate}</p>}
+          <div className="flex items-center">
+            <span className="mr-2 text-gray-500">Every</span>
+            <input
+              type="number"
+              value={formData.interval}
+              onChange={(e) => handleChange('interval', Math.max(1, Number(e.target.value)))}
+              className={cn(theme.input, 'w-20 text-center')}
+              min="1"
+            />
+            <span className="ml-2 text-gray-500">
+              {formData.frequency === 'daily' ? 'day(s)' :
+                formData.frequency === 'weekly' ? 'week(s)' :
+                  formData.frequency === 'monthly' ? 'month(s)' :
+                    formData.frequency === 'quarterly' ? 'quarter(s)' : 'year(s)'}
+            </span>
+          </div>
         </div>
 
         <div>
-          <label className={theme.label}>
-            End Date (Optional)
-          </label>
-          <input
-            type="date"
-            value={formData.endDate}
-            onChange={(e) => handleChange('endDate', e.target.value)}
-            className={cn(theme.input, errors.endDate && 'border-red-500 dark:border-red-400')}
-            min={formData.startDate}
-          />
-          {errors.endDate && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.endDate}</p>}
+
+          <div>
+            <label className={theme.label}>
+              Start Date *
+            </label>
+            <input
+              type="date"
+              value={formData.startDate}
+              onChange={(e) => handleChange('startDate', e.target.value)}
+              className={cn(theme.input, errors.startDate && 'border-red-500 dark:border-red-400')}
+            />
+            {errors.startDate && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.startDate}</p>}
+          </div>
+
+          <div>
+            <label className={theme.label}>
+              End Date (Optional)
+            </label>
+            <input
+              type="date"
+              value={formData.endDate}
+              onChange={(e) => handleChange('endDate', e.target.value)}
+              className={cn(theme.input, errors.endDate && 'border-red-500 dark:border-red-400')}
+              min={formData.startDate}
+            />
+            {errors.endDate && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.endDate}</p>}
+          </div>
         </div>
       </div>
 
@@ -395,7 +450,7 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
               <button
                 type="button"
                 onClick={() => removeTag(tag)}
-                className="ml-1 text-blue-600 hover:text-blue-800"
+                className="ml-1 text-blue-600 hover:text-blue-800 dark:text-blue-200"
               >
                 ×
               </button>

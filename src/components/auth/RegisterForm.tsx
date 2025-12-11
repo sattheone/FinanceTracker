@@ -66,7 +66,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
@@ -83,7 +83,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
               type="text"
               value={formData.name}
               onChange={handleChange}
-              className="input-field pl-10"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
               placeholder="Enter your full name"
               required
             />
@@ -102,7 +102,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
               type="email"
               value={formData.email}
               onChange={handleChange}
-              className="input-field pl-10"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
               placeholder="Enter your email"
               required
             />
@@ -121,7 +121,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
               type={showPassword ? 'text' : 'password'}
               value={formData.password}
               onChange={handleChange}
-              className="input-field pl-10 pr-10"
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
               placeholder="Create a password"
               required
             />
@@ -147,7 +147,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
               type={showConfirmPassword ? 'text' : 'password'}
               value={formData.confirmPassword}
               onChange={handleChange}
-              className="input-field pl-10 pr-10"
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
               placeholder="Confirm your password"
               required
             />
@@ -175,7 +175,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
           Already have an account?{' '}
           <button
             onClick={onToggleMode}
-            className="text-primary-600 hover:text-primary-700 font-medium"
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
           >
             Sign in
           </button>

@@ -12,10 +12,10 @@ export const formatNumber = (num: number): string => {
 };
 
 export const formatDate = (date: string): string => {
-  return new Date(date).toLocaleDateString('en-IN', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
+  return new Date(date).toLocaleDateString('en-GB', {
+    year: '2-digit',
+    month: '2-digit',
+    day: '2-digit',
   });
 };
 
@@ -33,3 +33,5 @@ export const formatLargeNumber = (num: number): string => {
   }
   return formatCurrency(num);
 };
+
+// Dummy comment to force recompile

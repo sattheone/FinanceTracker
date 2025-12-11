@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { 
-  User, 
-  CreditCard, 
-  Bell, 
-  Shield, 
-  Download, 
-  Upload, 
-  Palette, 
-  Globe, 
+import {
+  User,
+  CreditCard,
+  Bell,
+  Shield,
+  Download,
+  Upload,
+  Palette,
+  Globe,
   Lock,
   Trash2,
   Save,
@@ -23,48 +23,92 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useData } from '../contexts/DataContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useThemeClasses } from '../hooks/useThemeClasses';
+import SimpleCategoryManager from '../components/categories/SimpleCategoryManager';
+import CategoryMigration from '../components/settings/CategoryMigration';
+import CategoryRules from '../components/settings/CategoryRules';
+import SimpleEmailSettings from '../components/settings/SimpleEmailSettings';
+import EmailDiagnostics from '../components/settings/EmailDiagnostics';
+import GmailImportSettings from '../components/settings/GmailImportSettings';
+import DuplicateDetectionSettings from '../components/settings/DuplicateDetectionSettings';
+import DataDeletionSettings from '../components/settings/DataDeletionSettings';
+
+const CategoriesWithMigration: React.FC = () => {
+  return (
+    <div className="space-y-6">
+      <SimpleCategoryManager />
+
+      {/* Category Migration Tool */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+        <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-3">
+          Fix Invalid Categories
+        </h4>
+        <p className="text-blue-800 dark:text-blue-200 text-sm mb-4">
+          If you see transactions showing numbers (like timestamps) instead of proper category names,
+          use the tool below to fix them automatically.
+        </p>
+        <CategoryMigration />
+      </div>
+    </div>
+  );
+};
 
 const Settings: React.FC = () => {
-  const { user } = useAuth();
+  const { user, deleteAccount } = useAuth();
   const { userProfile, bankAccounts } = useData();
   const { theme, setTheme } = useTheme();
-  
+  const themeClasses = useThemeClasses();
+
   const [activeTab, setActiveTab] = useState('profile');
+
   const [showPassword, setShowPassword] = useState(false);
   const [settings, setSettings] = useState({
     // Profile settings
     name: user?.name || '',
     email: user?.email || '',
     phone: userProfile?.personalInfo.phone || '',
-    
+
     // Financial preferences
     currency: 'INR',
     numberFormat: 'indian',
     financialYearStart: 'april',
-    
-    // Notifications
-    emailNotifications: true,
+
+    // Email Notifications
+    emailNotifications: false,
+    notificationEmail: user?.email || '',
+    billReminders: true,
+    billReminderDays: [1, 3, 7],
+    recurringReminders: true,
+    overdueAlerts: true,
     budgetAlerts: true,
+    budgetLimit: 50000,
+    budgetThreshold: 80,
+    monthlyReports: false,
     goalReminders: true,
-    monthlyReports: true,
-    
+
     // Display preferences
     theme: theme,
     language: 'english',
     dashboardLayout: 'default',
-    
+
     // Security
     twoFactorAuth: false,
     loginAlerts: true,
-    
+
     // Dashboard preferences
     dashboardAccounts: bankAccounts.map(acc => acc.id), // Array of account IDs to include in dashboard
   });
 
+
+
   const tabs = [
     { id: 'profile', label: 'Profile & Account', icon: User },
     { id: 'financial', label: 'Financial Preferences', icon: DollarSign },
+    { id: 'categories', label: 'Categories', icon: SettingsIcon },
+    { id: 'category-rules', label: 'Category Rules', icon: SettingsIcon },
     { id: 'accounts', label: 'Bank Accounts', icon: CreditCard },
+    { id: 'gmail-import', label: 'Gmail Import', icon: Mail },
+    { id: 'duplicates', label: 'Duplicate Detection', icon: Shield },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'display', label: 'Display & Interface', icon: Palette },
     { id: 'security', label: 'Security', icon: Shield },
@@ -73,11 +117,12 @@ const Settings: React.FC = () => {
 
   const handleSettingChange = (key: string, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    
+
     // Handle theme change
     if (key === 'theme') {
       setTheme(value);
     }
+
   };
 
   const handleSaveProfile = () => {
@@ -90,9 +135,45 @@ const Settings: React.FC = () => {
     console.log('Exporting data...');
   };
 
-  const handleDeleteAccount = () => {
-    if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-      console.log('Deleting account...');
+  const handleDeleteAccount = async () => {
+    const confirmMessage = `⚠️ PERMANENT ACCOUNT DELETION ⚠️
+
+This will permanently delete:
+• All your financial data (transactions, goals, assets, etc.)
+• Your user account and profile
+• All settings and preferences
+
+This action CANNOT be undone!
+
+Type "DELETE" to confirm:`;
+
+    const userInput = prompt(confirmMessage);
+
+    if (userInput !== 'DELETE') {
+      if (userInput !== null) {
+        alert('Account deletion cancelled. You must type "DELETE" exactly to confirm.');
+      }
+      return;
+    }
+
+    const finalConfirm = confirm('Are you absolutely sure? This will permanently delete everything and cannot be undone.');
+    if (!finalConfirm) {
+      return;
+    }
+
+    try {
+      console.log('🗑️ Starting account deletion...');
+      const success = await deleteAccount();
+
+      if (success) {
+        alert('✅ Your account has been permanently deleted. You will now be redirected to the login page.');
+        // The user will be automatically redirected due to auth state change
+      } else {
+        alert('❌ Failed to delete account. Please try again or contact support.');
+      }
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      alert('❌ An error occurred while deleting your account. Please try again or contact support.');
     }
   };
 
@@ -120,7 +201,7 @@ const Settings: React.FC = () => {
             type="text"
             value={settings.name}
             onChange={(e) => handleSettingChange('name', e.target.value)}
-            className="input-field"
+            className="input-field theme-input"
           />
         </div>
 
@@ -179,7 +260,7 @@ const Settings: React.FC = () => {
           <Save className="w-4 h-4 mr-2" />
           Save Changes
         </button>
-        
+
         <button
           onClick={handleDeleteAccount}
           className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
@@ -199,7 +280,7 @@ const Settings: React.FC = () => {
           <select
             value={settings.currency}
             onChange={(e) => handleSettingChange('currency', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={themeClasses.select}
           >
             <option value="INR">Indian Rupee (₹)</option>
             <option value="USD">US Dollar ($)</option>
@@ -213,7 +294,7 @@ const Settings: React.FC = () => {
           <select
             value={settings.numberFormat}
             onChange={(e) => handleSettingChange('numberFormat', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={themeClasses.select}
           >
             <option value="indian">Indian (1,00,000)</option>
             <option value="international">International (100,000)</option>
@@ -244,7 +325,7 @@ const Settings: React.FC = () => {
             <input
               type="number"
               placeholder="50000"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={themeClasses.input}
             />
           </div>
           <div>
@@ -254,7 +335,7 @@ const Settings: React.FC = () => {
               placeholder="80"
               min="1"
               max="100"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={themeClasses.input}
             />
           </div>
         </div>
@@ -298,30 +379,11 @@ const Settings: React.FC = () => {
 
   const renderNotificationSettings = () => (
     <div className="space-y-6">
-      <div className="space-y-4">
-        {[
-          { key: 'emailNotifications', label: 'Email Notifications', description: 'Receive email updates about your account' },
-          { key: 'budgetAlerts', label: 'Budget Alerts', description: 'Get notified when you exceed budget limits' },
-          { key: 'goalReminders', label: 'Goal Reminders', description: 'Reminders about your financial goals' },
-          { key: 'monthlyReports', label: 'Monthly Reports', description: 'Receive monthly financial summary reports' },
-        ].map((item) => (
-          <div key={item.key} className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
-            <div>
-              <h4 className="font-medium text-gray-900 dark:text-white">{item.label}</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{item.description}</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={settings[item.key as keyof typeof settings] as boolean}
-                onChange={(e) => handleSettingChange(item.key, e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:bg-gray-800 after:border-gray-300 dark:border-gray-500 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </label>
-          </div>
-        ))}
-      </div>
+      {/* SendGrid Email Settings */}
+      <SimpleEmailSettings />
+
+      {/* Email Configuration Diagnostics */}
+      <EmailDiagnostics />
     </div>
   );
 
@@ -333,7 +395,7 @@ const Settings: React.FC = () => {
           <select
             value={settings.theme}
             onChange={(e) => handleSettingChange('theme', e.target.value)}
-            className="input-field"
+            className="input-field theme-input"
           >
             <option value="light">Light</option>
             <option value="dark">Dark</option>
@@ -366,7 +428,7 @@ const Settings: React.FC = () => {
           <select
             value={settings.dashboardLayout}
             onChange={(e) => handleSettingChange('dashboardLayout', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={themeClasses.select}
           >
             <option value="default">Default</option>
             <option value="compact">Compact</option>
@@ -400,7 +462,7 @@ const Settings: React.FC = () => {
                   }}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:bg-gray-800 after:border-gray-300 dark:border-gray-500 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:bg-gray-800 after:border-gray-300 dark:border-gray-500 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
               </label>
             </div>
           ))}
@@ -433,7 +495,7 @@ const Settings: React.FC = () => {
                 onChange={(e) => handleSettingChange(item.key, e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:bg-gray-800 after:border-gray-300 dark:border-gray-500 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:bg-gray-800 after:border-gray-300 dark:border-gray-500 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
           </div>
         ))}
@@ -447,7 +509,7 @@ const Settings: React.FC = () => {
               <p className="font-medium text-gray-900 dark:text-white">Current Session</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">Chrome on macOS • Active now</p>
             </div>
-            <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Current</span>
+            <span className="px-2 py-1 text-xs bg-green-100 text-green-800 dark:text-green-200 rounded-full">Current</span>
           </div>
         </div>
       </div>
@@ -478,15 +540,18 @@ const Settings: React.FC = () => {
           </button>
         </div>
 
-        <div className="p-4 border border-red-200 rounded-lg bg-red-50">
-          <h4 className="font-medium text-red-900 mb-2">Danger Zone</h4>
-          <p className="text-sm text-red-700 mb-4">Permanently delete all your data. This action cannot be undone.</p>
+        {/* Data Deletion Options */}
+        <DataDeletionSettings />
+
+        <div className="p-4 border border-red-200 dark:border-red-700 rounded-lg bg-red-50 dark:bg-red-900/20 dark:border-red-700">
+          <h4 className="font-medium text-red-900 dark:text-red-200 mb-2">Danger Zone</h4>
+          <p className="text-sm text-red-700 dark:text-red-300 mb-4">Permanently delete your entire account and all data. This action cannot be undone.</p>
           <button
             onClick={handleDeleteAccount}
-            className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
             <Trash2 className="w-4 h-4 mr-2" />
-            Delete All Data
+            Delete Account & All Data
           </button>
         </div>
       </div>
@@ -497,7 +562,11 @@ const Settings: React.FC = () => {
     switch (activeTab) {
       case 'profile': return renderProfileSettings();
       case 'financial': return renderFinancialSettings();
+      case 'categories': return <CategoriesWithMigration />;
+      case 'category-rules': return <CategoryRules />;
       case 'accounts': return renderBankAccountSettings();
+      case 'gmail-import': return <GmailImportSettings />;
+      case 'duplicates': return <DuplicateDetectionSettings />;
       case 'notifications': return renderNotificationSettings();
       case 'display': return renderDisplaySettings();
       case 'security': return renderSecuritySettings();
@@ -524,11 +593,10 @@ const Settings: React.FC = () => {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                      activeTab === tab.id
-                        ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
-                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
-                    }`}
+                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${activeTab === tab.id
+                      ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+                      }`}
                   >
                     <Icon className="w-5 h-5 mr-3" />
                     {tab.label}
@@ -540,7 +608,7 @@ const Settings: React.FC = () => {
 
           {/* Content */}
           <div className="flex-1">
-            <div className="bg-white dark:bg-gray-800 dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white dark:text-white mb-6">
                 {tabs.find(tab => tab.id === activeTab)?.label}
               </h2>

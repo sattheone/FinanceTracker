@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  AlertTriangle, 
-  TrendingDown, 
-  TrendingUp, 
-  Calendar, 
- 
+import {
+  AlertTriangle,
+  TrendingDown,
+  TrendingUp,
+  Calendar,
+
   Target,
   Shield,
   DollarSign,
@@ -54,7 +54,10 @@ const SmartAlertsWidget: React.FC = () => {
     const thisMonthSpending = transactions
       .filter(t => {
         const tDate = new Date(t.date);
-        return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear && t.amount < 0;
+        return tDate.getMonth() === currentMonth &&
+          tDate.getFullYear() === currentYear &&
+          t.amount < 0 &&
+          t.category !== 'transfer';
       })
       .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
@@ -63,7 +66,10 @@ const SmartAlertsWidget: React.FC = () => {
         const tDate = new Date(t.date);
         const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
         const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-        return tDate.getMonth() === lastMonth && tDate.getFullYear() === lastMonthYear && t.amount < 0;
+        return tDate.getMonth() === lastMonth &&
+          tDate.getFullYear() === lastMonthYear &&
+          t.amount < 0 &&
+          t.category !== 'transfer';
       })
       .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
@@ -151,7 +157,7 @@ const SmartAlertsWidget: React.FC = () => {
 
     // 4. Investment Rebalancing Alert
     const totalInvestments = assets.reduce((sum, asset) => sum + asset.currentValue, 0);
-    const equityAssets = assets.filter(asset => 
+    const equityAssets = assets.filter(asset =>
       asset.category === 'stocks' || asset.category === 'mutual_funds'
     );
     const equityValue = equityAssets.reduce((sum, asset) => sum + asset.currentValue, 0);
@@ -180,11 +186,11 @@ const SmartAlertsWidget: React.FC = () => {
       .filter(t => {
         const tDate = new Date(t.date);
         const tYear = tDate.getMonth() >= 3 ? tDate.getFullYear() : tDate.getFullYear() - 1;
-        return tYear === currentFinancialYear && 
-               (t.description?.toLowerCase().includes('elss') ||
-                t.description?.toLowerCase().includes('ppf') ||
-                t.description?.toLowerCase().includes('nsc') ||
-                t.description?.toLowerCase().includes('tax saver'));
+        return tYear === currentFinancialYear &&
+          (t.description?.toLowerCase().includes('elss') ||
+            t.description?.toLowerCase().includes('ppf') ||
+            t.description?.toLowerCase().includes('nsc') ||
+            t.description?.toLowerCase().includes('tax saver'));
       })
       .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
@@ -212,7 +218,10 @@ const SmartAlertsWidget: React.FC = () => {
     const monthlyExpenses = Math.abs(transactions
       .filter(t => {
         const tDate = new Date(t.date);
-        return tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear && t.amount < 0;
+        return tDate.getMonth() === currentMonth &&
+          tDate.getFullYear() === currentYear &&
+          t.amount < 0 &&
+          t.category !== 'transfer';
       })
       .reduce((sum, t) => sum + t.amount, 0));
 
@@ -277,7 +286,7 @@ const SmartAlertsWidget: React.FC = () => {
   const getAlertIcon = (type: string, category: string) => {
     if (type === 'critical') return AlertTriangle;
     if (type === 'success') return CheckCircle;
-    
+
     switch (category) {
       case 'spending': return TrendingDown;
       case 'bills': return Calendar;
@@ -291,10 +300,10 @@ const SmartAlertsWidget: React.FC = () => {
 
   const getAlertColors = (type: string) => {
     switch (type) {
-      case 'critical': return 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-700 dark:text-red-200';
-      case 'warning': return 'bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-900/20 dark:border-yellow-700 dark:text-yellow-200';
-      case 'info': return 'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-200';
-      case 'success': return 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-700 dark:text-green-200';
+      case 'critical': return 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700 text-red-800 dark:bg-red-900/20 dark:border-red-700 dark:text-red-200';
+      case 'warning': return 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700 text-yellow-800 dark:bg-yellow-900/20 dark:border-yellow-700 dark:text-yellow-200';
+      case 'info': return 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700 text-blue-800 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-200';
+      case 'success': return 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-800 dark:bg-green-900/20 dark:border-green-700 dark:text-green-200';
       default: return 'bg-gray-50 border-gray-200 text-gray-800 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200';
     }
   };
@@ -348,14 +357,14 @@ const SmartAlertsWidget: React.FC = () => {
             >
               <div className="flex items-start space-x-3">
                 <Icon className={cn('w-5 h-5 mt-0.5 flex-shrink-0', getIconColors(alert.type))} />
-                
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h4 className="font-medium text-sm mb-1">{alert.title}</h4>
                       <p className="text-sm opacity-90">{alert.message}</p>
                     </div>
-                    
+
                     {alert.dismissible && (
                       <button
                         onClick={() => dismissAlert(alert.id)}
@@ -365,7 +374,7 @@ const SmartAlertsWidget: React.FC = () => {
                       </button>
                     )}
                   </div>
-                  
+
                   {alert.action && (
                     <button
                       onClick={alert.action.onClick}

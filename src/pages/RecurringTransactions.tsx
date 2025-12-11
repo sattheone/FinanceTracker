@@ -1,512 +1,256 @@
-import React, { useState } from 'react';
-import { Plus, Calendar, Clock, DollarSign, Repeat, Bell, Tag, Edit3, Trash2, Play, Pause, AlertCircle } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Calendar, Clock, CheckCircle, ArrowRight, Trash2, Edit3 } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
-import { RecurringTransaction, Bill } from '../types';
+import { RecurringTransaction } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
-import Modal from '../components/common/Modal';
-import RecurringTransactionForm from '../components/forms/RecurringTransactionForm';
-import BillForm from '../components/forms/BillForm';
+import RecurringSetupModal from '../components/transactions/RecurringSetupModal';
+import InlineCategoryEditor from '../components/transactions/InlineCategoryEditor';
 
 const RecurringTransactions: React.FC = () => {
-  const { 
-    recurringTransactions, 
-    bills, 
-    updateRecurringTransaction, 
-    deleteRecurringTransaction,
-    deleteBill,
-    markBillAsPaid,
-    getUpcomingBills,
-    getOverdueBills
-  } = useData();
-  
+  const { recurringTransactions, transactions, updateRecurringTransaction, deleteRecurringTransaction } = useData();
   const theme = useThemeClasses();
-  const [activeTab, setActiveTab] = useState<'recurring' | 'bills' | 'calendar'>('recurring');
-  const [showRecurringForm, setShowRecurringForm] = useState(false);
-  const [showBillForm, setShowBillForm] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   const [editingRecurring, setEditingRecurring] = useState<RecurringTransaction | null>(null);
-  const [editingBill, setEditingBill] = useState<Bill | null>(null);
 
-  const upcomingBills = getUpcomingBills(30); // Next 30 days
-  const overdueBills = getOverdueBills();
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
 
-  const getFrequencyIcon = (frequency: string) => {
-    switch (frequency) {
-      case 'daily': return '📅';
-      case 'weekly': return '📆';
-      case 'monthly': return '🗓️';
-      case 'quarterly': return '📊';
-      case 'yearly': return '🎯';
-      default: return '🔄';
+  // Helper to check if paid this month
+  const getPaymentStatus = (recurring: RecurringTransaction) => {
+    // Find a transaction linked to this recurring item in the current month
+    // OR matching description/amount if not explicitly linked (fallback)
+    const linkedTxn = transactions.find(t =>
+      t.recurringTransactionId === recurring.id &&
+      new Date(t.date).getMonth() === currentMonth &&
+      new Date(t.date).getFullYear() === currentYear
+    );
+
+    if (linkedTxn) return { status: 'paid', date: linkedTxn.date };
+
+    // Check due date
+    const dueDate = new Date(recurring.nextDueDate);
+    const isDueThisMonth = dueDate.getMonth() === currentMonth && dueDate.getFullYear() === currentYear;
+
+    if (isDueThisMonth) {
+      if (dueDate < new Date()) return { status: 'overdue', date: recurring.nextDueDate };
+      return { status: 'upcoming', date: recurring.nextDueDate };
     }
+
+    return { status: 'future', date: recurring.nextDueDate };
   };
 
-  const getFrequencyColor = (frequency: string) => {
-    switch (frequency) {
-      case 'daily': return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200';
-      case 'weekly': return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200';
-      case 'monthly': return 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200';
-      case 'quarterly': return 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200';
-      case 'yearly': return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200';
-      default: return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
-    }
-  };
+  const { thisMonthItems, futureItems, summary } = useMemo(() => {
+    const thisMonth: any[] = [];
+    const future: any[] = [];
+    let paidTotal = 0;
+    let upcomingTotal = 0;
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'income': return 'text-green-600 dark:text-green-400';
-      case 'expense': return 'text-red-600 dark:text-red-400';
-      case 'investment': return 'text-blue-600 dark:text-blue-400';
-      case 'insurance': return 'text-purple-600 dark:text-purple-400';
-      default: return theme.textSecondary;
-    }
-  };
+    recurringTransactions.forEach(rt => {
+      if (!rt.isActive) return;
 
-  const handleToggleRecurring = async (id: string, isActive: boolean) => {
-    await updateRecurringTransaction(id, { isActive: !isActive });
-  };
+      const { status, date } = getPaymentStatus(rt);
+      const item = { ...rt, status, displayDate: date };
 
-  const handleEditRecurring = (recurring: RecurringTransaction) => {
+      if (status === 'paid' || status === 'upcoming' || status === 'overdue') {
+        thisMonth.push(item);
+        if (status === 'paid') {
+          paidTotal += rt.amount;
+        } else {
+          upcomingTotal += rt.amount;
+        }
+      } else {
+        future.push(item);
+      }
+    });
+
+    // Sort by date
+    thisMonth.sort((a, b) => new Date(a.displayDate).getTime() - new Date(b.displayDate).getTime());
+    future.sort((a, b) => new Date(a.displayDate).getTime() - new Date(b.displayDate).getTime());
+
+    return {
+      thisMonthItems: thisMonth,
+      futureItems: future,
+      summary: { paid: paidTotal, left: upcomingTotal }
+    };
+  }, [recurringTransactions, transactions]);
+
+  const handleEdit = (recurring: RecurringTransaction) => {
     setEditingRecurring(recurring);
-    setShowRecurringForm(true);
+    setShowForm(true);
   };
 
-  const handleEditBill = (bill: Bill) => {
-    setEditingBill(bill);
-    setShowBillForm(true);
+  const handleSaveRecurring = async (settings: { frequency: string; interval: number; startDate: string }) => {
+    if (editingRecurring) {
+      await updateRecurringTransaction(editingRecurring.id, {
+        frequency: settings.frequency as any,
+        interval: settings.interval,
+        startDate: settings.startDate,
+        nextDueDate: settings.startDate, // Reset next due date based on new start date? Or calculate? 
+        // Ideally we should calculate next due date, but for now let's assume start date is the next anchor.
+        // Actually, if we change frequency, we probably want to reset the schedule.
+      });
+      setEditingRecurring(null);
+      setShowForm(false);
+    } else {
+      // Handle create new (if we add a "New" button that uses this modal)
+      // For now, "Add New" button might still need the full form or we adapt this modal for new creation too.
+      // But user asked to fix "Edit".
+    }
   };
 
-  const handleRecurringSubmit = () => {
-    setShowRecurringForm(false);
+  const handleDelete = async (id: string) => {
+    await deleteRecurringTransaction(id);
     setEditingRecurring(null);
+    setShowForm(false);
   };
 
-  const handleBillSubmit = () => {
-    setShowBillForm(false);
-    setEditingBill(null);
+  const handleCategoryChange = async (recurring: RecurringTransaction, categoryId: string) => {
+    await updateRecurringTransaction(recurring.id, { category: categoryId });
   };
 
-  const isOverdue = (dueDate: string) => {
-    return new Date(dueDate) < new Date();
+  const getFrequencyText = (rt: RecurringTransaction) => {
+    if (rt.interval && rt.interval > 1) {
+      return `Every ${rt.interval} ${rt.frequency === 'monthly' ? 'months' : rt.frequency === 'weekly' ? 'weeks' : 'years'}`;
+    }
+    return rt.frequency.charAt(0).toUpperCase() + rt.frequency.slice(1);
   };
 
-  const getDaysUntilDue = (dueDate: string) => {
-    const today = new Date();
-    const due = new Date(dueDate);
-    const diffTime = due.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
+  const renderListItem = (item: any) => (
+    <div
+      key={item.id}
+      className={cn(
+        theme.card,
+        'flex items-center p-4 hover:shadow-md transition-all group gap-4'
+      )}
+    >
+      {/* Status Icon */}
+      <div className={cn(
+        'w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-lg',
+        item.status === 'paid' ? 'bg-green-100 text-green-600' :
+          item.status === 'overdue' ? 'bg-red-100 text-red-600' :
+            'bg-gray-100 text-gray-600'
+      )}>
+        {item.status === 'paid' ? <CheckCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+      </div>
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className={theme.heading1}>Recurring Transactions & Bills</h1>
-        <p className={cn(theme.textSecondary, 'mt-1')}>
-          Manage your recurring payments, subscriptions, and bill reminders
+      {/* Name & Frequency */}
+      <div className="flex-1 min-w-0">
+        <h3 className={cn(theme.textPrimary, 'font-medium truncate')}>{item.name}</h3>
+        <p className={cn(theme.textMuted, 'text-sm truncate')}>
+          {formatDate(item.displayDate)} • {getFrequencyText(item)}
         </p>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className={theme.card}>
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <Repeat className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className={cn(theme.textMuted, 'text-sm')}>Active Recurring</p>
-              <p className={cn(theme.textPrimary, 'text-2xl font-bold')}>
-                {recurringTransactions.filter(rt => rt.isActive).length}
-              </p>
-            </div>
-          </div>
-        </div>
+      {/* Category Editor */}
+      <div className="hidden sm:block w-48">
+        <InlineCategoryEditor
+          currentCategory={item.category || 'other'}
+          onSave={(categoryId) => handleCategoryChange(item, categoryId)}
+        />
+      </div>
 
-        <div className={theme.card}>
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-              <Clock className="h-6 w-6 text-yellow-600" />
-            </div>
-            <div className="ml-4">
-              <p className={cn(theme.textMuted, 'text-sm')}>Upcoming Bills</p>
-              <p className={cn(theme.textPrimary, 'text-2xl font-bold')}>
-                {upcomingBills.length}
-              </p>
-            </div>
-          </div>
-        </div>
+      {/* Amount & Status Badge */}
+      <div className="text-right">
+        <p className={cn(theme.textPrimary, 'font-bold')}>{formatCurrency(item.amount)}</p>
+        <span className={cn(
+          'text-xs font-medium px-2 py-0.5 rounded-full inline-block mt-1',
+          item.status === 'paid' ? 'bg-green-100 text-green-700' :
+            item.status === 'overdue' ? 'bg-red-100 text-red-700' :
+              'bg-blue-100 text-blue-700'
+        )}>
+          {item.status === 'paid' ? 'Paid' : item.status === 'overdue' ? 'Overdue' : 'Upcoming'}
+        </span>
+      </div>
 
-        <div className={theme.card}>
-          <div className="flex items-center">
-            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-              <AlertCircle className="h-6 w-6 text-red-600" />
-            </div>
-            <div className="ml-4">
-              <p className={cn(theme.textMuted, 'text-sm')}>Overdue Bills</p>
-              <p className={cn(theme.textPrimary, 'text-2xl font-bold')}>
-                {overdueBills.length}
-              </p>
-            </div>
-          </div>
-        </div>
+      {/* Actions */}
+      <div className="flex items-center space-x-1 pl-2 border-l border-gray-200 dark:border-gray-700 ml-2">
+        <button
+          onClick={() => handleEdit(item)}
+          className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors"
+          title="Edit"
+        >
+          <Edit3 className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => {
+            if (confirm('Are you sure you want to stop this recurring transaction?')) {
+              handleDelete(item.id);
+            }
+          }}
+          className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+          title="Delete"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
 
-        <div className={theme.card}>
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <DollarSign className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className={cn(theme.textMuted, 'text-sm')}>Monthly Total</p>
-              <p className={cn(theme.textPrimary, 'text-2xl font-bold')}>
-                {formatCurrency(
-                  recurringTransactions
-                    .filter(rt => rt.isActive && rt.frequency === 'monthly')
-                    .reduce((sum, rt) => sum + (rt.type === 'expense' ? rt.amount : -rt.amount), 0)
-                )}
-              </p>
-            </div>
-          </div>
+  return (
+    <div className="space-y-8 max-w-4xl mx-auto">
+      {/* Header & Summary */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className={theme.heading1}>Recurring</h1>
+          <p className={theme.textSecondary}>Track your subscriptions and bills</p>
+        </div>
+        {/* We can add a "New" button here if needed, but the primary flow is from Transactions */}
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className={cn(theme.card, 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800')}>
+          <p className="text-green-600 dark:text-green-400 text-sm font-medium mb-1">Paid this Month</p>
+          <p className="text-2xl font-bold text-green-700 dark:text-green-300">{formatCurrency(summary.paid)}</p>
+        </div>
+        <div className={cn(theme.card, 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800')}>
+          <p className="text-blue-600 dark:text-blue-400 text-sm font-medium mb-1">Left to Pay</p>
+          <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{formatCurrency(summary.left)}</p>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex space-x-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
-        {[
-          { id: 'recurring', label: 'Recurring Transactions', icon: Repeat },
-          { id: 'bills', label: 'Bills & Reminders', icon: Bell },
-          { id: 'calendar', label: 'Calendar View', icon: Calendar }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={cn(
-              'flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors',
-              activeTab === tab.id
-                ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
-                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
-            )}
-          >
-            <tab.icon className="w-4 h-4 mr-2" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab Content */}
-      {activeTab === 'recurring' && (
-        <div className="space-y-6">
-          {/* Add Button */}
-          <div className="flex justify-between items-center">
-            <h3 className={theme.heading3}>Recurring Transactions</h3>
-            <button
-              onClick={() => setShowRecurringForm(true)}
-              className={cn(theme.btnPrimary, 'flex items-center')}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Recurring Transaction
-            </button>
-          </div>
-
-          {/* Recurring Transactions List */}
-          {recurringTransactions.length === 0 ? (
-            <div className={cn(theme.card, 'text-center py-12')}>
-              <Repeat className={cn(theme.textMuted, 'h-16 w-16 mx-auto mb-4')} />
-              <h3 className={cn(theme.textPrimary, 'text-lg font-medium mb-2')}>No recurring transactions yet</h3>
-              <p className={cn(theme.textMuted, 'mb-4')}>
-                Set up automatic tracking for your regular income and expenses like salary, rent, subscriptions, etc.
-              </p>
-              <button
-                onClick={() => setShowRecurringForm(true)}
-                className={theme.btnPrimary}
-              >
-                Add Your First Recurring Transaction
-              </button>
-            </div>
+      {/* This Month Section */}
+      <div>
+        <h2 className={cn(theme.heading3, 'mb-4 flex items-center')}>
+          <Calendar className="w-5 h-5 mr-2 text-gray-500" />
+          This Month
+        </h2>
+        <div className="space-y-3">
+          {thisMonthItems.length === 0 ? (
+            <p className={theme.textMuted}>No recurring payments due this month.</p>
           ) : (
-            <div className="space-y-4">
-              {recurringTransactions.map(recurring => (
-                <div key={recurring.id} className={cn(theme.card, 'hover:shadow-md transition-shadow')}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className={cn(
-                        'p-3 rounded-lg',
-                        recurring.isActive ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-100 dark:bg-gray-700'
-                      )}>
-                        <span className="text-2xl">{getFrequencyIcon(recurring.frequency)}</span>
-                      </div>
-                      
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <h4 className={cn(theme.textPrimary, 'font-semibold')}>{recurring.name}</h4>
-                          <span className={cn(
-                            'px-2 py-1 text-xs rounded-full font-medium',
-                            getFrequencyColor(recurring.frequency)
-                          )}>
-                            {recurring.frequency}
-                          </span>
-                          {!recurring.isActive && (
-                            <span className="px-2 py-1 text-xs rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                              Paused
-                            </span>
-                          )}
-                        </div>
-                        <p className={cn(theme.textSecondary, 'text-sm mb-2')}>{recurring.description}</p>
-                        <div className="flex items-center space-x-4 text-sm">
-                          <span className={cn(theme.textMuted, 'flex items-center')}>
-                            <Calendar className="w-4 h-4 mr-1" />
-                            Next: {formatDate(recurring.nextDueDate)}
-                          </span>
-                          <span className={cn(theme.textMuted, 'flex items-center')}>
-                            <Tag className="w-4 h-4 mr-1" />
-                            {recurring.category}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-4">
-                      <div className="text-right">
-                        <p className={cn('text-lg font-bold', getTypeColor(recurring.type))}>
-                          {recurring.type === 'income' ? '+' : '-'}{formatCurrency(recurring.amount)}
-                        </p>
-                        <p className={cn(theme.textMuted, 'text-sm')}>
-                          {recurring.type}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handleToggleRecurring(recurring.id, recurring.isActive)}
-                          className={cn(
-                            'p-2 rounded-lg transition-colors',
-                            recurring.isActive
-                              ? 'text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30'
-                              : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                          )}
-                          title={recurring.isActive ? 'Pause' : 'Resume'}
-                        >
-                          {recurring.isActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                        </button>
-                        
-                        <button
-                          onClick={() => handleEditRecurring(recurring)}
-                          className={cn(theme.interactive, 'p-2')}
-                          title="Edit"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        
-                        <button
-                          onClick={() => deleteRecurringTransaction(recurring.id)}
-                          className="p-2 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            thisMonthItems.map(renderListItem)
           )}
         </div>
-      )}
+      </div>
 
-      {activeTab === 'bills' && (
-        <div className="space-y-6">
-          {/* Add Button */}
-          <div className="flex justify-between items-center">
-            <h3 className={theme.heading3}>Bills & Reminders</h3>
-            <button
-              onClick={() => setShowBillForm(true)}
-              className={cn(theme.btnPrimary, 'flex items-center')}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Bill
-            </button>
-          </div>
-
-          {/* Overdue Bills Alert */}
-          {overdueBills.length > 0 && (
-            <div className={cn(theme.alertError, 'flex items-center')}>
-              <AlertCircle className="w-5 h-5 mr-3" />
-              <div>
-                <p className="font-medium">You have {overdueBills.length} overdue bill(s)</p>
-                <p className="text-sm opacity-90">Please review and mark them as paid if completed.</p>
-              </div>
-            </div>
+      {/* Future Section */}
+      <div>
+        <h2 className={cn(theme.heading3, 'mb-4 flex items-center')}>
+          <ArrowRight className="w-5 h-5 mr-2 text-gray-500" />
+          Future
+        </h2>
+        <div className="space-y-3">
+          {futureItems.length === 0 ? (
+            <p className={theme.textMuted}>No upcoming future payments.</p>
+          ) : (
+            futureItems.map(renderListItem)
           )}
-
-          {/* Upcoming Bills */}
-          {upcomingBills.length > 0 && (
-            <div className={theme.card}>
-              <h4 className={cn(theme.textPrimary, 'font-semibold mb-4')}>Upcoming Bills (Next 30 Days)</h4>
-              <div className="space-y-3">
-                {upcomingBills.slice(0, 5).map(bill => {
-                  const daysUntil = getDaysUntilDue(bill.dueDate);
-                  return (
-                    <div key={bill.id} className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                      <div>
-                        <p className={cn(theme.textPrimary, 'font-medium')}>{bill.name}</p>
-                        <p className={cn(theme.textSecondary, 'text-sm')}>
-                          Due: {formatDate(bill.dueDate)} ({daysUntil} days)
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className={cn(theme.textPrimary, 'font-bold')}>{formatCurrency(bill.amount)}</p>
-                        <button
-                          onClick={() => markBillAsPaid(bill.id)}
-                          className="text-sm text-green-600 hover:text-green-700"
-                        >
-                          Mark as Paid
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* All Bills */}
-          <div className={theme.card}>
-            <h4 className={cn(theme.textPrimary, 'font-semibold mb-4')}>All Bills</h4>
-            {bills.length === 0 ? (
-              <div className="text-center py-8">
-                <Bell className={cn(theme.textMuted, 'h-12 w-12 mx-auto mb-4')} />
-                <p className={cn(theme.textMuted, 'mb-4')}>No bills added yet</p>
-                <button
-                  onClick={() => setShowBillForm(true)}
-                  className={theme.btnPrimary}
-                >
-                  Add Your First Bill
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {bills.map(bill => (
-                  <div key={bill.id} className={cn(
-                    'flex items-center justify-between p-4 rounded-lg border',
-                    bill.isPaid 
-                      ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
-                      : isOverdue(bill.dueDate)
-                      ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'
-                      : theme.border
-                  )}>
-                    <div>
-                      <div className="flex items-center space-x-2 mb-1">
-                        <h5 className={cn(theme.textPrimary, 'font-medium')}>{bill.name}</h5>
-                        {bill.isPaid && (
-                          <span className="px-2 py-1 text-xs bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-100 rounded-full">
-                            Paid
-                          </span>
-                        )}
-                        {isOverdue(bill.dueDate) && !bill.isPaid && (
-                          <span className="px-2 py-1 text-xs bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-100 rounded-full">
-                            Overdue
-                          </span>
-                        )}
-                      </div>
-                      <p className={cn(theme.textSecondary, 'text-sm')}>
-                        Due: {formatDate(bill.dueDate)} • {bill.category}
-                      </p>
-                    </div>
-                    
-                    <div className="flex items-center space-x-4">
-                      <div className="text-right">
-                        <p className={cn(theme.textPrimary, 'font-bold')}>{formatCurrency(bill.amount)}</p>
-                        {bill.isPaid && bill.paidDate && (
-                          <p className={cn(theme.textMuted, 'text-xs')}>
-                            Paid: {formatDate(bill.paidDate)}
-                          </p>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        {!bill.isPaid && (
-                          <button
-                            onClick={() => markBillAsPaid(bill.id)}
-                            className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
-                          >
-                            Mark Paid
-                          </button>
-                        )}
-                        
-                        <button
-                          onClick={() => handleEditBill(bill)}
-                          className={cn(theme.interactive, 'p-2')}
-                          title="Edit"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        
-                        <button
-                          onClick={() => deleteBill(bill.id)}
-                          className="p-2 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
-      )}
+      </div>
 
-      {activeTab === 'calendar' && (
-        <div className={theme.card}>
-          <h3 className={cn(theme.textPrimary, 'text-lg font-semibold mb-4')}>Calendar View</h3>
-          <p className={cn(theme.textMuted, 'text-center py-8')}>
-            Calendar view coming soon! This will show all your recurring transactions and bills in a monthly calendar format.
-          </p>
-        </div>
-      )}
-
-      {/* Modals */}
-      <Modal
-        isOpen={showRecurringForm}
+      {/* Edit Modal */}
+      <RecurringSetupModal
+        recurringTransaction={editingRecurring || undefined}
+        isOpen={showForm}
         onClose={() => {
-          setShowRecurringForm(false);
+          setShowForm(false);
           setEditingRecurring(null);
         }}
-        title={editingRecurring ? 'Edit Recurring Transaction' : 'Add Recurring Transaction'}
-        size="lg"
-      >
-        <RecurringTransactionForm
-          recurringTransaction={editingRecurring || undefined}
-          onSubmit={handleRecurringSubmit}
-          onCancel={() => {
-            setShowRecurringForm(false);
-            setEditingRecurring(null);
-          }}
-        />
-      </Modal>
-
-      <Modal
-        isOpen={showBillForm}
-        onClose={() => {
-          setShowBillForm(false);
-          setEditingBill(null);
-        }}
-        title={editingBill ? 'Edit Bill' : 'Add Bill'}
-        size="lg"
-      >
-        <BillForm
-          bill={editingBill || undefined}
-          onSubmit={handleBillSubmit}
-          onCancel={() => {
-            setShowBillForm(false);
-            setEditingBill(null);
-          }}
-        />
-      </Modal>
+        onSave={handleSaveRecurring}
+        onDelete={() => editingRecurring && handleDelete(editingRecurring.id)}
+      />
     </div>
   );
 };

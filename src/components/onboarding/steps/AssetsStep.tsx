@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, TrendingUp } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, Camera, FileText } from 'lucide-react';
 import { useData } from '../../../contexts/DataContext';
 import { Asset } from '../../../types';
 import { formatCurrency } from '../../../utils/formatters';
+import ImageUploader from '../../common/ImageUploader';
+import { aiService, ExtractedAssetData } from '../../../services/aiService';
 
 const AssetsStep: React.FC = () => {
   const { assets, addAsset, deleteAsset } = useData();
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showImageUploader, setShowImageUploader] = useState(false);
   const [newAsset, setNewAsset] = useState({
     name: '',
     category: 'stocks' as Asset['category'],
@@ -38,6 +41,27 @@ const AssetsStep: React.FC = () => {
     }
   };
 
+  const handleImageAnalyzed = (extractedAssets: ExtractedAssetData[]) => {
+    // Add all extracted assets
+    extractedAssets.forEach(asset => {
+      addAsset({
+        name: asset.name,
+        category: asset.category,
+        currentValue: asset.currentValue,
+        purchaseValue: asset.purchaseValue || 0,
+        purchaseDate: '',
+      });
+    });
+    
+    setShowImageUploader(false);
+    
+    // Show success message
+    if (extractedAssets.length > 0) {
+      // You could add a toast notification here
+      console.log(`Successfully added ${extractedAssets.length} assets from screenshot`);
+    }
+  };
+
   const totalAssetValue = assets.reduce((sum, asset) => sum + asset.currentValue, 0);
 
   return (
@@ -65,17 +89,47 @@ const AssetsStep: React.FC = () => {
         </p>
       </div>
 
-      {/* Add Asset Button */}
+      {/* Add Asset Buttons */}
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Assets</h3>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="btn-primary flex items-center"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Asset
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowImageUploader(true)}
+            className="btn-secondary flex items-center"
+          >
+            <Camera className="w-4 h-4 mr-2" />
+            Import Screenshot
+          </button>
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="btn-primary flex items-center"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Manually
+          </button>
+        </div>
       </div>
+
+      {/* Screenshot Import */}
+      {showImageUploader && (
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border-2 border-dashed border-blue-300 dark:border-blue-500">
+          <ImageUploader
+            title="📸 Import Assets from Screenshot"
+            description="Upload a screenshot of your portfolio, demat account, or investment app to automatically extract your assets."
+            onImageAnalyzed={handleImageAnalyzed}
+            analyzeFunction={aiService.extractAssetsFromImage.bind(aiService)}
+            acceptedFormats={['image/jpeg', 'image/png', 'image/webp']}
+          />
+          <div className="flex justify-end mt-4">
+            <button
+              onClick={() => setShowImageUploader(false)}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add Asset Form */}
       {showAddForm && (
@@ -90,7 +144,7 @@ const AssetsStep: React.FC = () => {
                 type="text"
                 value={newAsset.name}
                 onChange={(e) => setNewAsset({ ...newAsset, name: e.target.value })}
-                className="input-field"
+                className="input-field theme-input"
                 placeholder="e.g., HDFC Equity Fund, SBI Shares"
               />
             </div>
@@ -101,7 +155,7 @@ const AssetsStep: React.FC = () => {
               <select
                 value={newAsset.category}
                 onChange={(e) => setNewAsset({ ...newAsset, category: e.target.value as Asset['category'] })}
-                className="input-field"
+                className="input-field theme-input"
               >
                 {assetCategories.map(cat => (
                   <option key={cat.value} value={cat.value}>
@@ -120,7 +174,7 @@ const AssetsStep: React.FC = () => {
                   type="number"
                   value={newAsset.currentValue || ''}
                   onChange={(e) => setNewAsset({ ...newAsset, currentValue: Number(e.target.value) })}
-                  className="input-field pl-8"
+                  className="input-field pl-8 theme-input"
                   placeholder="0"
                   min="0"
                 />
@@ -136,7 +190,7 @@ const AssetsStep: React.FC = () => {
                   type="number"
                   value={newAsset.purchaseValue || ''}
                   onChange={(e) => setNewAsset({ ...newAsset, purchaseValue: Number(e.target.value) })}
-                  className="input-field pl-8"
+                  className="input-field pl-8 theme-input"
                   placeholder="0"
                   min="0"
                 />
@@ -150,7 +204,7 @@ const AssetsStep: React.FC = () => {
                 type="date"
                 value={newAsset.purchaseDate}
                 onChange={(e) => setNewAsset({ ...newAsset, purchaseDate: e.target.value })}
-                className="input-field"
+                className="input-field theme-input"
               />
             </div>
           </div>
@@ -174,15 +228,39 @@ const AssetsStep: React.FC = () => {
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <TrendingUp className="w-16 h-16 mx-auto mb-4 text-gray-300" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No assets added yet</h3>
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
               Start by adding your investments, savings, and other assets to track your portfolio.
             </p>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="btn-primary"
-            >
-              Add Your First Asset
-            </button>
+            
+            {/* Quick Start Options */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <button
+                onClick={() => setShowImageUploader(true)}
+                className="btn-primary flex items-center"
+              >
+                <Camera className="w-4 h-4 mr-2" />
+                Import from Screenshot
+              </button>
+              <span className="text-gray-400 dark:text-gray-500">or</span>
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="btn-secondary flex items-center"
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Add Manually
+              </button>
+            </div>
+            
+            {/* Help Text */}
+            <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-left max-w-md mx-auto">
+              <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">💡 Quick Import Tips</h4>
+              <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                <li>• Take a screenshot of your demat account or investment app</li>
+                <li>• Include portfolio summary or holdings page</li>
+                <li>• AI will automatically extract asset names and values</li>
+                <li>• You can edit the imported data before saving</li>
+              </ul>
+            </div>
           </div>
         ) : (
           assets.map((asset) => {
@@ -236,7 +314,7 @@ const AssetsStep: React.FC = () => {
                   
                   <button
                     onClick={() => deleteAsset(asset.id)}
-                    className="text-red-600 dark:text-red-400 hover:bg-red-50 p-2 rounded-lg"
+                    className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 p-2 rounded-lg"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

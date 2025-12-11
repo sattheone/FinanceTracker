@@ -110,7 +110,7 @@ const APIKeyTest: React.FC = () => {
               href="https://makersuite.google.com/app/apikey"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-700 text-sm underline"
+              className="text-blue-600 hover:text-blue-700 dark:text-blue-300 text-sm underline"
             >
               Get Free API Key →
             </a>

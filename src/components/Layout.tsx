@@ -1,11 +1,11 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { 
-  Home, 
-  TrendingUp, 
-  Target, 
-  Shield, 
-  CreditCard, 
+import {
+  Home,
+  TrendingUp,
+  Target,
+  Shield,
+  CreditCard,
   PieChart,
   Calendar,
   Settings,
@@ -14,13 +14,14 @@ import {
   TrendingDown,
   Moon,
   Sun,
-  Link2,
-  Tag
+  Bell,
+
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useData } from '../contexts/DataContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
+import AlertService from '../services/AlertService';
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -31,8 +32,7 @@ const Layout: React.FC = () => {
   const navItems = [
     { to: '/', icon: Home, label: 'Dashboard' },
     { to: '/transactions', icon: CreditCard, label: 'Transactions' },
-    { to: '/categories', icon: Tag, label: 'Categories' },
-    { to: '/transaction-linking', icon: Link2, label: 'Transaction Linking' },
+    { to: '/calendar', icon: Calendar, label: 'Calendar' },
     { to: '/recurring', icon: Calendar, label: 'Recurring & Bills' },
     { to: '/assets', icon: TrendingUp, label: 'Assets' },
     { to: '/liabilities', icon: TrendingDown, label: 'Liabilities' },
@@ -40,8 +40,14 @@ const Layout: React.FC = () => {
     { to: '/insurance', icon: Shield, label: 'Insurance' },
     { to: '/reports', icon: PieChart, label: 'Reports' },
     { to: '/forecast', icon: Calendar, label: 'Forecast' },
+    { to: '/alerts', icon: Bell, label: 'Alerts', showBadge: true },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ];
+
+  // Calculate alert count
+  const { transactions, bills, bankAccounts, monthlyBudget } = useData();
+  const alerts = AlertService.generateAlerts(transactions, bills, bankAccounts, monthlyBudget);
+  const alertCount = alerts.filter(a => a.severity === 'critical' || a.severity === 'warning').length;
 
   if (!isDataLoaded) {
     return (
@@ -59,13 +65,13 @@ const Layout: React.FC = () => {
   return (
     <div className={theme.page}>
       {/* Skip to main content link for screen readers */}
-      <a 
-        href="#main-content" 
+      <a
+        href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-blue-600 text-white px-4 py-2 rounded-md z-50"
       >
         Skip to main content
       </a>
-      
+
       {/* Header */}
       <header className={cn(theme.bgElevated, theme.border, 'border-b shadow-sm')} role="banner">
         <div className={theme.container}>
@@ -76,13 +82,13 @@ const Layout: React.FC = () => {
                 FinanceTracker
               </h1>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <div className={cn(theme.textSecondary, 'flex items-center text-sm')} role="status" aria-live="polite">
                 <User className="h-4 w-4 mr-2" aria-hidden="true" />
                 <span>Welcome, {user?.name}</span>
               </div>
-              
+
               {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
@@ -96,7 +102,7 @@ const Layout: React.FC = () => {
                   <Sun className="h-4 w-4" aria-hidden="true" />
                 )}
               </button>
-              
+
               <button
                 onClick={logout}
                 className={cn(theme.interactive, 'flex items-center text-sm px-3 py-2')}
@@ -112,9 +118,9 @@ const Layout: React.FC = () => {
 
       <div className="flex">
         {/* Sidebar */}
-        <nav 
-          className={cn(theme.bgElevated, theme.border, 'w-64 shadow-sm min-h-screen border-r')} 
-          role="navigation" 
+        <nav
+          className={cn(theme.bgElevated, theme.border, 'w-64 shadow-sm min-h-screen border-r')}
+          role="navigation"
           aria-label="Main navigation"
         >
           <div className="p-4">
@@ -133,6 +139,11 @@ const Layout: React.FC = () => {
                   >
                     <item.icon className="mr-3 h-5 w-5" aria-hidden="true" />
                     {item.label}
+                    {item.showBadge && alertCount > 0 && (
+                      <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                        {alertCount}
+                      </span>
+                    )}
                   </NavLink>
                 </li>
               ))}
@@ -141,9 +152,9 @@ const Layout: React.FC = () => {
         </nav>
 
         {/* Main Content */}
-        <main 
+        <main
           id="main-content"
-          className={cn(theme.bgPrimary, 'flex-1 p-6')} 
+          className={cn(theme.bgPrimary, 'flex-1 p-6')}
           role="main"
           tabIndex={-1}
         >

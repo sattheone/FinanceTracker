@@ -15,6 +15,10 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
     coverAmount: 0,
     premiumAmount: 0,
     premiumFrequency: 'yearly' as Insurance['premiumFrequency'],
+    premiumPayingTerm: 0, // New field
+    policyStartDate: new Date().toISOString().split('T')[0], // New field, default to today
+    usePremiumPayingTermForMaturity: false,
+    bonusGuaranteedAddition: 0, // New field
     maturityDate: '',
     maturityAmount: 0,
   });
@@ -29,6 +33,10 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
         coverAmount: insurance.coverAmount,
         premiumAmount: insurance.premiumAmount,
         premiumFrequency: insurance.premiumFrequency,
+        premiumPayingTerm: insurance.premiumPayingTerm || 0,
+        policyStartDate: insurance.policyStartDate || new Date().toISOString().split('T')[0],
+        usePremiumPayingTermForMaturity: insurance.usePremiumPayingTermForMaturity || false,
+        bonusGuaranteedAddition: insurance.bonusGuaranteedAddition || 0,
         maturityDate: insurance.maturityDate || '',
         maturityAmount: insurance.maturityAmount || 0,
       });
@@ -80,14 +88,20 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
       return;
     }
 
+    const calculatedMaturityAmount = formData.coverAmount + formData.bonusGuaranteedAddition;
+
     onSubmit({
       type: formData.type,
       policyName: formData.policyName.trim(),
       coverAmount: formData.coverAmount,
       premiumAmount: formData.premiumAmount,
       premiumFrequency: formData.premiumFrequency,
+      premiumPayingTerm: formData.premiumPayingTerm || undefined,
+      policyStartDate: formData.policyStartDate || undefined,
+      usePremiumPayingTermForMaturity: formData.usePremiumPayingTermForMaturity,
+      bonusGuaranteedAddition: formData.bonusGuaranteedAddition || undefined,
       maturityDate: formData.maturityDate || undefined,
-      maturityAmount: formData.maturityAmount || undefined,
+      maturityAmount: calculatedMaturityAmount, // Auto-calculated
     });
   };
 
@@ -136,7 +150,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
           <select
             value={formData.type}
             onChange={(e) => handleChange('type', e.target.value)}
-            className="input-field"
+            className="input-field theme-input"
           >
             {insuranceTypes.map(type => (
               <option key={type.value} value={type.value}>
@@ -148,7 +162,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-            Coverage Amount *
+            Sum Assured *
           </label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
@@ -159,7 +173,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
               className={`input-field pl-8 ${errors.coverAmount ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
-              step="10000"
+              step="any"
             />
           </div>
           {errors.coverAmount && <p className="text-red-500 text-sm mt-1">{errors.coverAmount}</p>}
@@ -178,10 +192,28 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
               className={`input-field pl-8 ${errors.premiumAmount ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
-              step="100"
+              step="any"
             />
           </div>
           {errors.premiumAmount && <p className="text-red-500 text-sm mt-1">{errors.premiumAmount}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+            Bonus, Guaranteed Addition (Optional)
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+            <input
+              type="number"
+              value={formData.bonusGuaranteedAddition || ''}
+              onChange={(e) => handleChange('bonusGuaranteedAddition', Number(e.target.value))}
+              className="input-field pl-8"
+              placeholder="0"
+              min="0"
+              step="any"
+            />
+          </div>
         </div>
 
         <div>
@@ -191,12 +223,53 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
           <select
             value={formData.premiumFrequency}
             onChange={(e) => handleChange('premiumFrequency', e.target.value)}
-            className="input-field"
+            className="input-field theme-input"
           >
             <option value="monthly">Monthly</option>
             <option value="quarterly">Quarterly</option>
             <option value="yearly">Yearly</option>
           </select>
+        </div>
+
+        {/* New fields */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+            Policy Start Date
+          </label>
+          <input
+            type="date"
+            value={formData.policyStartDate}
+            onChange={(e) => handleChange('policyStartDate', e.target.value)}
+            className="input-field"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+            Premium Paying Term (Years)
+          </label>
+          <input
+            type="number"
+            value={formData.premiumPayingTerm || ''}
+            onChange={(e) => handleChange('premiumPayingTerm', Number(e.target.value))}
+            className="input-field"
+            placeholder="0"
+            min="0"
+            step="1"
+          />
+        </div>
+
+        <div className="col-span-full flex items-center">
+          <input
+            id="usePremiumPayingTermForMaturity"
+            type="checkbox"
+            checked={formData.usePremiumPayingTermForMaturity}
+            onChange={(e) => handleChange('usePremiumPayingTermForMaturity', e.target.checked)}
+            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          />
+          <label htmlFor="usePremiumPayingTermForMaturity" className="ml-2 block text-sm text-gray-900 dark:text-gray-200">
+            Calculate Maturity Date from Premium Paying Term
+          </label>
         </div>
 
         {showMaturityFields && (
@@ -217,21 +290,18 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-                Maturity Amount (Optional)
+                Maturity Amount
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
                 <input
                   type="number"
-                  value={formData.maturityAmount || ''}
-                  onChange={(e) => handleChange('maturityAmount', Number(e.target.value))}
-                  className={`input-field pl-8 ${errors.maturityAmount ? 'border-red-500' : ''}`}
-                  placeholder="0"
-                  min="0"
-                  step="1000"
+                  value={formData.coverAmount + formData.bonusGuaranteedAddition}
+                  className="input-field pl-8 bg-gray-100 dark:bg-gray-700"
+                  readOnly
+                  tabIndex={-1}
                 />
               </div>
-              {errors.maturityAmount && <p className="text-red-500 text-sm mt-1">{errors.maturityAmount}</p>}
             </div>
           </>
         )}
@@ -284,9 +354,9 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
       )}
 
       {/* Recommendations */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
         <h4 className="font-medium text-blue-900 mb-2">💡 Insurance Tips</h4>
-        <ul className="text-sm text-blue-700 space-y-1">
+        <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
           {formData.type === 'term' && (
             <>
               <li>• Term insurance should be 10-15x your annual income</li>

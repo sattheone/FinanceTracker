@@ -14,7 +14,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Asset, Insurance, Goal, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill } from '../types';
+import { Asset, Insurance, Goal, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, CategoryRule } from '../types';
 import { UserProfile } from '../types/user';
 
 export class FirebaseService {
@@ -30,7 +30,8 @@ export class FirebaseService {
     BANK_ACCOUNTS: 'bankAccounts',
     LIABILITIES: 'liabilities',
     RECURRING_TRANSACTIONS: 'recurringTransactions',
-    BILLS: 'bills'
+    BILLS: 'bills',
+    CATEGORY_RULES: 'categoryRules'
   };
 
   // User Profile Operations
@@ -38,7 +39,7 @@ export class FirebaseService {
     try {
       const docRef = doc(db, this.COLLECTIONS.USERS, userId);
       const docSnap = await getDoc(docRef);
-      
+
       if (docSnap.exists()) {
         return docSnap.data() as UserProfile;
       }
@@ -52,17 +53,17 @@ export class FirebaseService {
   static async updateUserProfile(userId: string, profile: UserProfile): Promise<void> {
     try {
       const docRef = doc(db, this.COLLECTIONS.USERS, userId);
-      
+
       // Check if document exists first
       const docSnap = await getDoc(docRef);
-      
+
       if (docSnap.exists()) {
         // Update existing document
         // Filter out undefined values as Firebase doesn't support them
         const cleanProfile = Object.fromEntries(
           Object.entries(profile).filter(([_, value]) => value !== undefined)
         );
-        
+
         await updateDoc(docRef, {
           ...cleanProfile,
           updatedAt: serverTimestamp()
@@ -103,13 +104,13 @@ export class FirebaseService {
         where('userId', '==', userId)
       );
       const querySnapshot = await getDocs(q);
-      
+
       // Sort on client side temporarily until indexes are created
       const transactions = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Transaction[];
-      
+
       return transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     } catch (error) {
       console.error('Error getting transactions:', error);
@@ -123,7 +124,7 @@ export class FirebaseService {
       const cleanTransaction = Object.fromEntries(
         Object.entries(transaction).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = await addDoc(collection(db, this.COLLECTIONS.TRANSACTIONS), {
         ...cleanTransaction,
         userId,
@@ -143,7 +144,7 @@ export class FirebaseService {
       const cleanUpdates = Object.fromEntries(
         Object.entries(updates).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = doc(db, this.COLLECTIONS.TRANSACTIONS, transactionId);
       await updateDoc(docRef, {
         ...cleanUpdates,
@@ -168,13 +169,13 @@ export class FirebaseService {
   static async bulkAddTransactions(userId: string, transactions: Omit<Transaction, 'id'>[]): Promise<void> {
     try {
       const batch = writeBatch(db);
-      
+
       transactions.forEach(transaction => {
         // Filter out undefined values as Firebase doesn't support them
         const cleanTransaction = Object.fromEntries(
           Object.entries(transaction).filter(([_, value]) => value !== undefined)
         );
-        
+
         const docRef = doc(collection(db, this.COLLECTIONS.TRANSACTIONS));
         batch.set(docRef, {
           ...cleanTransaction,
@@ -183,7 +184,7 @@ export class FirebaseService {
           updatedAt: serverTimestamp()
         });
       });
-      
+
       await batch.commit();
     } catch (error) {
       console.error('Error bulk adding transactions:', error);
@@ -199,13 +200,13 @@ export class FirebaseService {
         where('userId', '==', userId)
       );
       const querySnapshot = await getDocs(q);
-      
+
       // Sort on client side temporarily until indexes are created
       const assets = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Asset[];
-      
+
       return assets.sort((a, b) => a.name.localeCompare(b.name));
     } catch (error) {
       console.error('Error getting assets:', error);
@@ -219,7 +220,7 @@ export class FirebaseService {
       const cleanAsset = Object.fromEntries(
         Object.entries(asset).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = await addDoc(collection(db, this.COLLECTIONS.ASSETS), {
         ...cleanAsset,
         userId,
@@ -239,7 +240,7 @@ export class FirebaseService {
       const cleanUpdates = Object.fromEntries(
         Object.entries(updates).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = doc(db, this.COLLECTIONS.ASSETS, assetId);
       await updateDoc(docRef, {
         ...cleanUpdates,
@@ -269,13 +270,13 @@ export class FirebaseService {
         where('userId', '==', userId)
       );
       const querySnapshot = await getDocs(q);
-      
+
       // Sort on client side temporarily until indexes are created
       const insurance = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Insurance[];
-      
+
       return insurance.sort((a, b) => a.policyName.localeCompare(b.policyName));
     } catch (error) {
       console.error('Error getting insurance:', error);
@@ -289,7 +290,7 @@ export class FirebaseService {
       const cleanInsurance = Object.fromEntries(
         Object.entries(insurance).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = await addDoc(collection(db, this.COLLECTIONS.INSURANCE), {
         ...cleanInsurance,
         userId,
@@ -309,7 +310,7 @@ export class FirebaseService {
       const cleanUpdates = Object.fromEntries(
         Object.entries(updates).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = doc(db, this.COLLECTIONS.INSURANCE, insuranceId);
       await updateDoc(docRef, {
         ...cleanUpdates,
@@ -339,13 +340,13 @@ export class FirebaseService {
         where('userId', '==', userId)
       );
       const querySnapshot = await getDocs(q);
-      
+
       // Sort on client side temporarily until indexes are created
       const goals = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Goal[];
-      
+
       return goals.sort((a, b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime());
     } catch (error) {
       console.error('Error getting goals:', error);
@@ -359,7 +360,7 @@ export class FirebaseService {
       const cleanGoal = Object.fromEntries(
         Object.entries(goal).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = await addDoc(collection(db, this.COLLECTIONS.GOALS), {
         ...cleanGoal,
         userId,
@@ -379,7 +380,7 @@ export class FirebaseService {
       const cleanUpdates = Object.fromEntries(
         Object.entries(updates).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = doc(db, this.COLLECTIONS.GOALS, goalId);
       await updateDoc(docRef, {
         ...cleanUpdates,
@@ -409,7 +410,7 @@ export class FirebaseService {
         where('userId', '==', userId)
       );
       const querySnapshot = await getDocs(q);
-      
+
       if (!querySnapshot.empty) {
         const docData = querySnapshot.docs[0];
         return docData.data() as MonthlyBudget;
@@ -429,7 +430,7 @@ export class FirebaseService {
         where('userId', '==', userId)
       );
       const querySnapshot = await getDocs(q);
-      
+
       if (!querySnapshot.empty) {
         // Update existing
         const docRef = querySnapshot.docs[0].ref;
@@ -437,7 +438,7 @@ export class FirebaseService {
         const cleanBudget = Object.fromEntries(
           Object.entries(budget).filter(([_, value]) => value !== undefined)
         );
-        
+
         await updateDoc(docRef, {
           ...cleanBudget,
           updatedAt: serverTimestamp()
@@ -448,7 +449,7 @@ export class FirebaseService {
         const cleanBudget = Object.fromEntries(
           Object.entries(budget).filter(([_, value]) => value !== undefined)
         );
-        
+
         await addDoc(collection(db, this.COLLECTIONS.MONTHLY_BUDGETS), {
           ...cleanBudget,
           userId,
@@ -470,12 +471,12 @@ export class FirebaseService {
         where('userId', '==', userId)
       );
       const querySnapshot = await getDocs(q);
-      
+
       const accounts = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as BankAccount[];
-      
+
       return accounts.sort((a, b) => a.bank.localeCompare(b.bank));
     } catch (error) {
       console.error('Error getting bank accounts:', error);
@@ -489,7 +490,7 @@ export class FirebaseService {
       const cleanAccount = Object.fromEntries(
         Object.entries(account).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = await addDoc(collection(db, this.COLLECTIONS.BANK_ACCOUNTS), {
         ...cleanAccount,
         userId,
@@ -509,7 +510,7 @@ export class FirebaseService {
       const cleanUpdates = Object.fromEntries(
         Object.entries(updates).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = doc(db, this.COLLECTIONS.BANK_ACCOUNTS, accountId);
       await updateDoc(docRef, {
         ...cleanUpdates,
@@ -539,12 +540,12 @@ export class FirebaseService {
         where('userId', '==', userId)
       );
       const querySnapshot = await getDocs(q);
-      
+
       const liabilities = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Liability[];
-      
+
       return liabilities.sort((a, b) => a.name.localeCompare(b.name));
     } catch (error) {
       console.error('Error getting liabilities:', error);
@@ -558,7 +559,7 @@ export class FirebaseService {
       const cleanLiability = Object.fromEntries(
         Object.entries(liability).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = await addDoc(collection(db, this.COLLECTIONS.LIABILITIES), {
         ...cleanLiability,
         userId,
@@ -578,7 +579,7 @@ export class FirebaseService {
       const cleanUpdates = Object.fromEntries(
         Object.entries(updates).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = doc(db, this.COLLECTIONS.LIABILITIES, liabilityId);
       await updateDoc(docRef, {
         ...cleanUpdates,
@@ -606,15 +607,15 @@ export class FirebaseService {
       collection(db, this.COLLECTIONS.TRANSACTIONS),
       where('userId', '==', userId)
     );
-    
+
     return onSnapshot(q, (querySnapshot) => {
       const transactions = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Transaction[];
-      
+
       // Sort on client side temporarily until indexes are created
-      const sortedTransactions = transactions.sort((a, b) => 
+      const sortedTransactions = transactions.sort((a, b) =>
         new Date(b.date).getTime() - new Date(a.date).getTime()
       );
       callback(sortedTransactions);
@@ -626,13 +627,13 @@ export class FirebaseService {
       collection(db, this.COLLECTIONS.ASSETS),
       where('userId', '==', userId)
     );
-    
+
     return onSnapshot(q, (querySnapshot) => {
       const assets = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Asset[];
-      
+
       // Sort on client side temporarily until indexes are created
       const sortedAssets = assets.sort((a, b) => a.name.localeCompare(b.name));
       callback(sortedAssets);
@@ -651,19 +652,19 @@ export class FirebaseService {
         this.COLLECTIONS.BANK_ACCOUNTS,
         this.COLLECTIONS.LIABILITIES
       ];
-      
+
       for (const collectionName of collections) {
         const q = query(
           collection(db, collectionName),
           where('userId', '==', userId)
         );
         const querySnapshot = await getDocs(q);
-        
+
         if (!querySnapshot.empty) {
           return true; // User has data in at least one collection
         }
       }
-      
+
       return false; // No data found
     } catch (error) {
       console.error('Error checking user data:', error);
@@ -671,43 +672,7 @@ export class FirebaseService {
     }
   }
 
-  // Utility functions
-  static async deleteAllUserData(userId: string): Promise<void> {
-    try {
-      const batch = writeBatch(db);
-      
-      // Get all collections for the user
-      const collections = [
-        this.COLLECTIONS.TRANSACTIONS,
-        this.COLLECTIONS.ASSETS,
-        this.COLLECTIONS.INSURANCE,
-        this.COLLECTIONS.GOALS,
-        this.COLLECTIONS.MONTHLY_BUDGETS,
-        this.COLLECTIONS.LIABILITIES
-      ];
-      
-      for (const collectionName of collections) {
-        const q = query(
-          collection(db, collectionName),
-          where('userId', '==', userId)
-        );
-        const querySnapshot = await getDocs(q);
-        
-        querySnapshot.docs.forEach(doc => {
-          batch.delete(doc.ref);
-        });
-      }
-      
-      // Delete user profile
-      const userRef = doc(db, this.COLLECTIONS.USERS, userId);
-      batch.delete(userRef);
-      
-      await batch.commit();
-    } catch (error) {
-      console.error('Error deleting user data:', error);
-      throw error;
-    }
-  }
+
   // Recurring Transactions Operations
   static async getRecurringTransactions(userId: string): Promise<RecurringTransaction[]> {
     try {
@@ -729,7 +694,7 @@ export class FirebaseService {
       const cleanRecurringTransaction = Object.fromEntries(
         Object.entries(recurringTransaction).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = await addDoc(collection(db, this.COLLECTIONS.RECURRING_TRANSACTIONS), {
         ...cleanRecurringTransaction,
         userId,
@@ -749,7 +714,7 @@ export class FirebaseService {
       const cleanRecurringTransaction = Object.fromEntries(
         Object.entries(recurringTransaction).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = doc(db, this.COLLECTIONS.RECURRING_TRANSACTIONS, id);
       await updateDoc(docRef, {
         ...cleanRecurringTransaction,
@@ -792,7 +757,7 @@ export class FirebaseService {
       const cleanBill = Object.fromEntries(
         Object.entries(bill).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = await addDoc(collection(db, this.COLLECTIONS.BILLS), {
         ...cleanBill,
         userId,
@@ -812,7 +777,7 @@ export class FirebaseService {
       const cleanBill = Object.fromEntries(
         Object.entries(bill).filter(([_, value]) => value !== undefined)
       );
-      
+
       const docRef = doc(db, this.COLLECTIONS.BILLS, id);
       await updateDoc(docRef, {
         ...cleanBill,
@@ -849,6 +814,358 @@ export class FirebaseService {
   static async deleteSIPTransaction(sipTransactionId: string): Promise<void> {
     // TODO: Implement SIP transaction deletion
     console.log('SIP transaction delete requested:', sipTransactionId);
+  }
+
+  // Bulk Deletion Operations
+  static async deleteAllTransactions(userId: string): Promise<number> {
+    try {
+      console.log('🗑️ Deleting all transactions for user:', userId);
+      const q = query(
+        collection(db, FirebaseService.COLLECTIONS.TRANSACTIONS),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        console.log('No transactions to delete');
+        return 0;
+      }
+
+      const batch = writeBatch(db);
+      querySnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+      console.log(`✅ Deleted ${querySnapshot.size} transactions`);
+      return querySnapshot.size;
+    } catch (error) {
+      console.error('Error deleting all transactions:', error);
+      throw error;
+    }
+  }
+
+  static async deleteAllBankAccounts(userId: string): Promise<number> {
+    try {
+      console.log('🗑️ Deleting all bank accounts for user:', userId);
+      const q = query(
+        collection(db, FirebaseService.COLLECTIONS.BANK_ACCOUNTS),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        console.log('No bank accounts to delete');
+        return 0;
+      }
+
+      const batch = writeBatch(db);
+      querySnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+      console.log(`✅ Deleted ${querySnapshot.size} bank accounts`);
+      return querySnapshot.size;
+    } catch (error) {
+      console.error('Error deleting all bank accounts:', error);
+      throw error;
+    }
+  }
+
+  static async deleteAllAssets(userId: string): Promise<number> {
+    try {
+      console.log('🗑️ Deleting all assets for user:', userId);
+      const q = query(
+        collection(db, FirebaseService.COLLECTIONS.ASSETS),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        console.log('No assets to delete');
+        return 0;
+      }
+
+      const batch = writeBatch(db);
+      querySnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+      console.log(`✅ Deleted ${querySnapshot.size} assets`);
+      return querySnapshot.size;
+    } catch (error) {
+      console.error('Error deleting all assets:', error);
+      throw error;
+    }
+  }
+
+  static async deleteAllLiabilities(userId: string): Promise<number> {
+    try {
+      console.log('🗑️ Deleting all liabilities for user:', userId);
+      const q = query(
+        collection(db, FirebaseService.COLLECTIONS.LIABILITIES),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        console.log('No liabilities to delete');
+        return 0;
+      }
+
+      const batch = writeBatch(db);
+      querySnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+      console.log(`✅ Deleted ${querySnapshot.size} liabilities`);
+      return querySnapshot.size;
+    } catch (error) {
+      console.error('Error deleting all liabilities:', error);
+      throw error;
+    }
+  }
+
+  static async deleteAllGoals(userId: string): Promise<number> {
+    try {
+      console.log('🗑️ Deleting all goals for user:', userId);
+      const q = query(
+        collection(db, FirebaseService.COLLECTIONS.GOALS),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        console.log('No goals to delete');
+        return 0;
+      }
+
+      const batch = writeBatch(db);
+      querySnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+      console.log(`✅ Deleted ${querySnapshot.size} goals`);
+      return querySnapshot.size;
+    } catch (error) {
+      console.error('Error deleting all goals:', error);
+      throw error;
+    }
+  }
+
+  static async deleteAllInsurance(userId: string): Promise<number> {
+    try {
+      console.log('🗑️ Deleting all insurance policies for user:', userId);
+      const q = query(
+        collection(db, FirebaseService.COLLECTIONS.INSURANCE),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        console.log('No insurance policies to delete');
+        return 0;
+      }
+
+      const batch = writeBatch(db);
+      querySnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+      console.log(`✅ Deleted ${querySnapshot.size} insurance policies`);
+      return querySnapshot.size;
+    } catch (error) {
+      console.error('Error deleting all insurance:', error);
+      throw error;
+    }
+  }
+
+  static async deleteAllRecurringTransactions(userId: string): Promise<number> {
+    try {
+      console.log('🗑️ Deleting all recurring transactions for user:', userId);
+      const q = query(
+        collection(db, FirebaseService.COLLECTIONS.RECURRING_TRANSACTIONS),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        console.log('No recurring transactions to delete');
+        return 0;
+      }
+
+      const batch = writeBatch(db);
+      querySnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+      console.log(`✅ Deleted ${querySnapshot.size} recurring transactions`);
+      return querySnapshot.size;
+    } catch (error) {
+      console.error('Error deleting all recurring transactions:', error);
+      throw error;
+    }
+  }
+
+  static async deleteAllBills(userId: string): Promise<number> {
+    try {
+      console.log('🗑️ Deleting all bills for user:', userId);
+      const q = query(
+        collection(db, FirebaseService.COLLECTIONS.BILLS),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        console.log('No bills to delete');
+        return 0;
+      }
+
+      const batch = writeBatch(db);
+      querySnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+      console.log(`✅ Deleted ${querySnapshot.size} bills`);
+      return querySnapshot.size;
+    } catch (error) {
+      console.error('Error deleting all bills:', error);
+      throw error;
+    }
+  }
+
+  // User Account Deletion
+  static async deleteAllUserData(userId: string): Promise<void> {
+    try {
+      console.log('🗑️ Starting complete user data deletion for:', userId);
+      const batch = writeBatch(db);
+      let deletedCount = 0;
+
+      // Delete all collections for the user
+      const collections = [
+        this.COLLECTIONS.TRANSACTIONS,
+        this.COLLECTIONS.ASSETS,
+        this.COLLECTIONS.INSURANCE,
+        this.COLLECTIONS.GOALS,
+        this.COLLECTIONS.MONTHLY_BUDGETS,
+        this.COLLECTIONS.BANK_ACCOUNTS,
+        this.COLLECTIONS.LIABILITIES,
+        this.COLLECTIONS.RECURRING_TRANSACTIONS,
+        this.COLLECTIONS.BILLS,
+        this.COLLECTIONS.CATEGORY_RULES
+      ];
+
+      for (const collectionName of collections) {
+        console.log(`🗑️ Deleting ${collectionName} for user:`, userId);
+        const q = query(
+          collection(db, collectionName),
+          where('userId', '==', userId)
+        );
+        const querySnapshot = await getDocs(q);
+
+        querySnapshot.docs.forEach(doc => {
+          batch.delete(doc.ref);
+          deletedCount++;
+        });
+      }
+
+      // Delete user profile
+      const userDocRef = doc(db, this.COLLECTIONS.USERS, userId);
+      batch.delete(userDocRef);
+      deletedCount++;
+
+      // Commit all deletions
+      await batch.commit();
+      console.log(`✅ Successfully deleted ${deletedCount} documents for user:`, userId);
+    } catch (error) {
+      console.error('❌ Error deleting user data:', error);
+      throw error;
+    }
+  }
+
+  // Category Rule Operations
+  static async getCategoryRules(userId: string): Promise<CategoryRule[]> {
+    try {
+      const q = query(
+        collection(db, this.COLLECTIONS.CATEGORY_RULES),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as CategoryRule[];
+    } catch (error) {
+      console.error('Error getting category rules:', error);
+      throw error;
+    }
+  }
+
+  static async addCategoryRule(userId: string, rule: Omit<CategoryRule, 'id'>): Promise<string> {
+    try {
+      const docRef = await addDoc(collection(db, this.COLLECTIONS.CATEGORY_RULES), {
+        ...rule,
+        userId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error adding category rule:', error);
+      throw error;
+    }
+  }
+
+  static async updateCategoryRule(ruleId: string, updates: Partial<CategoryRule>): Promise<void> {
+    try {
+      const docRef = doc(db, this.COLLECTIONS.CATEGORY_RULES, ruleId);
+      await updateDoc(docRef, {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error updating category rule:', error);
+      throw error;
+    }
+  }
+
+  static async deleteCategoryRule(ruleId: string): Promise<void> {
+    try {
+      const docRef = doc(db, this.COLLECTIONS.CATEGORY_RULES, ruleId);
+      await deleteDoc(docRef);
+    } catch (error) {
+      console.error('Error deleting category rule:', error);
+      throw error;
+    }
+  }
+
+  // Generic document operations for email notifications
+  static async addDocument(collectionName: string, data: any): Promise<string> {
+    try {
+      const docRef = await addDoc(collection(db, collectionName), {
+        ...data,
+        createdAt: serverTimestamp()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error(`Error adding document to ${collectionName}:`, error);
+      throw error;
+    }
+  }
+
+  static getCurrentUserId(): string | null {
+    // This should be set from the auth context
+    // For now, we'll get it from localStorage or return null
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    return user?.id || null;
   }
 }
 

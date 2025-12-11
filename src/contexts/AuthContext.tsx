@@ -5,17 +5,20 @@ import {
   signOut, 
   onAuthStateChanged,
   updateProfile,
+  deleteUser,
   User as FirebaseUser
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import { User, AuthState } from '../types/user';
 import FirebaseService from '../services/firebaseService';
+import sendGridEmailService from '../services/sendGridEmailService';
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, name: string) => Promise<boolean>;
   logout: () => void;
   updateUser: (user: User) => void;
+  deleteAccount: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -97,6 +100,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      
+      // Ensure email notifications are set up for existing users
+      const currentSettings = sendGridEmailService.getSettings();
+      if (!currentSettings.emailAddress) {
+        const updatedSettings = {
+          ...currentSettings,
+          enabled: true,
+          emailAddress: email
+        };
+        sendGridEmailService.saveSettings(updatedSettings);
+        console.log('✅ Email notifications configured for existing user');
+      }
+      
       return true;
     } catch (error) {
       console.error('Login error:', error);
@@ -133,6 +149,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       };
 
       await FirebaseService.createUserProfile(userCredential.user.uid, defaultProfile);
+      
+      // Enable email notifications by default with user's email
+      const defaultEmailSettings = {
+        enabled: true,
+        emailAddress: email,
+        billReminders: {
+          enabled: true,
+          daysBefore: [7, 3, 1]
+        },
+        recurringReminders: {
+          enabled: true,
+          daysBefore: [3, 1]
+        },
+        budgetAlerts: {
+          enabled: true,
+          threshold: 80
+        },
+        monthlyReports: {
+          enabled: false,
+          dayOfMonth: 1
+        },
+        overdueAlerts: {
+          enabled: true
+        }
+      };
+      
+      sendGridEmailService.saveSettings(defaultEmailSettings);
+      console.log('✅ Email notifications enabled by default for new user');
+      
       return true;
     } catch (error) {
       console.error('Registration error:', error);
@@ -145,6 +190,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await signOut(auth);
     } catch (error) {
       console.error('Logout error:', error);
+    }
+  };
+
+  const deleteAccount = async (): Promise<boolean> => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('No user is currently signed in');
+      }
+
+      console.log('🗑️ Starting account deletion process...');
+      
+      // First, delete all user data from Firestore
+      await FirebaseService.deleteAllUserData(currentUser.uid);
+      
+      // Then delete the Firebase Auth user
+      await deleteUser(currentUser);
+      
+      // Clear local state
+      setAuthState({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
+
+      console.log('✅ Account deleted successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Error deleting account:', error);
+      return false;
     }
   };
 
@@ -187,6 +262,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     logout,
     updateUser,
+    deleteAccount,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

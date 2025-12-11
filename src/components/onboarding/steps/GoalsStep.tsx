@@ -28,7 +28,12 @@ const GoalsStep: React.FC = () => {
       addGoal({
         ...newGoal,
         expectedReturnRate: 12, // Default 12% return
-        isInflationAdjusted: false // Default to nominal
+        isInflationAdjusted: false, // Default to nominal
+        linkedSIPAssets: [],
+        linkedRecurringTransactions: [],
+        linkedTransactionCategories: [],
+        autoUpdateFromTransactions: true,
+        priority: 'medium'
       });
       setNewGoal({
         name: '',
@@ -151,7 +156,7 @@ const GoalsStep: React.FC = () => {
                 type="text"
                 value={newGoal.name}
                 onChange={(e) => setNewGoal({ ...newGoal, name: e.target.value })}
-                className="input-field"
+                className="input-field theme-input"
                 placeholder="e.g., Child's Education, House Down Payment"
               />
             </div>
@@ -162,7 +167,7 @@ const GoalsStep: React.FC = () => {
               <select
                 value={newGoal.category}
                 onChange={(e) => setNewGoal({ ...newGoal, category: e.target.value as Goal['category'] })}
-                className="input-field"
+                className="input-field theme-input"
               >
                 {goalCategories.map(cat => (
                   <option key={cat.value} value={cat.value}>
@@ -181,7 +186,7 @@ const GoalsStep: React.FC = () => {
                   type="number"
                   value={newGoal.targetAmount || ''}
                   onChange={(e) => setNewGoal({ ...newGoal, targetAmount: Number(e.target.value) })}
-                  className="input-field pl-8"
+                  className="input-field pl-8 theme-input"
                   placeholder="0"
                   min="0"
                 />
@@ -197,7 +202,7 @@ const GoalsStep: React.FC = () => {
                   type="number"
                   value={newGoal.currentAmount || ''}
                   onChange={(e) => setNewGoal({ ...newGoal, currentAmount: Number(e.target.value) })}
-                  className="input-field pl-8"
+                  className="input-field pl-8 theme-input"
                   placeholder="0"
                   min="0"
                 />
@@ -211,7 +216,7 @@ const GoalsStep: React.FC = () => {
                 type="date"
                 value={newGoal.targetDate}
                 onChange={(e) => setNewGoal({ ...newGoal, targetDate: e.target.value })}
-                className="input-field"
+                className="input-field theme-input"
                 min={new Date().toISOString().split('T')[0]}
               />
             </div>
@@ -225,7 +230,7 @@ const GoalsStep: React.FC = () => {
                   type="number"
                   value={newGoal.monthlyContribution || ''}
                   onChange={(e) => setNewGoal({ ...newGoal, monthlyContribution: Number(e.target.value) })}
-                  className="input-field pl-8"
+                  className="input-field pl-8 theme-input"
                   placeholder="0"
                   min="0"
                 />
@@ -253,22 +258,7 @@ const GoalsStep: React.FC = () => {
 
       {/* Goals List */}
       <div className="space-y-4">
-        {goals.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-            <Target className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No goals set yet</h3>
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
-              Start by setting your financial goals to create a roadmap for your future.
-            </p>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="btn-primary"
-            >
-              Set Your First Goal
-            </button>
-          </div>
-        ) : (
-          goals.map((goal) => {
+        {goals.map((goal) => {
             const category = goalCategories.find(cat => cat.value === goal.category);
             const progress = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0;
             const remainingAmount = goal.targetAmount - goal.currentAmount;
@@ -318,7 +308,7 @@ const GoalsStep: React.FC = () => {
                         <span className="text-gray-600 dark:text-gray-300">Progress</span>
                         <span className="font-medium">{progress.toFixed(1)}%</span>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                         <div
                           className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full"
                           style={{ width: `${Math.min(progress, 100)}%` }}
@@ -334,15 +324,14 @@ const GoalsStep: React.FC = () => {
                   
                   <button
                     onClick={() => deleteGoal(goal.id)}
-                    className="text-red-600 dark:text-red-400 hover:bg-red-50 p-2 rounded-lg ml-4"
+                    className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 p-2 rounded-lg ml-4"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             );
-          })
-        )}
+          })}
       </div>
     </div>
   );

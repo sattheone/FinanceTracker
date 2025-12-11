@@ -41,7 +41,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
@@ -57,7 +57,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="input-field pl-10"
+              className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
               placeholder="Enter your email"
               required
             />
@@ -75,7 +75,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="input-field pl-10 pr-10"
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
               placeholder="Enter your password"
               required
             />
@@ -103,32 +103,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode }) => {
           Don't have an account?{' '}
           <button
             onClick={onToggleMode}
-            className="text-primary-600 hover:text-primary-700 font-medium"
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
           >
             Sign up
           </button>
         </p>
-      </div>
-
-      {/* Demo Account Info */}
-      <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <h4 className="font-medium text-blue-900 mb-2">Demo Account</h4>
-        <p className="text-sm text-blue-700 mb-2">
-          Try the app with sample data:
-        </p>
-        <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
-          <p><strong>Email:</strong> demo@example.com</p>
-          <p><strong>Password:</strong> demo123</p>
-        </div>
-        <button
-          onClick={() => {
-            setEmail('demo@example.com');
-            setPassword('demo123');
-          }}
-          className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 underline"
-        >
-          Fill demo credentials
-        </button>
       </div>
     </div>
   );
