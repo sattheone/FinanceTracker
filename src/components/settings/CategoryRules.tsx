@@ -7,18 +7,13 @@ import RuleCreationDialog from '../transactions/RuleCreationDialog';
 
 const CategoryRules: React.FC = () => {
     const theme = useThemeClasses();
-    const { categoryRules, deleteCategoryRule, updateCategoryRule, addCategoryRule, transactions } = useData();
+    const { categoryRules, deleteCategoryRule, updateCategoryRule, addCategoryRule, transactions, categories: contextCategories } = useData();
     const [searchTerm, setSearchTerm] = useState('');
-    const [categories, setCategories] = useState<any[]>([]);
+    // Use categories from context
+    const categories = contextCategories || [];
     const [showAddDialog, setShowAddDialog] = useState(false);
 
-    // Load categories from localStorage
-    React.useEffect(() => {
-        const savedCategories = localStorage.getItem('categories');
-        if (savedCategories) {
-            setCategories(JSON.parse(savedCategories));
-        }
-    }, []);
+    // Removed localstorage loading effect
 
     const getCategoryName = (categoryId: string) => {
         const category = categories.find(c => c.id === categoryId);

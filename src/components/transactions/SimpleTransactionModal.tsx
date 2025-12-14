@@ -14,13 +14,7 @@ interface SimpleTransactionModalProps {
   onClose: () => void;
 }
 
-interface Category {
-  id: string;
-  name: string;
-  color: string;
-  icon: string;
-  isCustom: boolean;
-}
+
 
 const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
   transaction,
@@ -28,9 +22,11 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
   onClose
 }) => {
   const theme = useThemeClasses();
-  const { transactions, updateTransaction, addRecurringTransaction } = useData();
+  const { transactions, updateTransaction, addRecurringTransaction, categories: contextCategories } = useData();
 
-  const [categories, setCategories] = useState<Category[]>([]);
+  // Use categories from context
+  const categories = contextCategories || [];
+
   const [showRecurringModal, setShowRecurringModal] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedTransaction, setEditedTransaction] = useState({
@@ -53,6 +49,7 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
     });
   }, [transaction]);
 
+  // Helper functions
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'income': return 'text-green-600 dark:text-green-400';
@@ -72,33 +69,6 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
       default: return '💳';
     }
   };
-
-  // Default categories
-  const defaultCategories: Category[] = [
-    { id: 'food', name: 'Food & Dining', color: '#EF4444', icon: '🍽️', isCustom: false },
-    { id: 'transport', name: 'Transportation', color: '#3B82F6', icon: '🚗', isCustom: false },
-    { id: 'shopping', name: 'Shopping', color: '#8B5CF6', icon: '🛍️', isCustom: false },
-    { id: 'entertainment', name: 'Entertainment', color: '#F59E0B', icon: '🎬', isCustom: false },
-    { id: 'bills', name: 'Bills & Utilities', color: '#10B981', icon: '⚡', isCustom: false },
-    { id: 'healthcare', name: 'Healthcare', color: '#EC4899', icon: '🏥', isCustom: false },
-    { id: 'education', name: 'Education', color: '#6366F1', icon: '📚', isCustom: false },
-    { id: 'travel', name: 'Travel', color: '#14B8A6', icon: '✈️', isCustom: false },
-    { id: 'salary', name: 'Salary', color: '#22C55E', icon: '💰', isCustom: false },
-    { id: 'investment', name: 'Investment', color: '#059669', icon: '📈', isCustom: false },
-    { id: 'other', name: 'Other', color: '#6B7280', icon: '📋', isCustom: false },
-  ];
-
-  // Load categories and find similar transactions
-  useEffect(() => {
-    // Load categories from localStorage or use defaults
-    const savedCategories = localStorage.getItem('categories');
-    if (savedCategories) {
-      setCategories(JSON.parse(savedCategories));
-    } else {
-      setCategories(defaultCategories);
-      localStorage.setItem('categories', JSON.stringify(defaultCategories));
-    }
-  }, [transaction, transactions]);
 
   const getCategoryById = (id: string) => {
     return categories.find(c => c.id === id) || {

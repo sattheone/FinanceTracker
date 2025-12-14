@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction, CategoryRule } from '../types';
+import { Category } from '../constants/categories';
 import { UserProfile } from '../types/user';
 import { useAuth } from './AuthContext';
 import FirebaseService from '../services/firebaseService';
@@ -50,6 +51,7 @@ interface DataContextType {
   bills: Bill[];
   sipTransactions: SIPTransaction[];
   categoryRules: CategoryRule[];
+  categories: Category[];
 
   // CRUD Operations
   addAsset: (asset: Omit<Asset, 'id'>) => void;
@@ -94,6 +96,11 @@ interface DataContextType {
   updateCategoryRule: (id: string, rule: Partial<CategoryRule>) => void;
   deleteCategoryRule: (id: string) => void;
   applyRuleToTransactions: (ruleId: string) => void;
+
+  // Category Operations
+  addCategory: (category: Omit<Category, 'id'>) => Promise<string | undefined>;
+  updateCategory: (id: string, category: Partial<Category>) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
 
   updateMonthlyBudget: (budget: Partial<MonthlyBudget>) => void;
 
@@ -171,6 +178,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [bills, setBills] = useState<Bill[]>([]);
   const [sipTransactions, setSipTransactions] = useState<SIPTransaction[]>([]);
   const [categoryRules, setCategoryRules] = useState<CategoryRule[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   // Update localStorage for notification scheduler whenever data changes
   useEffect(() => {
@@ -232,6 +240,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         FirebaseService.getRecurringTransactions(userId),
         FirebaseService.getBills(userId),
         FirebaseService.getCategoryRules(userId)
+        // FirebaseService.getCategories(userId) // TODO: add when method exists
       ]);
 
       setAssets(assetsData);
@@ -252,8 +261,47 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setBills(billsData);
       setCategoryRules(categoryRulesData);
 
+      // Load categories (now that FirebaseService methods exist)
+      console.log('[DataContext] Loading categories for user:', userId);
+      let categoriesData;
+      try {
+        categoriesData = await FirebaseService.getCategories(userId);
+        console.log('[DataContext] Loaded categories from Firestore:', categoriesData.length, 'categories');
+        console.log('[DataContext] Categories:', categoriesData.map(c => ({ id: c.id, name: c.name, parentId: c.parentId })));
+      } catch (error) {
+        console.error('[DataContext] Error loading categories:', error);
+        categoriesData = [];
+      }
 
+      // Category migration: If Firestore is empty, sync all defaults
+      if (categoriesData.length === 0) {
+        console.log('[DataContext] No categories in Firestore, migrating defaults...');
+        const { defaultCategories } = await import('../constants/categories');
 
+        for (const def of defaultCategories) {
+          try {
+            await FirebaseService.addCategoryWithId(userId, def.id, {
+              name: def.name,
+              color: def.color,
+              icon: def.icon,
+              isCustom: false,
+              parentId: def.parentId,
+              order: def.order,
+              isSystem: def.isSystem
+            });
+          } catch (error) {
+            console.error(`[DataContext] Error migrating category ${def.id}:`, error);
+          }
+        }
+
+        // Reload migrated categories
+        console.log('[DataContext] Reloading categories after migration...');
+        categoriesData = await FirebaseService.getCategories(userId);
+        console.log('[DataContext] Migrated categories count:', categoriesData.length);
+      }
+
+      console.log('[DataContext] Setting categories to state:', categoriesData.length, 'categories');
+      setCategories(categoriesData);
       setIsDataLoaded(true);
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -902,6 +950,42 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
+  // Category Operations
+  const addCategory = async (category: Omit<Category, 'id'>) => {
+    if (!user) return;
+
+    try {
+      const id = await FirebaseService.addCategory(user.id, category);
+      const newCategory: Category = { ...category, id };
+      setCategories(prev => [...prev, newCategory]);
+      return id;
+    } catch (error) {
+      console.error('Error adding category:', error);
+    }
+  };
+
+  const updateCategory = async (id: string, category: Partial<Category>) => {
+    console.log('[DataContext] updateCategory called:', { id, category });
+    try {
+      console.log('[DataContext] Calling FirebaseService.updateCategory...');
+      await FirebaseService.updateCategory(id, category);
+      console.log('[DataContext] Firebase update successful, updating local state');
+      setCategories(prev => prev.map(c => c.id === id ? { ...c, ...category } : c));
+      console.log('[DataContext] Local state updated');
+    } catch (error) {
+      console.error('[DataContext] Error updating category:', error);
+    }
+  };
+
+  const deleteCategory = async (id: string) => {
+    try {
+      await FirebaseService.deleteCategory(id);
+      setCategories(prev => prev.filter(c => c.id !== id));
+    } catch (error) {
+      console.error('Error deleting category:', error);
+    }
+  };
+
   // Utility functions
   const processRecurringTransactions = async () => {
     const today = new Date();
@@ -1091,12 +1175,23 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     updateCategoryRule,
     deleteCategoryRule,
     applyRuleToTransactions,
+
+    // Categories
+    categories,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+
     updateMonthlyBudget,
-    resetUserData,
-    isDataLoaded,
+
+    // Recurring transaction utilities
     processRecurringTransactions,
     getUpcomingBills,
     getOverdueBills,
+
+    // Utility
+    resetUserData,
+    isDataLoaded
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

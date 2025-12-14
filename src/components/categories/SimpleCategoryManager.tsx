@@ -3,7 +3,7 @@ import { Plus, Edit3, Trash2, Tag, Search, ChevronRight, ChevronDown, ArrowUp, A
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { useData } from '../../contexts/DataContext';
 import { formatCurrency } from '../../utils/formatters';
-import { Category, defaultCategories } from '../../constants/categories';
+import { Category } from '../../constants/categories';
 import CategoryForm from './CategoryForm';
 
 interface CategorySpending {
@@ -15,57 +15,23 @@ interface CategorySpending {
 
 const SimpleCategoryManager: React.FC = () => {
   const theme = useThemeClasses();
-  const { transactions, updateTransaction } = useData();
+  const {
+    transactions,
+    updateTransaction,
+    categories: contextCategories,
+    addCategory,
+    updateCategory,
+    deleteCategory
+  } = useData();
 
-  const [categories, setCategories] = useState<Category[]>([]);
+  // Use categories from DataContext directly, with fallback
+  const categories = contextCategories || [];
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [monthlySpending, setMonthlySpending] = useState<CategorySpending[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    // Load categories from localStorage or use defaults
-    const savedCategories = localStorage.getItem('categories');
-    if (savedCategories) {
-      const parsed = JSON.parse(savedCategories);
-      // Merge defaults if they don't exist (simple check by ID)
-      const merged = [...parsed];
-      defaultCategories.forEach(def => {
-        if (!merged.find((c: Category) => c.id === def.id)) {
-          merged.push(def);
-        }
-      });
-
-      // Migration: Add order and isSystem if missing
-      const migrated = merged.map((c, index) => {
-        let updated = { ...c };
-
-        // Add order if missing
-        if (updated.order === undefined) {
-          const def = defaultCategories.find(d => d.id === c.id);
-          updated.order = def?.order !== undefined ? def.order : (index + 1) * 100;
-        }
-
-        // Add isSystem if missing (check defaults)
-        if (updated.isSystem === undefined) {
-          const def = defaultCategories.find(d => d.id === c.id);
-          if (def?.isSystem) updated.isSystem = true;
-        }
-
-        return updated;
-      });
-
-      // Sort by order initially
-      migrated.sort((a, b) => (a.order || 0) - (b.order || 0));
-
-      setCategories(migrated);
-      localStorage.setItem('categories', JSON.stringify(migrated));
-    } else {
-      setCategories(defaultCategories);
-      localStorage.setItem('categories', JSON.stringify(defaultCategories));
-    }
-  }, []);
 
   useEffect(() => {
     calculateMonthlySpending();
@@ -123,57 +89,57 @@ const SimpleCategoryManager: React.FC = () => {
     setMonthlySpending(spendingArray);
   };
 
-  const saveCategories = (newCategories: Category[]) => {
-    setCategories(newCategories);
-    localStorage.setItem('categories', JSON.stringify(newCategories));
-  };
+  const handleSaveCategory = async (categoryData: Partial<Category>) => {
+    try {
+      if (editingCategory) {
+        // Update existing
+        // We only pass the fields that are in categoryData
+        await updateCategory(editingCategory.id, categoryData);
+        setEditingCategory(null);
+      } else {
+        // Add new
+        const parentId = categoryData.parentId || undefined;
+        // Determine order: put at end of siblings
+        const siblings = categories.filter(c => c.parentId === parentId);
+        const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(c => c.order || 0)) : 0;
 
-  const handleSaveCategory = (categoryData: Partial<Category>) => {
-    if (editingCategory) {
-      // Update existing
-      const updatedCategories = categories.map(c =>
-        c.id === editingCategory.id
-          ? { ...c, ...categoryData }
-          : c
-      );
-      saveCategories(updatedCategories);
-      setEditingCategory(null);
-    } else {
-      // Add new
-      // Determine order: put at end of siblings
-      const parentId = categoryData.parentId;
-      const siblings = categories.filter(c => c.parentId === parentId);
-      const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(c => c.order || 0)) : 0;
-
-      const newCategory: Category = {
-        id: Date.now().toString(),
-        name: categoryData.name!,
-        color: categoryData.color!,
-        icon: categoryData.icon!,
-        isCustom: true,
-        parentId: parentId,
-        order: maxOrder + 10,
-        ...categoryData
-      } as Category;
-
-      saveCategories([...categories, newCategory]);
+        // DataContext/Firebase handles ID generation
+        await addCategory({
+          name: categoryData.name!,
+          color: categoryData.color!,
+          icon: categoryData.icon!,
+          isCustom: true,
+          parentId: parentId,
+          order: maxOrder + 100,
+          isSystem: false,
+          type: categoryData.type // Pass type if available
+        });
+      }
+      setShowAddForm(false);
+    } catch (error) {
+      console.error('Error saving category:', error);
+      alert('Failed to save category');
     }
-    setShowAddForm(false);
   };
 
-  const handleDeleteCategory = (categoryId: string) => {
+  const handleDeleteCategory = async (categoryId: string) => {
     if (window.confirm('Are you sure you want to delete this category? Transactions will be moved to "Other".')) {
-      const transactionsToUpdate = transactions.filter(t => t.category === categoryId);
-      transactionsToUpdate.forEach(t => {
-        updateTransaction(t.id, { ...t, category: 'other' });
-      });
+      try {
+        const transactionsToUpdate = transactions.filter(t => t.category === categoryId);
+        // Update transactions sequentially to avoid race conditions if any
+        for (const t of transactionsToUpdate) {
+          await updateTransaction(t.id, { ...t, category: 'other' });
+        }
 
-      const updatedCategories = categories.filter(c => c.id !== categoryId);
-      saveCategories(updatedCategories);
+        await deleteCategory(categoryId);
+      } catch (error) {
+        console.error('Error deleting category:', error);
+        alert('Failed to delete category');
+      }
     }
   };
 
-  const moveCategory = (categoryId: string, direction: 'up' | 'down') => {
+  const moveCategory = async (categoryId: string, direction: 'up' | 'down') => {
     const category = categories.find(c => c.id === categoryId);
     if (!category) return;
 
@@ -194,18 +160,18 @@ const SimpleCategoryManager: React.FC = () => {
     [newSiblings[index], newSiblings[targetIndex]] = [newSiblings[targetIndex], newSiblings[index]];
 
     // Re-assign order values based on new array position
-    const updatedSiblings = newSiblings.map((c, i) => ({
-      ...c,
+    const updates = newSiblings.map((c, i) => ({
+      id: c.id,
       order: (i + 1) * 100 // Use large gaps to avoid future collisions
     }));
 
-    // Update the main categories array
-    const newCategories = categories.map(c => {
-      const updated = updatedSiblings.find(u => u.id === c.id);
-      return updated || c;
-    });
-
-    saveCategories(newCategories);
+    try {
+      // Update all categories with new orders
+      await Promise.all(updates.map(u => updateCategory(u.id, { order: u.order })));
+    } catch (error) {
+      console.error('Error moving category:', error);
+      alert('Failed to move category');
+    }
   };
 
   const getCategoryById = (id: string) => {

@@ -31,7 +31,8 @@ export class FirebaseService {
     LIABILITIES: 'liabilities',
     RECURRING_TRANSACTIONS: 'recurringTransactions',
     BILLS: 'bills',
-    CATEGORY_RULES: 'categoryRules'
+    CATEGORY_RULES: 'categoryRules',
+    CATEGORIES: 'categories'
   };
 
   // User Profile Operations
@@ -1143,6 +1144,85 @@ export class FirebaseService {
       await deleteDoc(docRef);
     } catch (error) {
       console.error('Error deleting category rule:', error);
+      throw error;
+    }
+  }
+
+  // ==================== Category Operations ====================
+
+  static async getCategories(userId: string): Promise<any[]> {
+    try {
+      const q = query(
+        collection(db, this.COLLECTIONS.CATEGORIES),
+        where('userId', '==', userId)
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error getting categories:', error);
+      throw error;
+    }
+  }
+
+  static async addCategory(userId: string, category: any): Promise<string> {
+    try {
+      const cleanCategory = Object.fromEntries(
+        Object.entries(category).filter(([_, value]) => value !== undefined)
+      );
+
+      const docRef = await addDoc(collection(db, this.COLLECTIONS.CATEGORIES), {
+        ...cleanCategory,
+        userId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error adding category:', error);
+      throw error;
+    }
+  }
+
+  static async addCategoryWithId(userId: string, categoryId: string, category: any): Promise<void> {
+    try {
+      const cleanCategory = Object.fromEntries(
+        Object.entries(category).filter(([_, value]) => value !== undefined)
+      );
+
+      const docRef = doc(db, this.COLLECTIONS.CATEGORIES, categoryId);
+      await setDoc(docRef, {
+        ...cleanCategory,
+        userId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error adding category with ID:', error);
+      throw error;
+    }
+  }
+
+  static async updateCategory(categoryId: string, updates: any): Promise<void> {
+    try {
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, value]) => value !== undefined)
+      );
+
+      await updateDoc(doc(db, this.COLLECTIONS.CATEGORIES, categoryId), {
+        ...cleanUpdates,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error updating category:', error);
+      throw error;
+    }
+  }
+
+  static async deleteCategory(categoryId: string): Promise<void> {
+    try {
+      await deleteDoc(doc(db, this.COLLECTIONS.CATEGORIES, categoryId));
+    } catch (error) {
+      console.error('Error deleting category:', error);
       throw error;
     }
   }

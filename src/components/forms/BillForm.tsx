@@ -10,7 +10,7 @@ interface BillFormProps {
 }
 
 const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
-  const { bankAccounts, addBill, updateBill } = useData();
+  const { bankAccounts, addBill, updateBill, categories: contextCategories } = useData();
   const theme = useThemeClasses();
 
   const [formData, setFormData] = useState({
@@ -28,32 +28,11 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [tagInput, setTagInput] = useState('');
-  const [categories, setCategories] = useState<any[]>([]);
 
-  // Load categories from localStorage (same as other forms)
-  useEffect(() => {
-    const savedCategories = localStorage.getItem('categories');
-    if (savedCategories) {
-      setCategories(JSON.parse(savedCategories));
-    } else {
-      // Default categories if none exist
-      const defaultCategories = [
-        { id: 'food', name: 'Food & Dining', color: '#EF4444', icon: '🍽️', isCustom: false },
-        { id: 'transport', name: 'Transportation', color: '#3B82F6', icon: '🚗', isCustom: false },
-        { id: 'shopping', name: 'Shopping', color: '#8B5CF6', icon: '🛍️', isCustom: false },
-        { id: 'entertainment', name: 'Entertainment', color: '#F59E0B', icon: '🎬', isCustom: false },
-        { id: 'bills', name: 'Bills & Utilities', color: '#10B981', icon: '⚡', isCustom: false },
-        { id: 'healthcare', name: 'Healthcare', color: '#EC4899', icon: '🏥', isCustom: false },
-        { id: 'education', name: 'Education', color: '#6366F1', icon: '📚', isCustom: false },
-        { id: 'travel', name: 'Travel', color: '#14B8A6', icon: '✈️', isCustom: false },
-        { id: 'salary', name: 'Salary', color: '#22C55E', icon: '💰', isCustom: false },
-        { id: 'investment', name: 'Investment', color: '#059669', icon: '📈', isCustom: false },
-        { id: 'other', name: 'Other', color: '#6B7280', icon: '📋', isCustom: false },
-      ];
-      setCategories(defaultCategories);
-      localStorage.setItem('categories', JSON.stringify(defaultCategories));
-    }
-  }, []);
+  // Use categories from context
+  const categories = contextCategories || [];
+
+  // Removed localstorage loading effect
 
   useEffect(() => {
     if (bill) {

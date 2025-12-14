@@ -14,8 +14,10 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
   onSubmit,
   onCancel
 }) => {
-  const { bankAccounts, addRecurringTransaction, updateRecurringTransaction } = useData();
+  const { bankAccounts, addRecurringTransaction, updateRecurringTransaction, categories: contextCategories } = useData();
   const theme = useThemeClasses();
+  // Use categories from context
+  const categories = contextCategories || [];
 
   const [formData, setFormData] = useState({
     name: '',
@@ -40,6 +42,7 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [tagInput, setTagInput] = useState('');
 
+  // Restore useEffect and constants
   useEffect(() => {
     if (recurringTransaction) {
       setFormData({
@@ -79,32 +82,6 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
     { value: 'yearly', label: 'Yearly', description: 'Every year' }
   ];
 
-  // Load categories from localStorage (same as transaction form)
-  const [categories, setCategories] = useState<any[]>([]);
-
-  useEffect(() => {
-    const savedCategories = localStorage.getItem('categories');
-    if (savedCategories) {
-      setCategories(JSON.parse(savedCategories));
-    } else {
-      // Default categories if none exist
-      const defaultCategories = [
-        { id: 'food', name: 'Food & Dining', color: '#EF4444', icon: '🍽️', isCustom: false },
-        { id: 'transport', name: 'Transportation', color: '#3B82F6', icon: '🚗', isCustom: false },
-        { id: 'shopping', name: 'Shopping', color: '#8B5CF6', icon: '🛍️', isCustom: false },
-        { id: 'entertainment', name: 'Entertainment', color: '#F59E0B', icon: '🎬', isCustom: false },
-        { id: 'bills', name: 'Bills & Utilities', color: '#10B981', icon: '⚡', isCustom: false },
-        { id: 'healthcare', name: 'Healthcare', color: '#EC4899', icon: '🏥', isCustom: false },
-        { id: 'education', name: 'Education', color: '#6366F1', icon: '📚', isCustom: false },
-        { id: 'travel', name: 'Travel', color: '#14B8A6', icon: '✈️', isCustom: false },
-        { id: 'salary', name: 'Salary', color: '#22C55E', icon: '💰', isCustom: false },
-        { id: 'investment', name: 'Investment', color: '#059669', icon: '📈', isCustom: false },
-        { id: 'other', name: 'Other', color: '#6B7280', icon: '📋', isCustom: false },
-      ];
-      setCategories(defaultCategories);
-      localStorage.setItem('categories', JSON.stringify(defaultCategories));
-    }
-  }, []);
 
   const getCategoriesForType = () => {
     // Filter categories based on transaction type

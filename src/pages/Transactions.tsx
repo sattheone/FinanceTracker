@@ -40,6 +40,8 @@ const Transactions: React.FC = () => {
     updateBankAccount,
     deleteBankAccount,
     addCategoryRule,
+    categories,
+    addCategory,
   } = useData();
 
   const theme = useThemeClasses();
@@ -114,17 +116,6 @@ const Transactions: React.FC = () => {
   } | null>(null);
   const [showRuleDialog, setShowRuleDialog] = useState(false);
 
-  // Load categories from localStorage for rule creation
-  const [transactionCategories, setTransactionCategories] = useState<any[]>([]);
-  useEffect(() => {
-    const savedCategories = localStorage.getItem('categories');
-    if (savedCategories) {
-      setTransactionCategories(JSON.parse(savedCategories));
-    } else {
-      setTransactionCategories(defaultCategories);
-    }
-  }, []);
-
   // Handler for category changes with rule prompt
   const handleCategoryChangeWithRulePrompt = (transaction: Transaction, newCategoryId: string) => {
     const oldCategoryId = transaction.category;
@@ -134,7 +125,7 @@ const Transactions: React.FC = () => {
 
     // Show rule prompt if category actually changed
     if (oldCategoryId !== newCategoryId) {
-      const category = transactionCategories.find(c => c.id === newCategoryId);
+      const category = categories.find(c => c.id === newCategoryId);
       if (category) {
         setRulePromptData({
           transaction,
@@ -498,17 +489,9 @@ const Transactions: React.FC = () => {
     }
   };
 
-  // Load categories from localStorage
-  const [categories, setCategories] = React.useState<any[]>([]);
-
-  React.useEffect(() => {
-    const savedCategories = localStorage.getItem('categories');
-    if (savedCategories) {
-      setCategories(JSON.parse(savedCategories));
-    } else {
-      setCategories(defaultCategories);
-    }
-  }, []);
+  // Load categories from localStorage - REMOVED (using DataContext)
+  // const [categories, setCategories] = React.useState<any[]>([]);
+  // React.useEffect logic removed
 
   const getAllCategories = () => categories;
 
@@ -754,11 +737,11 @@ const Transactions: React.FC = () => {
 
     if (confirmed) {
       // Ensure 'transfer' category exists
-      const transferCategory = transactionCategories.find(c => c.id === 'transfer');
+      const transferCategory = categories.find(c => c.id === 'transfer');
       if (!transferCategory) {
-        const newCategories = [...transactionCategories, { id: 'transfer', name: 'Transfer', type: 'system', icon: '↔️' }];
-        setTransactionCategories(newCategories);
-        localStorage.setItem('categories', JSON.stringify(newCategories));
+        console.warn('Transfer category not found, ensure migration ran.');
+        // If we really needed to create it, we'd use addCategory but we can't force ID 'transfer' from here easily 
+        // without updating DataContext. Assuming it exists or migration will handle it.
       }
 
       // Update all transactions

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, Plus, Check, ChevronDown } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
-import { Category, defaultCategories } from '../../constants/categories';
+// removed localstorage dependent imports if any (none specific to remove, but adding useData)
+import { useData } from '../../contexts/DataContext';
+import { Category } from '../../constants/categories'; // defaultCategories not needed anymore, but keeping just in case for type
 import Modal from '../common/Modal';
 import CategoryForm from '../categories/CategoryForm';
 
@@ -16,8 +18,12 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
   onSave,
   onCancel
 }) => {
+  const { categories: contextCategories, addCategory } = useData();
   const theme = useThemeClasses();
-  const [categories, setCategories] = useState<Category[]>([]);
+
+  // Use categories from context
+  const categories = contextCategories || [];
+
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
@@ -25,24 +31,11 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const savedCategories = localStorage.getItem('categories');
-    if (savedCategories) {
-      setCategories(JSON.parse(savedCategories));
-    } else {
-      setCategories(defaultCategories);
-      localStorage.setItem('categories', JSON.stringify(defaultCategories));
-    }
-  }, []);
-
   // Close when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Logic unchanged
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        // Only close if not clicking inside the modal (which is in a portal usually, but here it's likely in DOM)
-        // Actually Modal usually uses a portal or fixed overlay.
-        // If Modal is open, we shouldn't close the popover? Or maybe we should?
-        // If Modal is open, the click might be on the modal overlay.
         if (!showNewCategoryModal) {
           setIsOpen(false);
           if (onCancel) onCancel();
@@ -61,31 +54,31 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
     }
   }, [isOpen]);
 
-  const handleSaveNewCategory = (categoryData: Partial<Category>) => {
-    // Determine order: put at end of siblings
-    const parentId = categoryData.parentId;
-    const siblings = categories.filter(c => c.parentId === parentId);
-    const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(c => c.order || 0)) : 0;
+  const handleSaveNewCategory = async (categoryData: Partial<Category>) => {
+    try {
+      // Determine order: put at end of siblings
+      const parentId = categoryData.parentId;
+      const siblings = categories.filter(c => c.parentId === parentId);
+      const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(c => c.order || 0)) : 0;
 
-    const newCategory: Category = {
-      id: Date.now().toString(),
-      name: categoryData.name!,
-      color: categoryData.color!,
-      icon: categoryData.icon!,
-      isCustom: true,
-      parentId: parentId,
-      order: maxOrder + 10,
-      ...categoryData
-    } as Category;
+      const newId = await addCategory({
+        name: categoryData.name!,
+        color: categoryData.color!,
+        icon: categoryData.icon!,
+        isCustom: true,
+        parentId: parentId,
+        order: maxOrder + 10,
+        ...categoryData
+      });
 
-    const newCategories = [...categories, newCategory];
-    setCategories(newCategories);
-    localStorage.setItem('categories', JSON.stringify(newCategories));
-
-    // Select the new category
-    onSave(newCategory.id);
-    setShowNewCategoryModal(false);
-    setIsOpen(false);
+      if (newId) {
+        onSave(newId);
+        setShowNewCategoryModal(false);
+        setIsOpen(false);
+      }
+    } catch (error) {
+      console.error("Failed to add category", error);
+    }
   };
 
   const currentCategoryObj = categories.find(c => c.id === currentCategory) ||
