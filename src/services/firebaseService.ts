@@ -14,7 +14,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Asset, Insurance, Goal, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, CategoryRule } from '../types';
+import { Asset, Insurance, Goal, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, CategoryRule, SIPRule } from '../types';
 import { UserProfile } from '../types/user';
 
 export class FirebaseService {
@@ -32,7 +32,8 @@ export class FirebaseService {
     RECURRING_TRANSACTIONS: 'recurringTransactions',
     BILLS: 'bills',
     CATEGORY_RULES: 'categoryRules',
-    CATEGORIES: 'categories'
+    CATEGORIES: 'categories',
+    SIP_RULES: 'sipRules'
   };
 
   // User Profile Operations
@@ -1148,13 +1149,75 @@ export class FirebaseService {
     }
   }
 
+  // SIP Rules Operations
+  static async getSIPRules(userId: string): Promise<SIPRule[]> {
+    try {
+      const q = query(
+        collection(db, this.COLLECTIONS.SIP_RULES),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SIPRule));
+    } catch (error) {
+      console.error('Error getting SIP rules:', error);
+      throw error;
+    }
+  }
+
+  static async addSIPRule(userId: string, rule: Omit<SIPRule, 'id'>): Promise<string> {
+    try {
+      // Filter out undefined values
+      const cleanRule = Object.fromEntries(
+        Object.entries(rule).filter(([_, value]) => value !== undefined)
+      );
+
+      const docRef = await addDoc(collection(db, this.COLLECTIONS.SIP_RULES), {
+        ...cleanRule,
+        userId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error adding SIP rule:', error);
+      throw error;
+    }
+  }
+
+  static async updateSIPRule(id: string, rule: Partial<SIPRule>): Promise<void> {
+    try {
+      // Filter out undefined values
+      const cleanRule = Object.fromEntries(
+        Object.entries(rule).filter(([_, value]) => value !== undefined)
+      );
+
+      const docRef = doc(db, this.COLLECTIONS.SIP_RULES, id);
+      await updateDoc(docRef, {
+        ...cleanRule,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error updating SIP rule:', error);
+      throw error;
+    }
+  }
+
+  static async deleteSIPRule(id: string): Promise<void> {
+    try {
+      const docRef = doc(db, this.COLLECTIONS.SIP_RULES, id);
+      await deleteDoc(docRef);
+    } catch (error) {
+      console.error('Error deleting SIP rule:', error);
+      throw error;
+    }
+  }
+
   // ==================== Category Operations ====================
 
   static async getCategories(userId: string): Promise<any[]> {
     try {
       const q = query(
-        collection(db, this.COLLECTIONS.CATEGORIES),
-        where('userId', '==', userId)
+        collection(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.CATEGORIES)
       );
       const snapshot = await getDocs(q);
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -1170,7 +1233,7 @@ export class FirebaseService {
         Object.entries(category).filter(([_, value]) => value !== undefined)
       );
 
-      const docRef = await addDoc(collection(db, this.COLLECTIONS.CATEGORIES), {
+      const docRef = await addDoc(collection(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.CATEGORIES), {
         ...cleanCategory,
         userId,
         createdAt: serverTimestamp(),
@@ -1189,7 +1252,7 @@ export class FirebaseService {
         Object.entries(category).filter(([_, value]) => value !== undefined)
       );
 
-      const docRef = doc(db, this.COLLECTIONS.CATEGORIES, categoryId);
+      const docRef = doc(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.CATEGORIES, categoryId);
       await setDoc(docRef, {
         ...cleanCategory,
         userId,
@@ -1202,13 +1265,13 @@ export class FirebaseService {
     }
   }
 
-  static async updateCategory(categoryId: string, updates: any): Promise<void> {
+  static async updateCategory(userId: string, categoryId: string, updates: any): Promise<void> {
     try {
       const cleanUpdates = Object.fromEntries(
         Object.entries(updates).filter(([_, value]) => value !== undefined)
       );
 
-      await updateDoc(doc(db, this.COLLECTIONS.CATEGORIES, categoryId), {
+      await updateDoc(doc(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.CATEGORIES, categoryId), {
         ...cleanUpdates,
         updatedAt: serverTimestamp()
       });
@@ -1218,9 +1281,9 @@ export class FirebaseService {
     }
   }
 
-  static async deleteCategory(categoryId: string): Promise<void> {
+  static async deleteCategory(userId: string, categoryId: string): Promise<void> {
     try {
-      await deleteDoc(doc(db, this.COLLECTIONS.CATEGORIES, categoryId));
+      await deleteDoc(doc(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.CATEGORIES, categoryId));
     } catch (error) {
       console.error('Error deleting category:', error);
       throw error;

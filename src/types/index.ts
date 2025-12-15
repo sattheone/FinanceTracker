@@ -12,7 +12,7 @@ export interface Transaction {
   isLinked?: boolean;
   autoLinked?: boolean;
   entityLinks?: {
-    type: 'goal' | 'bill' | 'loan';
+    type: 'goal' | 'bill' | 'loan' | 'asset';
     id: string;
     name: string;
   }[];
@@ -258,4 +258,20 @@ export interface CategoryRule {
   lastUsed?: string; // Last time this rule was applied
   matchCount: number; // Number of transactions matched
   isActive: boolean; // Whether rule is currently active
+}
+
+// SIP Rules
+export interface SIPRule {
+  id: string;
+  sipId: string; // ID of the SIP asset
+  descriptionPattern: string; // Pattern to match in transaction description
+  matchType: 'contains' | 'equals' | 'regex';
+  amount: number; // Expected amount
+  amountTolerance: number; // Percentage tolerance (e.g. 5 for 5%)
+  expectedDate?: number; // Expected day of month (1-31)
+  dateTolerance?: number; // Days tolerance (default 3)
+  isActive: boolean;
+  priority?: number; // Higher number = higher priority
+  lastUsed?: string;
+  matchCount: number;
 }

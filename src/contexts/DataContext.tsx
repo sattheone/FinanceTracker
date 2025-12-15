@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction, CategoryRule } from '../types';
+import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction, CategoryRule, SIPRule } from '../types';
 import { Category } from '../constants/categories';
 import { UserProfile } from '../types/user';
 import { useAuth } from './AuthContext';
@@ -49,8 +49,10 @@ interface DataContextType {
   liabilities: Liability[];
   recurringTransactions: RecurringTransaction[];
   bills: Bill[];
+
   sipTransactions: SIPTransaction[];
   categoryRules: CategoryRule[];
+  sipRules: SIPRule[];
   categories: Category[];
 
   // CRUD Operations
@@ -96,6 +98,11 @@ interface DataContextType {
   updateCategoryRule: (id: string, rule: Partial<CategoryRule>) => void;
   deleteCategoryRule: (id: string) => void;
   applyRuleToTransactions: (ruleId: string) => void;
+
+  // SIP Rules
+  addSIPRule: (rule: Omit<SIPRule, 'id'>) => void;
+  updateSIPRule: (id: string, rule: Partial<SIPRule>) => void;
+  deleteSIPRule: (id: string) => void;
 
   // Category Operations
   addCategory: (category: Omit<Category, 'id'>) => Promise<string | undefined>;
@@ -178,6 +185,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [bills, setBills] = useState<Bill[]>([]);
   const [sipTransactions, setSipTransactions] = useState<SIPTransaction[]>([]);
   const [categoryRules, setCategoryRules] = useState<CategoryRule[]>([]);
+  const [sipRules, setSipRules] = useState<SIPRule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
 
   // Update localStorage for notification scheduler whenever data changes
@@ -228,7 +236,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         liabilitiesData,
         recurringTransactionsData,
         billsData,
-        categoryRulesData
+        categoryRulesData,
+        sipRulesData
       ] = await Promise.all([
         FirebaseService.getAssets(userId),
         FirebaseService.getInsurance(userId),
@@ -239,7 +248,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         FirebaseService.getLiabilities(userId),
         FirebaseService.getRecurringTransactions(userId),
         FirebaseService.getBills(userId),
-        FirebaseService.getCategoryRules(userId)
+        FirebaseService.getCategoryRules(userId),
+        FirebaseService.getSIPRules(userId)
         // FirebaseService.getCategories(userId) // TODO: add when method exists
       ]);
 
@@ -260,6 +270,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setRecurringTransactions(recurringTransactionsData);
       setBills(billsData);
       setCategoryRules(categoryRulesData);
+      console.log('[DataContext] Loaded Category Rules:', categoryRulesData.length, categoryRulesData);
+      setSipRules(sipRulesData);
 
       // Load categories (now that FirebaseService methods exist)
       console.log('[DataContext] Loading categories for user:', userId);
@@ -766,22 +778,36 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   // Helper function to update bank account balance - DEPRECATED
   // Balances are now calculated dynamically
-  /*
-  const updateBankAccountBalance = async (accountId: string, balanceChange: number) => {
+
+  const addSIPRule = async (rule: Omit<SIPRule, 'id'>) => {
+    if (!user) return;
     try {
-      const account = bankAccounts.find(acc => acc.id === accountId);
-      if (account) {
-        const newBalance = account.balance + balanceChange;
-        await FirebaseService.updateBankAccount(accountId, { balance: newBalance });
-        setBankAccounts(prev => prev.map(acc =>
-          acc.id === accountId ? { ...acc, balance: newBalance } : acc
-        ));
-      }
+      const id = await FirebaseService.addSIPRule(user.id, rule);
+      setSipRules(prev => [...prev, { ...rule, id }]);
     } catch (error) {
-      console.error('Error updating bank account balance:', error);
+      console.error('Error adding SIP rule:', error);
     }
   };
-  */
+
+  const updateSIPRule = async (id: string, rule: Partial<SIPRule>) => {
+    try {
+      await FirebaseService.updateSIPRule(id, rule);
+      setSipRules(prev => prev.map(r => r.id === id ? { ...r, ...rule } : r));
+    } catch (error) {
+      console.error('Error updating SIP rule:', error);
+    }
+  };
+
+  const deleteSIPRule = async (id: string) => {
+    try {
+      await FirebaseService.deleteSIPRule(id);
+      setSipRules(prev => prev.filter(r => r.id !== id));
+    } catch (error) {
+      console.error('Error deleting SIP rule:', error);
+    }
+  };
+
+
 
   // Liability operations
   const addLiability = async (liability: Omit<Liability, 'id'>) => {
@@ -965,10 +991,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   const updateCategory = async (id: string, category: Partial<Category>) => {
+    if (!user) return;
     console.log('[DataContext] updateCategory called:', { id, category });
     try {
       console.log('[DataContext] Calling FirebaseService.updateCategory...');
-      await FirebaseService.updateCategory(id, category);
+      await FirebaseService.updateCategory(user.id, id, category);
       console.log('[DataContext] Firebase update successful, updating local state');
       setCategories(prev => prev.map(c => c.id === id ? { ...c, ...category } : c));
       console.log('[DataContext] Local state updated');
@@ -978,8 +1005,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   const deleteCategory = async (id: string) => {
+    if (!user) return;
     try {
-      await FirebaseService.deleteCategory(id);
+      await FirebaseService.deleteCategory(user.id, id);
       setCategories(prev => prev.filter(c => c.id !== id));
     } catch (error) {
       console.error('Error deleting category:', error);
@@ -1175,6 +1203,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     updateCategoryRule,
     deleteCategoryRule,
     applyRuleToTransactions,
+    sipRules,
+    addSIPRule,
+    updateSIPRule,
+    deleteSIPRule,
 
     // Categories
     categories,

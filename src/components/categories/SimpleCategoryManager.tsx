@@ -112,7 +112,7 @@ const SimpleCategoryManager: React.FC = () => {
           parentId: parentId,
           order: maxOrder + 100,
           isSystem: false,
-          type: categoryData.type // Pass type if available
+          // type: categoryData.type // Removed as it's not in Omit<Category, "id">
         });
       }
       setShowAddForm(false);

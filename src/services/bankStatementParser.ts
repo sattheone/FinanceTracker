@@ -168,7 +168,8 @@ class BankStatementParser {
         transactions.push({
           ...raw,
           type,
-          category: AutoCategorizationService.autoAssignCategory(raw.description, raw.amount, type),
+          category: '', // Defer to Transactions.tsx
+          // category: AutoCategorizationService.autoAssignCategory(raw.description, raw.amount, type),
           balance: undefined // Remove temp field if needed, or keep it
         });
 
@@ -196,7 +197,8 @@ class BankStatementParser {
         description: cleanDesc,
         amount: parsedAmount,
         type: transactionType,
-        category: AutoCategorizationService.autoAssignCategory(cleanDesc, parsedAmount, transactionType),
+        category: '', // Defer to Transactions.tsx
+        // category: AutoCategorizationService.autoAssignCategory(cleanDesc, parsedAmount, transactionType),
         confidence: 0.9,
         balance: this.parseAmount(balance)
       };
@@ -292,12 +294,11 @@ class BankStatementParser {
         }
       };
 
-      // Auto-categorize the transaction
-      // const category = AutoCategorizationService.autoAssignCategory(baseTransaction.description, baseTransaction.amount, baseTransaction.type);
-
+      // Don't auto-categorize here as we don't have access to custom rules
+      // Defer to Transactions.tsx which has the context
       return {
         ...baseTransaction,
-        category: parsed.category
+        category: '' // Leave empty to trigger auto-categorization in UI
       };
     });
   }

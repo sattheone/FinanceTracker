@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Plus, Search, Filter, Camera, Edit3, Trash2, FileSpreadsheet, CheckSquare, Square, Tag, Type, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown, ArrowLeftRight } from 'lucide-react';
-import { Transaction, BankAccount } from '../types';
+import { Transaction, BankAccount, SIPRule } from '../types';
+import SIPRuleService from '../services/sipRuleService';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, formatDate } from '../utils/formatters';
-import { defaultCategories } from '../constants/categories';
+
 import ImageUploader from '../components/common/ImageUploader';
 import FileUploader from '../components/common/FileUploader';
 import DataConfirmationDialog from '../components/common/DataConfirmationDialog';
@@ -41,7 +42,9 @@ const Transactions: React.FC = () => {
     deleteBankAccount,
     addCategoryRule,
     categories,
-    addCategory,
+    sipRules,
+    addSIPTransaction,
+    categoryRules,
   } = useData();
 
   const theme = useThemeClasses();
@@ -201,37 +204,115 @@ const Transactions: React.FC = () => {
   }, [transactions, searchTerm, filterType, activeTab, selectedTransactionMonth, selectedAccount]);
 
 
+  // Use a ref to access the latest category rules inside callbacks without dependency issues
+  const categoryRulesRef = useRef(categoryRules);
+
+  useEffect(() => {
+    categoryRulesRef.current = categoryRules;
+    // console.log('🔄 Updated categoryRulesRef', categoryRules.length);
+  }, [categoryRules]);
+
   const handleImageAnalyzed = (data: any[]) => {
-    setExtractedData(data);
+    // Pre-process data to apply categorization rules immediately
+    // This ensures the confirmation dialog shows the correct categories
+    // and logs are visible to the user before they confirm
+    const currentRules = categoryRulesRef.current;
+
+    const categorizedData = data.map(transaction => {
+      // Debug log - Unconditional
+      console.log(`🔍 Pre-categorizing: "${transaction.description}"`);
+
+      // 1. Auto-categorize with custom rules if not already categorized
+      if (!transaction.category) {
+        console.log(`🔍 Auto-categorizing "${transaction.description}" with ${currentRules.length} rules (from Ref)`);
+        const category = AutoCategorizationService.suggestCategoryForTransaction(
+          transaction.description,
+          transaction.amount,
+          transaction.type,
+          currentRules
+        );
+        return { ...transaction, category };
+      }
+      return transaction;
+    });
+
+    setExtractedData(categorizedData);
     setShowImageUploader(false);
     setShowConfirmDialog(true);
   };
 
   const handleConfirmData = async (confirmedData: any[]) => {
-    const transactionsToAdd = confirmedData.map(transaction => {
-      // Auto-categorize if no category is provided
-      const autoCategory = transaction.category ||
+    const transactionsToAdd: any[] = [];
+    const sipTransactionsToCreate: { transaction: any, rule: SIPRule }[] = [];
+
+    confirmedData.forEach(transaction => {
+      // Debug log - Unconditional
+      console.log(`🔍 Processing transaction: "${transaction.description}"`, {
+        existingCategory: transaction.category,
+        rulesCount: categoryRules.length
+      });
+
+      // 1. Auto-categorize with custom rules
+      if (!transaction.category) {
+        // Debug log
+        console.log(`🔍 Categorizing: "${transaction.description}" with ${categoryRules.length} rules`, categoryRules);
+      }
+
+      let category = transaction.category ||
         AutoCategorizationService.suggestCategoryForTransaction(
           transaction.description,
           transaction.amount,
-          transaction.type
+          transaction.type,
+          categoryRules
         );
 
-      return {
+      // 2. Check SIP Rules
+      // We check SIP rules for all transactions to catch missed investments
+      let linkedSIPRule: SIPRule | null = null;
+
+      // Create a temporary transaction object for matching
+      const tempTx = {
+        id: 'temp',
+        date: transaction.date, // Ensure format YYYY-MM-DD
+        amount: Number(transaction.amount),
+        description: transaction.description,
+        type: transaction.type,
+        category: category,
+        bankAccountId: '',
+        source: 'import',
+        createdAt: '',
+        updatedAt: ''
+      };
+
+      const sipMatch = SIPRuleService.findBestMatch(tempTx, sipRules);
+
+      if (sipMatch) {
+        console.log(`🎯 SIP Rule Match: ${transaction.description} -> ${sipMatch.sipId}`);
+        category = 'investment'; // Force category to investment
+        linkedSIPRule = sipMatch;
+      }
+
+      const newTransaction = {
         date: transaction.date,
         description: transaction.description,
-        category: autoCategory,
+        category: category,
         type: transaction.type,
-        amount: transaction.amount,
-        bankAccountId: selectedAccount === 'all_accounts' ? bankAccounts[0]?.id : selectedAccount, // Add to currently selected account or first account
+        amount: Number(transaction.amount),
+        bankAccountId: selectedAccount === 'all_accounts' ? bankAccounts[0]?.id : selectedAccount,
         tags: transaction.tags || [],
         source: 'excel-import',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
+
+      transactionsToAdd.push(newTransaction);
+
+      if (linkedSIPRule) {
+        sipTransactionsToCreate.push({ transaction: newTransaction, rule: linkedSIPRule });
+      }
     });
 
-    console.log('📝 Auto-categorized transactions:', transactionsToAdd);
+    console.log(`📝 Prepared ${transactionsToAdd.length} transactions and ${sipTransactionsToCreate.length} SIP entries`);
 
     // Use bulk import with duplicate detection
     const result = await addTransactionsBulk(transactionsToAdd);
@@ -246,6 +327,28 @@ const Transactions: React.FC = () => {
     }
 
     if (result.success) {
+      // Create linked SIP transactions
+      if (sipTransactionsToCreate.length > 0) {
+        console.log('🔄 Creating linked SIP transactions...');
+        // We do this individually for now as there's no bulk add for SIPs yet
+        // and volume is usually low
+        await Promise.all(sipTransactionsToCreate.map(async ({ transaction, rule }) => {
+          try {
+            await addSIPTransaction({
+              date: transaction.date,
+              amount: transaction.amount,
+              assetId: rule.sipId,
+              units: 0, // Default to 0 as we don't know NAV
+              nav: 0,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            });
+          } catch (e) {
+            console.error('Error creating linked SIP transaction:', e);
+          }
+        }));
+      }
+
       // Mark file as imported if we have file info
       const fileInfo = (extractedData as any).fileInfo;
       if (fileInfo) {
@@ -253,7 +356,8 @@ const Transactions: React.FC = () => {
         duplicateDetectionService.markFileAsImported(fileInfo.name, fileInfo.size, fileInfo.lastModified);
       }
 
-      alert(`✅ Successfully imported ${result.summary?.newTransactions || transactionsToAdd.length} transactions!`);
+      const sipMsg = sipTransactionsToCreate.length > 0 ? ` and linked ${sipTransactionsToCreate.length} SIPs` : '';
+      alert(`✅ Successfully imported ${result.summary?.newTransactions || transactionsToAdd.length} transactions${sipMsg}!`);
     } else {
       alert(`❌ Import failed: ${result.error}`);
     }
@@ -262,8 +366,33 @@ const Transactions: React.FC = () => {
     setExtractedData([]);
   };
 
+  /* 
+   * Handle parsed transactions from File Uploader (Excel/CSV/PDF)
+   * This is where PDF statement transactions arrive.
+   * We need to apply auto-categorization here using fresh rules from Ref.
+   */
   const handleFileTransactionsParsed = (transactions: ParsedTransaction[]) => {
-    setExtractedData(transactions);
+    const currentRules = categoryRulesRef.current;
+
+    // Debug log
+    console.log(`📂 Processing ${transactions.length} file transactions with ${currentRules.length} rules (Ref)`);
+
+    const categorizedData = transactions.map(transaction => {
+      // If category is missing (which we forced in parser), try to find a match
+      if (!transaction.category) {
+        // console.log(`🔍 Auto-categorizing file tx: "${transaction.description}"`);
+        const category = AutoCategorizationService.suggestCategoryForTransaction(
+          transaction.description,
+          transaction.amount,
+          transaction.type as any,
+          currentRules
+        );
+        return { ...transaction, category };
+      }
+      return transaction;
+    });
+
+    setExtractedData(categorizedData);
     setShowFileUploader(false);
     setShowConfirmDialog(true);
   };
@@ -1662,6 +1791,7 @@ const Transactions: React.FC = () => {
         data={extractedData}
         type="transactions"
         title="Confirm Extracted Transactions"
+        categories={categories}
       />
 
       {/* Duplicate Confirmation Dialog */}

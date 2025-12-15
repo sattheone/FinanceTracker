@@ -22,7 +22,7 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
   onClose
 }) => {
   const theme = useThemeClasses();
-  const { transactions, updateTransaction, addRecurringTransaction, categories: contextCategories } = useData();
+  const { updateTransaction, addRecurringTransaction, categories: contextCategories } = useData();
 
   // Use categories from context
   const categories = contextCategories || [];

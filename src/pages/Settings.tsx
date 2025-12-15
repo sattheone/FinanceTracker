@@ -18,7 +18,8 @@ import {
   Phone,
   Calendar,
   DollarSign,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Target
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useData } from '../contexts/DataContext';
@@ -27,6 +28,7 @@ import { useThemeClasses } from '../hooks/useThemeClasses';
 import SimpleCategoryManager from '../components/categories/SimpleCategoryManager';
 import CategoryMigration from '../components/settings/CategoryMigration';
 import CategoryRules from '../components/settings/CategoryRules';
+import SIPRules from '../components/settings/SIPRules';
 import SimpleEmailSettings from '../components/settings/SimpleEmailSettings';
 import EmailDiagnostics from '../components/settings/EmailDiagnostics';
 import GmailImportSettings from '../components/settings/GmailImportSettings';
@@ -106,6 +108,7 @@ const Settings: React.FC = () => {
     { id: 'financial', label: 'Financial Preferences', icon: DollarSign },
     { id: 'categories', label: 'Categories', icon: SettingsIcon },
     { id: 'category-rules', label: 'Category Rules', icon: SettingsIcon },
+    { id: 'sip-rules', label: 'SIP Rules', icon: Target },
     { id: 'accounts', label: 'Bank Accounts', icon: CreditCard },
     { id: 'gmail-import', label: 'Gmail Import', icon: Mail },
     { id: 'duplicates', label: 'Duplicate Detection', icon: Shield },
@@ -564,6 +567,7 @@ Type "DELETE" to confirm:`;
       case 'financial': return renderFinancialSettings();
       case 'categories': return <CategoriesWithMigration />;
       case 'category-rules': return <CategoryRules />;
+      case 'sip-rules': return <SIPRules />;
       case 'accounts': return renderBankAccountSettings();
       case 'gmail-import': return <GmailImportSettings />;
       case 'duplicates': return <DuplicateDetectionSettings />;

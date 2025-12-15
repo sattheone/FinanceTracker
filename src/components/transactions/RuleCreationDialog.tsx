@@ -35,11 +35,25 @@ const RuleCreationDialog: React.FC<RuleCreationDialogProps> = ({
     // Determine the target type (either from props or defaulting to transaction's current/new type)
     const [selectedType, setSelectedType] = useState<Transaction['type']>(newType || transaction.type);
 
+    // Sanitization helper
+    const sanitizePattern = (text: string) => {
+        if (!text) return '';
+        // Remove dates (dd/mm/yy, yyyy-mm-dd, etc)
+        let clean = text.replace(/\d{2,4}[\/\-]\d{2}[\/\-]\d{2,4}/g, '');
+        // Remove long number sequences (IDs, Refs) > 3 digits
+        clean = clean.replace(/\b\d{4,}\b/g, '');
+        // Remove common reference prefixes
+        clean = clean.replace(/(UPI|REF|NEFT|IMPS)-?/gi, '');
+        // Trim special chars and whitespace
+        return clean.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    };
+
     // Update state if props change (e.g. re-opening dialog)
     useEffect(() => {
         if (newCategoryId) setSelectedCategoryId(newCategoryId);
         if (newType) setSelectedType(newType);
-        setPattern(transaction.description);
+        // Apply sanitization for better default matching
+        setPattern(sanitizePattern(transaction.description));
     }, [newCategoryId, newType, transaction]);
 
     // Create temporary rule for preview (only for category changes)

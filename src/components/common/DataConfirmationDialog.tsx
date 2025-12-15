@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Check, X, AlertTriangle, DollarSign, Calendar, Tag } from 'lucide-react';
 
+import { Category } from '../../constants/categories';
+
 interface DataConfirmationDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -8,6 +10,7 @@ interface DataConfirmationDialogProps {
   data: any[];
   type: 'assets' | 'transactions' | 'insurance';
   title: string;
+  categories?: Category[];
 }
 
 const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
@@ -16,7 +19,8 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
   onConfirm,
   data,
   type,
-  title
+  title,
+  categories = []
 }) => {
   const [editableData, setEditableData] = useState(data);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(
@@ -70,11 +74,10 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
             <span className="font-medium text-gray-900 dark:text-white">Asset {index + 1}</span>
           </div>
         </div>
-        <span className={`text-xs px-2 py-1 rounded ${
-          item.confidence >= 0.8 ? 'bg-green-100 text-green-700 dark:text-green-300' :
+        <span className={`text-xs px-2 py-1 rounded ${item.confidence >= 0.8 ? 'bg-green-100 text-green-700 dark:text-green-300' :
           item.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300' :
-          'bg-red-100 text-red-700 dark:text-red-300'
-        }`}>
+            'bg-red-100 text-red-700 dark:text-red-300'
+          }`}>
           {Math.round(item.confidence * 100)}% confident
         </span>
       </div>
@@ -133,7 +136,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
   ];
 
   const getIncomeCategories = () => [
-    'Salary', 'Business Income', 'Investment Returns', 'Interest', 'Dividend', 
+    'Salary', 'Business Income', 'Investment Returns', 'Interest', 'Dividend',
     'Freelance', 'Rental Income', 'Bonus', 'Refund', 'Gift', 'Other Income'
   ];
 
@@ -164,7 +167,36 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
     }).format(amount);
   };
 
+  // Helper to get category name from ID
+  const getCategoryName = (id: string, type?: string) => {
+    // If we have categories prop, use it
+    if (categories && categories.length > 0) {
+      const cat = categories.find(c => c.id === id);
+      return cat ? cat.name : id; // Fallback to ID if not found
+    }
+    // Fallback logic
+    return id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, ' ');
+  };
 
+  // Helper to get available categories for a type
+  const getCategoriesForType = (type: string) => {
+    if (categories && categories.length > 0) {
+      // 1. Get system categories applicable to all (like 'transfer')
+      const systemCats = categories.filter(c => c.isSystem);
+
+      // 2. Filter standard categories by type logic (if you have type mapping)
+      // Since Category interface doesn't strictly have 'type', we provide all relevant ones
+      // or filter based on parent/child logic if implemented.
+      // For now, returning relevant categories + system ones.
+
+      // Filter out parents (categories that act as headers) if they shouldn't be selectable, 
+      // or include them. Assuming flat list for now or flattened by caller.
+
+      // Simple logic: Return all categories so user can choose freely
+      return categories;
+    }
+    return [];
+  };
 
   const renderTransactionTable = () => (
     <div className="overflow-x-auto">
@@ -291,17 +323,29 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                   onChange={(e) => handleFieldChange(index, 'category', e.target.value)}
                   className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-500 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
                 >
-                  {getCategoryOptions(item.type).map(category => (
-                    <option key={category} value={category}>{category}</option>
-                  ))}
+                  {/* Default Option if value is missing */}
+                  {!item.category && <option value="">Select Category</option>}
+
+                  {/* Dynamic Options */}
+                  {categories.length > 0 ? (
+                    categories.map(cat => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.icon} {cat.name}
+                      </option>
+                    ))
+                  ) : (
+                    // Fallback Hardcoded Options (Legacy)
+                    getCategoryOptions(item.type).map(category => (
+                      <option key={category} value={category}>{category}</option>
+                    ))
+                  )}
                 </select>
               </td>
               <td className="px-3 py-2 text-center">
-                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                  item.confidence >= 0.8 ? 'bg-green-100 text-green-700 dark:text-green-300' :
+                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${item.confidence >= 0.8 ? 'bg-green-100 text-green-700 dark:text-green-300' :
                   item.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300' :
-                  'bg-red-100 text-red-700 dark:text-red-300'
-                }`}>
+                    'bg-red-100 text-red-700 dark:text-red-300'
+                  }`}>
                   {Math.round(item.confidence * 100)}%
                 </span>
               </td>
@@ -329,11 +373,10 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
             <span className="font-medium text-gray-900 dark:text-white">Policy {index + 1}</span>
           </div>
         </div>
-        <span className={`text-xs px-2 py-1 rounded ${
-          item.confidence >= 0.8 ? 'bg-green-100 text-green-700 dark:text-green-300' :
+        <span className={`text-xs px-2 py-1 rounded ${item.confidence >= 0.8 ? 'bg-green-100 text-green-700 dark:text-green-300' :
           item.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300' :
-          'bg-red-100 text-red-700 dark:text-red-300'
-        }`}>
+            'bg-red-100 text-red-700 dark:text-red-300'
+          }`}>
           {Math.round(item.confidence * 100)}% confident
         </span>
       </div>
@@ -387,7 +430,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
     if (type === 'transactions') {
       return renderTransactionTable();
     }
-    
+
     // For assets and insurance, keep the original card layout
     return (
       <div className="space-y-4">
@@ -474,7 +517,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                   </div>
                 </div>
               </div>
-              
+
               {/* Content */}
               <div className="p-6">
                 {renderContent()}
