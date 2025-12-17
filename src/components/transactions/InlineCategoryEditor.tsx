@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, Plus, Check, ChevronDown } from 'lucide-react';
+import { Search, Plus, Check } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 // removed localstorage dependent imports if any (none specific to remove, but adding useData)
 import { useData } from '../../contexts/DataContext';
+import SidePanel from '../common/SidePanel';
 import { Category } from '../../constants/categories'; // defaultCategories not needed anymore, but keeping just in case for type
-import Modal from '../common/Modal';
 import CategoryForm from '../categories/CategoryForm';
 
 interface InlineCategoryEditorProps {
@@ -128,24 +128,26 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
 
   return (
     <div className="relative" ref={containerRef}>
-      {/* Trigger Button */}
+      {/* Trigger Button - Chip Style */}
       <button
         onClick={(e) => {
           e.stopPropagation();
           setIsOpen(!isOpen);
         }}
         className={cn(
-          "flex items-center space-x-2 px-3 py-1.5 rounded-lg border transition-all w-full",
-          theme.bgElevated,
-          theme.border,
-          "hover:border-blue-500 dark:hover:border-blue-400"
+          "flex items-center justify-center space-x-1 px-2 py-0.5 rounded-full transition-all w-fit",
+          // Remove default border/bg classes as we override them
+          "hover:opacity-80"
         )}
+        style={{
+          backgroundColor: currentCategoryObj?.color ? `${currentCategoryObj.color}20` : '#E5E7EB', // 20 = ~12% opacity
+          color: currentCategoryObj?.color || '#374151'
+        }}
       >
-        <span className="text-lg">{currentCategoryObj?.icon || '📋'}</span>
-        <span className={cn("text-sm font-medium truncate", theme.textPrimary)}>
-          {currentCategoryObj?.name || 'Select Category'}
+        <span className="text-xs">{currentCategoryObj?.icon || '📋'}</span>
+        <span className="text-[10px] font-bold truncate uppercase tracking-wider">
+          {currentCategoryObj?.name || 'SELECT'}
         </span>
-        <ChevronDown className="w-4 h-4 text-gray-400 ml-auto" />
       </button>
 
       {/* Popover Menu */}
@@ -189,14 +191,14 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
                     setIsOpen(false);
                   }}
                   className={cn(
-                    "w-full flex items-center space-x-2 px-2 py-1.5 rounded-md text-left transition-colors",
+                    "w-full flex items-center space-x-2 px-2 py-1 rounded-md text-left transition-colors",
                     currentCategory === parent.id
                       ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
                       : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                   )}
                 >
-                  <span className="text-base">{parent.icon}</span>
-                  <span className="text-sm font-medium flex-1">{parent.name}</span>
+                  <span className="text-sm">{parent.icon}</span>
+                  <span className="text-xs font-medium flex-1">{parent.name}</span>
                   {currentCategory === parent.id && <Check className="w-3 h-3" />}
                 </button>
 
@@ -209,14 +211,14 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
                       setIsOpen(false);
                     }}
                     className={cn(
-                      "w-full flex items-center space-x-2 px-2 py-1.5 pl-8 rounded-md text-left transition-colors",
+                      "w-full flex items-center space-x-2 px-2 py-1 pl-8 rounded-md text-left transition-colors",
                       currentCategory === child.id
                         ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
                         : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
                     )}
                   >
-                    <span className="text-base">{child.icon}</span>
-                    <span className="text-sm flex-1">{child.name}</span>
+                    <span className="text-sm">{child.icon}</span>
+                    <span className="text-xs flex-1">{child.name}</span>
                     {currentCategory === child.id && <Check className="w-3 h-3" />}
                   </button>
                 ))}
@@ -244,17 +246,23 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
       )}
 
       {/* New Category Modal */}
-      <Modal
+      <SidePanel
         isOpen={showNewCategoryModal}
         onClose={() => setShowNewCategoryModal(false)}
         title="Add New Category"
+        footer={<></>} // Empty footer as CategoryForm handles its own buttons, or we should move buttons here. 
+      // Looking at CategoryForm, it has its own buttons. 
+      // Ideally we move them to footer, but for now let's just use SidePanel to wrap it.
+      // However, SidePanel usually expects footer for buttons. 
+      // Let's pass undefined footer if not strictly required, or null.
+      // But wait, SidePanel might render default footer? No, it renders footer prop.
       >
         <CategoryForm
           categories={categories}
           onSave={handleSaveNewCategory}
           onCancel={() => setShowNewCategoryModal(false)}
         />
-      </Modal>
+      </SidePanel>
     </div>
   );
 };

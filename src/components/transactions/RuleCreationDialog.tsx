@@ -8,32 +8,48 @@ import CategoryRuleService from '../../services/categoryRuleService';
 interface RuleCreationDialogProps {
     isOpen: boolean;
     onClose: () => void;
-    transaction: Transaction;
+    transaction?: Transaction; // Optional for edit mode
+    initialRule?: CategoryRule; // For editing
     newCategoryId?: string;
     newType?: Transaction['type'];
     transactions: Transaction[]; // All transactions for preview
     categories: any[]; // Passed from parent
-    onCreateRule: (rule: Omit<CategoryRule, 'id'>) => void;
+    onCreateRule?: (rule: Omit<CategoryRule, 'id'>) => void;
+    onEditRule?: (rule: CategoryRule) => void;
 }
 
 const RuleCreationDialog: React.FC<RuleCreationDialogProps> = ({
     isOpen,
     onClose,
     transaction,
+    initialRule,
     newCategoryId,
     newType,
     transactions,
     categories,
-    onCreateRule
+    onCreateRule,
+    onEditRule
 }) => {
-    const [matchType, setMatchType] = useState<'partial' | 'exact'>('partial');
-    const [pattern, setPattern] = useState(transaction.description);
+    const isEditMode = !!initialRule;
 
-    // Initialize selected category from props or empty if manual add
-    const [selectedCategoryId, setSelectedCategoryId] = useState(newCategoryId || '');
+    // Initialize state from initialRule OR transaction defaults
+    const [matchType, setMatchType] = useState<'partial' | 'exact'>(
+        initialRule?.matchType || 'partial'
+    );
 
-    // Determine the target type (either from props or defaulting to transaction's current/new type)
-    const [selectedType, setSelectedType] = useState<Transaction['type']>(newType || transaction.type);
+    const [pattern, setPattern] = useState(
+        initialRule?.name || transaction?.description || ''
+    );
+
+    // Initialize selected category
+    const [selectedCategoryId, setSelectedCategoryId] = useState(
+        initialRule?.categoryId || newCategoryId || ''
+    );
+
+    // Determines target type
+    const [selectedType, setSelectedType] = useState<Transaction['type']>(
+        initialRule?.transactionType || newType || transaction?.type || 'expense'
+    );
 
     // Sanitization helper
     const sanitizePattern = (text: string) => {
@@ -48,28 +64,36 @@ const RuleCreationDialog: React.FC<RuleCreationDialogProps> = ({
         return clean.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
     };
 
-    // Update state if props change (e.g. re-opening dialog)
+    // Update state if props change (re-opening dialog)
     useEffect(() => {
-        if (newCategoryId) setSelectedCategoryId(newCategoryId);
-        if (newType) setSelectedType(newType);
-        // Apply sanitization for better default matching
-        setPattern(sanitizePattern(transaction.description));
-    }, [newCategoryId, newType, transaction]);
+        if (isOpen) {
+            if (initialRule) {
+                setMatchType(initialRule.matchType);
+                setPattern(initialRule.name);
+                setSelectedCategoryId(initialRule.categoryId);
+                setSelectedType(initialRule.transactionType || 'expense');
+            } else if (transaction) {
+                if (newCategoryId) setSelectedCategoryId(newCategoryId);
+                if (newType) setSelectedType(newType);
+                setPattern(sanitizePattern(transaction.description));
+            }
+        }
+    }, [isOpen, initialRule, transaction, newCategoryId, newType]);
 
-    // Create temporary rule for preview (only for category changes)
+    // Create temporary rule for preview
     const previewRule: CategoryRule | null = useMemo(() => {
         if (!selectedCategoryId) return null;
         return {
-            id: 'preview',
+            id: initialRule?.id || 'preview',
             name: pattern,
             categoryId: selectedCategoryId,
-            transactionType: selectedType, // Always include type now as it's a direct selection
+            transactionType: selectedType,
             matchType,
-            createdAt: new Date().toISOString(),
-            matchCount: 0,
+            createdAt: initialRule?.createdAt || new Date().toISOString(),
+            matchCount: initialRule?.matchCount || 0,
             isActive: true
         };
-    }, [pattern, selectedCategoryId, matchType, selectedType]);
+    }, [pattern, selectedCategoryId, matchType, selectedType, initialRule]);
 
     // Get preview of matching transactions
     const preview = useMemo(() => {
@@ -80,20 +104,31 @@ const RuleCreationDialog: React.FC<RuleCreationDialogProps> = ({
     const handleSubmit = () => {
         if (!selectedCategoryId) return;
 
-        // Ensure we create a valid rule object
-        const rule: Omit<CategoryRule, 'id'> = {
-            name: pattern,
-            categoryId: selectedCategoryId,
-            // Always set the type from the dropdown
-            transactionType: selectedType,
-            matchType,
-            isActive: true,
-            createdAt: new Date().toISOString(),
-            matchCount: 0,
-            lastUsed: new Date().toISOString()
-        };
+        if (isEditMode && initialRule && onEditRule) {
+            const updatedRule: CategoryRule = {
+                ...initialRule,
+                name: pattern,
+                categoryId: selectedCategoryId,
+                transactionType: selectedType,
+                matchType,
+                // isActive state is preserved from initialRule usually, or we can assume true if editing
+            };
+            onEditRule(updatedRule);
+        } else if (onCreateRule) {
+            // Create new rule
+            const rule: Omit<CategoryRule, 'id'> = {
+                name: pattern,
+                categoryId: selectedCategoryId,
+                transactionType: selectedType,
+                matchType,
+                isActive: true,
+                createdAt: new Date().toISOString(),
+                matchCount: 0,
+                lastUsed: new Date().toISOString()
+            };
+            onCreateRule(rule);
+        }
 
-        onCreateRule(rule);
         onClose();
     };
 
@@ -123,10 +158,10 @@ const RuleCreationDialog: React.FC<RuleCreationDialogProps> = ({
                     <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                         <div>
                             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                                Create Categorization Rule
+                                {isEditMode ? 'Edit Rule' : 'Create Categorization Rule'}
                             </h2>
                             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                Automatically categorize similar transactions
+                                {isEditMode ? 'Modify how subsequent transactions are categorized' : 'Automatically categorize similar transactions'}
                             </p>
                         </div>
                         <button
@@ -315,7 +350,7 @@ const RuleCreationDialog: React.FC<RuleCreationDialogProps> = ({
                             onClick={handleSubmit}
                             className="px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 rounded-lg transition-colors shadow-sm"
                         >
-                            Create Rule & Apply
+                            {isEditMode ? 'Save Changes' : 'Create Rule & Apply'}
                         </button>
                     </div>
                 </div>

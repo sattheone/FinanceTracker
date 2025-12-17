@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { CreditCard, TrendingDown, Calendar, DollarSign, Plus, Edit3, Trash2, AlertCircle } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, formatDate, formatLargeNumber } from '../utils/formatters';
-import Modal from '../components/common/Modal';
+import SidePanel from '../components/common/SidePanel';
 import LiabilityForm from '../components/forms/LiabilityForm';
 import { Liability } from '../types';
 import { calculateAmortizationDetails, generateAmortizationSchedule } from '../utils/loanCalculations';
@@ -371,19 +371,36 @@ const Liabilities: React.FC = () => {
         </div>
       )}
 
-      {/* Liability Form Modal */}
-      <Modal
+      {/* Liability Form SidePanel */}
+      <SidePanel
         isOpen={showLiabilityForm}
         onClose={handleLiabilityCancel}
         title={editingLiability ? 'Edit Liability' : 'Add New Liability'}
-        size="xl"
+        size="lg"
+        footer={
+          <div className="flex justify-end w-full space-x-2">
+            <button
+              onClick={handleLiabilityCancel}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="liability-form" // Assumes LiabilityForm has a form with id="liability-form"
+              className="btn-primary"
+            >
+              {editingLiability ? 'Update Liability' : 'Add Liability'}
+            </button>
+          </div>
+        }
       >
         <LiabilityForm
           liability={editingLiability || undefined}
           onSubmit={handleLiabilitySubmit}
           onCancel={handleLiabilityCancel}
         />
-      </Modal>
+      </SidePanel>
 
       {/* Repayment Schedule Modal */}
       {selectedLiabilityForSchedule && (

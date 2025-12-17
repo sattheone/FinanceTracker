@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Target, Plus } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 
-import Modal from '../components/common/Modal';
+import SidePanel from '../components/common/SidePanel';
 import GoalForm from '../components/forms/GoalForm';
 import GoalSIPService from '../services/goalSIPService';
 
@@ -77,7 +77,7 @@ const Goals: React.FC = () => {
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white dark:text-white">Financial Goals</h1>
         <p className="font-medium text-gray-600 dark:text-gray-300 mt-1">
-            Monthly Investment: {formatCurrency(goals.reduce((sum, goal) => sum + goal.monthlyContribution, 0))}
+          Monthly Investment: {formatCurrency(goals.reduce((sum, goal) => sum + goal.monthlyContribution, 0))}
         </p>
       </div>
 
@@ -128,21 +128,45 @@ const Goals: React.FC = () => {
       )
       }
 
-      
 
-      {/* Goal Form Modal */}
-      <Modal
+
+      {/* Goal Form SidePanel */}
+      <SidePanel
         isOpen={showGoalForm}
         onClose={handleGoalCancel}
         title={editingGoal ? 'Edit Goal' : 'Add New Goal'}
         size="lg"
+        footer={
+          <div className="flex justify-end w-full space-x-2">
+            <button
+              onClick={handleGoalCancel}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                // This button will trigger the form's onSubmit via a hidden submit button or direct call
+                // For now, we'll assume GoalForm handles its own submission logic
+                // and handleGoalSubmit is called from within GoalForm.
+                // If GoalForm needs to be submitted by the footer,
+                // a ref or a direct call to handleGoalSubmit would be needed here.
+              }}
+              type="submit" // This type will submit the form if it's wrapped in a form tag
+              form="goal-form" // Link to the form by its ID
+              className="btn-primary"
+            >
+              {editingGoal ? 'Update Goal' : 'Add Goal'}
+            </button>
+          </div>
+        }
       >
         <GoalForm
           goal={editingGoal || undefined}
           onSubmit={handleGoalSubmit}
           onCancel={handleGoalCancel}
         />
-      </Modal>
+      </SidePanel>
     </div >
   );
 };

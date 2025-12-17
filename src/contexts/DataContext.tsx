@@ -275,7 +275,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
       // Load categories (now that FirebaseService methods exist)
       console.log('[DataContext] Loading categories for user:', userId);
-      let categoriesData;
+      let categoriesData: Category[];
       try {
         categoriesData = await FirebaseService.getCategories(userId);
         console.log('[DataContext] Loaded categories from Firestore:', categoriesData.length, 'categories');
@@ -285,12 +285,35 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         categoriesData = [];
       }
 
-      // Category migration: If Firestore is empty, sync all defaults
-      if (categoriesData.length === 0) {
-        console.log('[DataContext] No categories in Firestore, migrating defaults...');
-        const { defaultCategories } = await import('../constants/categories');
+      // Category migration: If Firestore is empty OR missing system categories, sync defaults
+      const { defaultCategories } = await import('../constants/categories');
 
-        for (const def of defaultCategories) {
+      // Calculate missing system categories AND missing core categories (like 'investment')
+      // that we want to ensure exist for everyone but remain editable (not system locked)
+      const coreCategoryIds = ['investment', 'mutual_funds', 'stocks', 'gold', 'insurance_inv', 'chit'];
+
+      const missingCategoriesToAdd = defaultCategories.filter(def => {
+        // 1. Must be added if it's a System category
+        if (def.isSystem) {
+          return !categoriesData.some(c => c.id === def.id);
+        }
+        // 2. OR if it's one of our core 'Investment' categories that we want to deploy to everyone
+        if (coreCategoryIds.includes(def.id)) {
+          return !categoriesData.some(c => c.id === def.id);
+        }
+        return false;
+      });
+
+      if (categoriesData.length === 0 || missingCategoriesToAdd.length > 0) {
+        console.log('[DataContext] Categories missing or system/core categories incomplete, migrating...');
+
+        // If completely empty, add all defaults.
+        // If specific system/core cats missing, add just those.
+        const categoriesToAdd = categoriesData.length === 0 ? defaultCategories : missingCategoriesToAdd;
+
+        console.log(`[DataContext] Adding ${categoriesToAdd.length} categories...`);
+
+        for (const def of categoriesToAdd) {
           try {
             await FirebaseService.addCategoryWithId(userId, def.id, {
               name: def.name,
@@ -1006,6 +1029,14 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const deleteCategory = async (id: string) => {
     if (!user) return;
+
+    // Check if system category
+    const categoryToDelete = categories.find(c => c.id === id);
+    if (categoryToDelete?.isSystem) {
+      alert('System categories (like Transfer) cannot be deleted.');
+      return;
+    }
+
     try {
       await FirebaseService.deleteCategory(user.id, id);
       setCategories(prev => prev.filter(c => c.id !== id));

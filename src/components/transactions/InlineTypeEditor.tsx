@@ -49,14 +49,14 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
                     setIsOpen(!isOpen);
                 }}
                 className={cn(
-                    "flex items-center space-x-2 px-3 py-1.5 rounded-lg border transition-all w-full",
+                    "flex items-center space-x-1 px-2 py-1 rounded-lg border transition-all w-full",
                     theme.bgElevated,
                     theme.border,
                     "hover:border-blue-500 dark:hover:border-blue-400"
                 )}
             >
-                <span className="text-lg">{currentTypeObj.icon}</span>
-                <span className={cn("text-sm font-medium truncate", currentTypeObj.color)}>
+                <span className="text-base">{currentTypeObj.icon}</span>
+                <span className={cn("text-xs font-medium truncate", currentTypeObj.color)}>
                     {currentTypeObj.label}
                 </span>
                 <ChevronDown className="w-4 h-4 text-gray-400 ml-auto" />
@@ -81,14 +81,14 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
                                     setIsOpen(false);
                                 }}
                                 className={cn(
-                                    "w-full flex items-center space-x-2 px-3 py-2 rounded-md text-left transition-colors",
+                                    "w-full flex items-center space-x-2 px-3 py-1 rounded-md text-left transition-colors",
                                     currentType === type.value
                                         ? "bg-blue-50 dark:bg-blue-900/20"
                                         : "hover:bg-gray-100 dark:hover:bg-gray-700"
                                 )}
                             >
-                                <span className="text-lg">{type.icon}</span>
-                                <span className={cn("text-sm font-medium flex-1", type.color)}>
+                                <span className="text-sm">{type.icon}</span>
+                                <span className={cn("text-xs font-medium flex-1", type.color)}>
                                     {type.label}
                                 </span>
                                 {currentType === type.value && <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />}

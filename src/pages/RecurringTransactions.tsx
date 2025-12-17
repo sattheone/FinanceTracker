@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Clock, CheckCircle, ArrowRight, Trash2, Edit3 } from 'lucide-react';
+import { Calendar, Clock, CheckCircle, ArrowRight, Trash2, Edit3, Repeat } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { RecurringTransaction } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
@@ -10,6 +10,7 @@ import InlineCategoryEditor from '../components/transactions/InlineCategoryEdito
 const RecurringTransactions: React.FC = () => {
   const { recurringTransactions, transactions, updateRecurringTransaction, deleteRecurringTransaction } = useData();
   const theme = useThemeClasses();
+  const [viewMode, setViewMode] = useState<'overview' | 'all'>('overview');
   const [showForm, setShowForm] = useState(false);
   const [editingRecurring, setEditingRecurring] = useState<RecurringTransaction | null>(null);
 
@@ -86,16 +87,10 @@ const RecurringTransactions: React.FC = () => {
         frequency: settings.frequency as any,
         interval: settings.interval,
         startDate: settings.startDate,
-        nextDueDate: settings.startDate, // Reset next due date based on new start date? Or calculate? 
-        // Ideally we should calculate next due date, but for now let's assume start date is the next anchor.
-        // Actually, if we change frequency, we probably want to reset the schedule.
+        nextDueDate: settings.startDate,
       });
       setEditingRecurring(null);
       setShowForm(false);
-    } else {
-      // Handle create new (if we add a "New" button that uses this modal)
-      // For now, "Add New" button might still need the full form or we adapt this modal for new creation too.
-      // But user asked to fix "Edit".
     }
   };
 
@@ -124,7 +119,6 @@ const RecurringTransactions: React.FC = () => {
         'flex items-center p-4 hover:shadow-md transition-all group gap-4'
       )}
     >
-      {/* Status Icon */}
       <div className={cn(
         'w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-lg',
         item.status === 'paid' ? 'bg-green-100 text-green-600' :
@@ -134,7 +128,6 @@ const RecurringTransactions: React.FC = () => {
         {item.status === 'paid' ? <CheckCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
       </div>
 
-      {/* Name & Frequency */}
       <div className="flex-1 min-w-0">
         <h3 className={cn(theme.textPrimary, 'font-medium truncate')}>{item.name}</h3>
         <p className={cn(theme.textMuted, 'text-sm truncate')}>
@@ -142,7 +135,6 @@ const RecurringTransactions: React.FC = () => {
         </p>
       </div>
 
-      {/* Category Editor */}
       <div className="hidden sm:block w-48">
         <InlineCategoryEditor
           currentCategory={item.category || 'other'}
@@ -150,7 +142,6 @@ const RecurringTransactions: React.FC = () => {
         />
       </div>
 
-      {/* Amount & Status Badge */}
       <div className="text-right">
         <p className={cn(theme.textPrimary, 'font-bold')}>{formatCurrency(item.amount)}</p>
         <span className={cn(
@@ -163,7 +154,6 @@ const RecurringTransactions: React.FC = () => {
         </span>
       </div>
 
-      {/* Actions */}
       <div className="flex items-center space-x-1 pl-2 border-l border-gray-200 dark:border-gray-700 ml-2">
         <button
           onClick={() => handleEdit(item)}
@@ -187,6 +177,65 @@ const RecurringTransactions: React.FC = () => {
     </div>
   );
 
+  // Simplified list render for 'All' view
+  const renderAllItem = (item: RecurringTransaction) => (
+    <div
+      key={item.id}
+      className={cn(
+        theme.card,
+        'flex items-center p-4 hover:shadow-md transition-all group gap-4'
+      )}
+    >
+      <div className={cn(
+        'w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-lg',
+        item.isActive ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'
+      )}>
+        <Repeat className="w-5 h-5" />
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <h3 className={cn(theme.textPrimary, 'font-medium truncate')}>{item.name}</h3>
+        <p className={cn(theme.textMuted, 'text-sm truncate')}>
+          {getFrequencyText(item)} • Next: {formatDate(item.nextDueDate)}
+        </p>
+      </div>
+
+      <div className="hidden sm:block w-48">
+        <InlineCategoryEditor
+          currentCategory={item.category || 'other'}
+          onSave={(categoryId) => handleCategoryChange(item, categoryId)}
+        />
+      </div>
+
+      <div className="text-right">
+        <p className={cn(theme.textPrimary, 'font-bold')}>{formatCurrency(item.amount)}</p>
+        <span className={cn(
+          'text-xs font-medium px-2 py-0.5 rounded-full inline-block mt-1',
+          item.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+        )}>
+          {item.isActive ? 'Active' : 'Inactive'}
+        </span>
+      </div>
+
+      <div className="flex items-center space-x-1 pl-2 border-l border-gray-200 dark:border-gray-700 ml-2">
+        <button
+          onClick={() => handleEdit(item)}
+          className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors"
+          title="Edit"
+        >
+          <Edit3 className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => handleDelete(item.id)}
+          className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+          title="Delete"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
       {/* Header & Summary */}
@@ -195,50 +244,86 @@ const RecurringTransactions: React.FC = () => {
           <h1 className={theme.heading1}>Recurring</h1>
           <p className={theme.textSecondary}>Track your subscriptions and bills</p>
         </div>
-        {/* We can add a "New" button here if needed, but the primary flow is from Transactions */}
+
+        <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
+          <button
+            onClick={() => setViewMode('overview')}
+            className={cn(
+              "px-4 py-2 text-sm font-medium rounded-md transition-all",
+              viewMode === 'overview'
+                ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white"
+                : "text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"
+            )}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setViewMode('all')}
+            className={cn(
+              "px-4 py-2 text-sm font-medium rounded-md transition-all",
+              viewMode === 'all'
+                ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white"
+                : "text-gray-500 hover:text-gray-900 dark:hover:text-gray-300"
+            )}
+          >
+            View All Rules
+          </button>
+        </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className={cn(theme.card, 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800')}>
-          <p className="text-green-600 dark:text-green-400 text-sm font-medium mb-1">Paid this Month</p>
-          <p className="text-2xl font-bold text-green-700 dark:text-green-300">{formatCurrency(summary.paid)}</p>
-        </div>
-        <div className={cn(theme.card, 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800')}>
-          <p className="text-blue-600 dark:text-blue-400 text-sm font-medium mb-1">Left to Pay</p>
-          <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{formatCurrency(summary.left)}</p>
-        </div>
-      </div>
+      {viewMode === 'overview' ? (
+        <>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className={cn(theme.card, 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800')}>
+              <p className="text-green-600 dark:text-green-400 text-sm font-medium mb-1">Paid this Month</p>
+              <p className="text-2xl font-bold text-green-700 dark:text-green-300">{formatCurrency(summary.paid)}</p>
+            </div>
+            <div className={cn(theme.card, 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800')}>
+              <p className="text-blue-600 dark:text-blue-400 text-sm font-medium mb-1">Left to Pay</p>
+              <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{formatCurrency(summary.left)}</p>
+            </div>
+          </div>
 
-      {/* This Month Section */}
-      <div>
-        <h2 className={cn(theme.heading3, 'mb-4 flex items-center')}>
-          <Calendar className="w-5 h-5 mr-2 text-gray-500" />
-          This Month
-        </h2>
+          {/* This Month Section */}
+          <div>
+            <h2 className={cn(theme.heading3, 'mb-4 flex items-center')}>
+              <Calendar className="w-5 h-5 mr-2 text-gray-500" />
+              This Month
+            </h2>
+            <div className="space-y-3">
+              {thisMonthItems.length === 0 ? (
+                <p className={theme.textMuted}>No recurring payments due this month.</p>
+              ) : (
+                thisMonthItems.map(renderListItem)
+              )}
+            </div>
+          </div>
+
+          {/* Future Section */}
+          <div>
+            <h2 className={cn(theme.heading3, 'mb-4 flex items-center')}>
+              <ArrowRight className="w-5 h-5 mr-2 text-gray-500" />
+              Future
+            </h2>
+            <div className="space-y-3">
+              {futureItems.length === 0 ? (
+                <p className={theme.textMuted}>No upcoming future payments.</p>
+              ) : (
+                futureItems.map(renderListItem)
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
         <div className="space-y-3">
-          {thisMonthItems.length === 0 ? (
-            <p className={theme.textMuted}>No recurring payments due this month.</p>
+          {recurringTransactions.length === 0 ? (
+            <p className={theme.textMuted}>No recurring rules defined.</p>
           ) : (
-            thisMonthItems.map(renderListItem)
+            recurringTransactions.map(renderAllItem)
           )}
         </div>
-      </div>
-
-      {/* Future Section */}
-      <div>
-        <h2 className={cn(theme.heading3, 'mb-4 flex items-center')}>
-          <ArrowRight className="w-5 h-5 mr-2 text-gray-500" />
-          Future
-        </h2>
-        <div className="space-y-3">
-          {futureItems.length === 0 ? (
-            <p className={theme.textMuted}>No upcoming future payments.</p>
-          ) : (
-            futureItems.map(renderListItem)
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Edit Modal */}
       <RecurringSetupModal

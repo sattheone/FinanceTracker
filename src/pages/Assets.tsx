@@ -5,7 +5,7 @@ import { formatLargeNumber, formatCurrency } from '../utils/formatters';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
 import ImageUploader from '../components/common/ImageUploader';
 import DataConfirmationDialog from '../components/common/DataConfirmationDialog';
-import Modal from '../components/common/Modal';
+import SidePanel from '../components/common/SidePanel';
 import AssetForm from '../components/forms/AssetForm';
 import MarketDataService from '../services/marketDataService';
 import XIRRService from '../services/xirrService';
@@ -26,22 +26,22 @@ const Assets: React.FC = () => {
   const [isUpdatingPrices, setIsUpdatingPrices] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [priceUpdateProgress, setPriceUpdateProgress] = useState({ current: 0, total: 0 });
-  
+
   const totalAssets = assets.reduce((sum, asset) => sum + asset.currentValue, 0);
   const totalInvested = assets.reduce((sum, asset) => sum + (asset.purchaseValue || 0), 0);
   const totalReturns = totalAssets - totalInvested;
   const totalReturnsPercent = totalInvested > 0 ? (totalReturns / totalInvested) * 100 : 0;
-  
+
   // Calculate portfolio metrics
   const portfolioMetrics = MarketDataService.calculatePortfolioMetrics(assets);
   const portfolioXIRR = XIRRService.calculatePortfolioXIRR(assets, transactions);
-  
+
   // Get rebalancing suggestions
   const userAge = userProfile?.financialInfo.currentAge || 35;
   const targetAllocations = PortfolioRebalancingService.getDefaultTargetAllocations(userAge, 'moderate');
   const rebalancingData = PortfolioRebalancingService.generateRebalancingSuggestions(assets, targetAllocations);
   const diversificationScore = PortfolioRebalancingService.calculateDiversificationScore(assets);
-  
+
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'stocks': return '📈';
@@ -84,7 +84,7 @@ const Assets: React.FC = () => {
     console.log('📊 Assets extracted from image:', data);
     setExtractedData(data);
     setShowImageUploader(false);
-    
+
     if (data.length > 0) {
       setShowConfirmDialog(true);
     } else {
@@ -165,17 +165,17 @@ const Assets: React.FC = () => {
     const currentTime = hour * 60 + minute;
     const marketOpen = 9 * 60 + 15; // 9:15 AM
     const marketClose = 15 * 60 + 30; // 3:30 PM
-    
+
     if (currentTime >= marketOpen && currentTime <= marketClose) {
       return { isOpen: true, status: 'Market Open', color: 'text-green-600' };
     } else if (currentTime < marketOpen) {
       const minutesToOpen = marketOpen - currentTime;
       const hoursToOpen = Math.floor(minutesToOpen / 60);
       const minsToOpen = minutesToOpen % 60;
-      return { 
-        isOpen: false, 
-        status: `Market opens in ${hoursToOpen}h ${minsToOpen}m`, 
-        color: 'text-yellow-600' 
+      return {
+        isOpen: false,
+        status: `Market opens in ${hoursToOpen}h ${minsToOpen}m`,
+        color: 'text-yellow-600'
       };
     } else {
       return { isOpen: false, status: 'Market Closed', color: 'text-red-600' };
@@ -189,7 +189,7 @@ const Assets: React.FC = () => {
     const interval = setInterval(() => {
       const status = getMarketStatus();
       setMarketStatus(status);
-      
+
       if (status.isOpen) {
         updatePortfolioPrices();
       }
@@ -232,7 +232,7 @@ const Assets: React.FC = () => {
   const refreshAllPrices = async () => {
     setIsUpdatingPrices(true);
     setPriceUpdateProgress({ current: 0, total: 0 });
-    
+
     try {
       // Check API limits first
       const apiStats = PriceService.getCacheStats();
@@ -279,7 +279,7 @@ const Assets: React.FC = () => {
 
       setLastUpdated(new Date().toLocaleTimeString());
       console.log(`🎉 Smart price refresh completed! API calls remaining: ${PriceService.getCacheStats().remainingRequests}`);
-      
+
     } catch (error) {
       console.error('❌ Error during smart price refresh:', error);
     } finally {
@@ -307,7 +307,7 @@ const Assets: React.FC = () => {
                 {marketStatus.status}
               </span>
             </div>
-            
+
             {/* Live Assets Count */}
             <div className="flex items-center space-x-1">
               <Activity className="w-3 h-3 text-blue-600" />
@@ -315,7 +315,7 @@ const Assets: React.FC = () => {
                 {assets.filter(asset => (asset as any).livePriceData).length} live assets
               </span>
             </div>
-            
+
             {lastUpdated && (
               <p className={cn(theme.textMuted, 'text-sm')}>
                 Last updated: {lastUpdated}
@@ -331,7 +331,7 @@ const Assets: React.FC = () => {
                 </span>
               </div>
               <div className={cn(theme.progressBar, "w-48 mt-1")}>
-                <div 
+                <div
                   className={cn(theme.progressFill, "bg-blue-600")}
                   style={{ width: `${(priceUpdateProgress.current / priceUpdateProgress.total) * 100}%` }}
                 ></div>
@@ -339,7 +339,7 @@ const Assets: React.FC = () => {
             </div>
           )}
         </div>
-        
+
         <div className="flex items-center space-x-3">
           <button
             onClick={refreshAllPrices}
@@ -353,7 +353,7 @@ const Assets: React.FC = () => {
             <RefreshCw className={cn('w-4 h-4 mr-2', isUpdatingPrices && 'animate-spin')} />
             {isUpdatingPrices ? 'Updating...' : 'Refresh Prices'}
           </button>
-          
+
           <button
             onClick={() => setShowImageUploader(true)}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -361,7 +361,7 @@ const Assets: React.FC = () => {
             <Camera className="w-4 h-4 mr-2" />
             Scan Portfolio
           </button>
-          
+
           <button
             onClick={handleAddAsset}
             className="flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
@@ -404,7 +404,7 @@ const Assets: React.FC = () => {
                         <span className="mr-1">
                           {livePriceData.change >= 0 ? '↗' : '↘'}
                         </span>
-                        {livePriceData.changePercent ? 
+                        {livePriceData.changePercent ?
                           `${livePriceData.changePercent >= 0 ? '+' : ''}${livePriceData.changePercent.toFixed(1)}%` :
                           `${livePriceData.change >= 0 ? '+' : ''}${livePriceData.change.toFixed(2)}`
                         }
@@ -424,7 +424,7 @@ const Assets: React.FC = () => {
             <Wallet className="h-6 w-6 text-blue-600" />
             <span className={cn(
               'text-xs px-2 py-1 rounded-full',
-              portfolioMetrics.dayChange >= 0 
+              portfolioMetrics.dayChange >= 0
                 ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'
                 : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'
             )}>
@@ -443,7 +443,7 @@ const Assets: React.FC = () => {
             <TrendingUp className="h-6 w-6 text-green-600" />
             <span className={cn(
               'text-xs px-2 py-1 rounded-full',
-              totalReturnsPercent >= 0 
+              totalReturnsPercent >= 0
                 ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'
                 : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'
             )}>
@@ -464,11 +464,11 @@ const Assets: React.FC = () => {
             <BarChart3 className="h-6 w-6 text-purple-600" />
             <span className={cn(
               'text-xs px-2 py-1 rounded-full',
-              (portfolioXIRR || 0) >= 12 
+              (portfolioXIRR || 0) >= 12
                 ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'
                 : (portfolioXIRR || 0) >= 8
-                ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200'
-                : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'
+                  ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200'
+                  : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'
             )}>
               XIRR
             </span>
@@ -487,11 +487,11 @@ const Assets: React.FC = () => {
             <Target className="h-6 w-6 text-orange-600" />
             <span className={cn(
               'text-xs px-2 py-1 rounded-full',
-              diversificationScore.score >= 80 
+              diversificationScore.score >= 80
                 ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'
                 : diversificationScore.score >= 60
-                ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200'
-                : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'
+                  ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200'
+                  : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'
             )}>
               {diversificationScore.score}/100
             </span>
@@ -562,286 +562,286 @@ const Assets: React.FC = () => {
             </button>
           </div>
 
-      {/* Asset Allocation Chart */}
-      <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white mb-4">Asset Allocation</h3>
-        <div className="space-y-4">
-          {categoryTotals.map(({ category, total, count }) => {
-            const percentage = (total / totalAssets) * 100;
-            return (
-              <div key={category} className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    <span className="text-xl mr-2">{getCategoryIcon(category)}</span>
-                    <span className="font-medium text-gray-900 dark:text-white dark:text-white capitalize">
-                      {category.replace('_', ' ')} ({count} {count === 1 ? 'asset' : 'assets'})
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-gray-900 dark:text-white dark:text-white">{formatLargeNumber(total)}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">{percentage.toFixed(1)}%</p>
-                  </div>
-                </div>
-                <div className={cn(theme.progressBarLarge, "w-full")}>
-                  <div
-                    className={cn(theme.progressFillLarge, "from-blue-500 to-green-500")}
-                    style={{ width: `${percentage}%` }}
-                  ></div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Detailed Assets by Category */}
-      <div className="space-y-6">
-        {categoryTotals.map(({ category, assets, total }) => (
-          <div key={category} className={`card border-l-4 ${getCategoryColor(category)}`}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center">
-                <span className="text-2xl mr-3">{getCategoryIcon(category)}</span>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white capitalize">
-                    {category.replace('_', ' ')}
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    {assets.length} {assets.length === 1 ? 'asset' : 'assets'} • {formatLargeNumber(total)}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-gray-600 dark:text-gray-300">Portfolio Weight</p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {((total / totalAssets) * 100).toFixed(1)}%
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {assets.map((asset) => {
-                const livePriceData = (asset as any).livePriceData;
-                const lastPriceUpdate = (asset as any).lastPriceUpdate;
-                const hasLiveData = livePriceData && (asset.category === 'stocks' || asset.category === 'mutual_funds');
-                const isRecentUpdate = lastPriceUpdate && 
-                  (new Date().getTime() - new Date(lastPriceUpdate).getTime()) < 10 * 60 * 1000; // 10 minutes
-                
+          {/* Asset Allocation Chart */}
+          <div className="card">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white mb-4">Asset Allocation</h3>
+            <div className="space-y-4">
+              {categoryTotals.map(({ category, total, count }) => {
+                const percentage = (total / totalAssets) * 100;
                 return (
-                  <div key={asset.id} className={cn(
-                    "p-4 bg-white dark:bg-gray-800 border rounded-lg transition-all duration-300",
-                    hasLiveData && isRecentUpdate 
-                      ? "border-green-300 dark:border-green-600 shadow-md" 
-                      : "border-gray-200 dark:border-gray-600"
-                  )}>
-                    {/* Header with live indicator */}
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium text-gray-900 dark:text-white">{asset.name}</h4>
-                      {hasLiveData && (
-                        <div className="flex items-center space-x-1">
-                          <div className={cn(
-                            "w-2 h-2 rounded-full",
-                            isRecentUpdate ? "bg-green-500 animate-pulse" : "bg-gray-400"
-                          )} />
-                          <span className={cn(
-                            "text-xs",
-                            isRecentUpdate ? "text-green-600 dark:text-green-400" : "text-gray-500"
-                          )}>
-                            {isRecentUpdate ? "LIVE" : "STALE"}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Live Price Display */}
-                    {hasLiveData && (
-                      <div className="mb-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600 dark:text-gray-300">
-                            {asset.category === 'stocks' ? 'Stock Price:' : 'NAV:'}
-                          </span>
-                          <div className="text-right">
-                            <span className="font-semibold text-gray-900 dark:text-white">
-                              ₹{livePriceData.price || livePriceData.nav}
-                            </span>
-                            {livePriceData.change && (
-                              <div className={cn(
-                                "text-xs flex items-center",
-                                livePriceData.change >= 0 ? "text-green-600" : "text-red-600"
-                              )}>
-                                <span className="mr-1">
-                                  {livePriceData.change >= 0 ? '↗' : '↘'}
-                                </span>
-                                {livePriceData.change >= 0 ? '+' : ''}{livePriceData.change.toFixed(2)}
-                                {livePriceData.changePercent && (
-                                  <span className="ml-1">
-                                    ({livePriceData.changePercent >= 0 ? '+' : ''}{livePriceData.changePercent.toFixed(2)}%)
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        {lastPriceUpdate && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            Updated: {new Date(lastPriceUpdate).toLocaleTimeString()}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-300">Current Value:</span>
-                        <span className="font-semibold">{formatLargeNumber(asset.currentValue)}</span>
-                      </div>
-                      {asset.purchaseValue && (
-                        <>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-300">Purchase Value:</span>
-                            <span>{formatLargeNumber(asset.purchaseValue)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-300">Gain/Loss:</span>
-                            <span className={asset.currentValue > asset.purchaseValue ? 'text-green-600' : 'text-red-600'}>
-                              {asset.currentValue > asset.purchaseValue ? '+' : ''}
-                              {formatLargeNumber(asset.currentValue - asset.purchaseValue)}
-                              <span className="ml-1 text-xs">
-                                ({((asset.currentValue - asset.purchaseValue) / asset.purchaseValue * 100).toFixed(1)}%)
-                              </span>
-                            </span>
-                          </div>
-                        </>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 dark:text-gray-300">Portfolio %:</span>
-                        <span className="font-medium">
-                          {((asset.currentValue / totalAssets) * 100).toFixed(2)}%
+                  <div key={category} className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center">
+                        <span className="text-xl mr-2">{getCategoryIcon(category)}</span>
+                        <span className="font-medium text-gray-900 dark:text-white dark:text-white capitalize">
+                          {category.replace('_', ' ')} ({count} {count === 1 ? 'asset' : 'assets'})
                         </span>
                       </div>
-                      
-                      {/* Symbol/Code Display */}
-                      {((asset as any).symbol || (asset as any).schemeCode) && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-300">
-                            {asset.category === 'stocks' ? 'Symbol:' : 'Scheme Code:'}
-                          </span>
-                          <span className="text-xs font-mono bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded">
-                            {(asset as any).symbol || (asset as any).schemeCode}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Action Buttons */}
-                    <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100 dark:border-gray-600">
-                      {/* Quick Price Refresh for Live Assets */}
-                      {hasLiveData && (
-                        <button
-                          onClick={async () => {
-                            try {
-                              if (asset.category === 'stocks' && (asset as any).symbol) {
-                                const priceData = await PriceService.getStockPrice((asset as any).symbol);
-                                if (priceData) {
-                                  await updateAsset(asset.id, {
-                                    currentValue: priceData.price,
-                                    livePriceData: priceData,
-                                    lastPriceUpdate: new Date().toISOString()
-                                  });
-                                }
-                              } else if (asset.category === 'mutual_funds' && (asset as any).schemeCode) {
-                                const navData = await PriceService.getMutualFundPrice((asset as any).schemeCode);
-                                if (navData) {
-                                  await updateAsset(asset.id, {
-                                    currentValue: navData.nav,
-                                    livePriceData: navData,
-                                    lastPriceUpdate: new Date().toISOString()
-                                  });
-                                }
-                              }
-                            } catch (error) {
-                              console.error('Failed to refresh price:', error);
-                            }
-                          }}
-                          className="p-1 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
-                          title="Refresh Price"
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                        </button>
-                      )}
-                      
-                      <div className="flex gap-2 ml-auto">
-                        <button
-                          onClick={() => handleEditAsset(asset)}
-                          className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                          title="Edit Asset"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteAsset(asset.id)}
-                          className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          title="Delete Asset"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                      <div className="text-right">
+                        <p className="font-semibold text-gray-900 dark:text-white dark:text-white">{formatLargeNumber(total)}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">{percentage.toFixed(1)}%</p>
                       </div>
+                    </div>
+                    <div className={cn(theme.progressBarLarge, "w-full")}>
+                      <div
+                        className={cn(theme.progressFillLarge, "from-blue-500 to-green-500")}
+                        style={{ width: `${percentage}%` }}
+                      ></div>
                     </div>
                   </div>
                 );
               })}
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* Asset Performance Summary */}
-      <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Portfolio Performance</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <p className="text-sm text-gray-600 dark:text-gray-300">Largest Holding</p>
-            <p className="text-lg font-semibold text-gray-900 dark:text-white">
-              {assets.length > 0 ? assets.reduce((max, asset) => 
-                asset.currentValue > max.currentValue ? asset : max
-              ).name : 'N/A'}
-            </p>
-            <p className="text-sm text-blue-600 dark:text-blue-400">
-              {assets.length > 0 ? formatLargeNumber(Math.max(...assets.map(a => a.currentValue))) : '₹0'}
-            </p>
+          {/* Detailed Assets by Category */}
+          <div className="space-y-6">
+            {categoryTotals.map(({ category, assets, total }) => (
+              <div key={category} className={`card border-l-4 ${getCategoryColor(category)}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center">
+                    <span className="text-2xl mr-3">{getCategoryIcon(category)}</span>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white capitalize">
+                        {category.replace('_', ' ')}
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-300">
+                        {assets.length} {assets.length === 1 ? 'asset' : 'assets'} • {formatLargeNumber(total)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">Portfolio Weight</p>
+                    <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {((total / totalAssets) * 100).toFixed(1)}%
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {assets.map((asset) => {
+                    const livePriceData = (asset as any).livePriceData;
+                    const lastPriceUpdate = (asset as any).lastPriceUpdate;
+                    const hasLiveData = livePriceData && (asset.category === 'stocks' || asset.category === 'mutual_funds');
+                    const isRecentUpdate = lastPriceUpdate &&
+                      (new Date().getTime() - new Date(lastPriceUpdate).getTime()) < 10 * 60 * 1000; // 10 minutes
+
+                    return (
+                      <div key={asset.id} className={cn(
+                        "p-4 bg-white dark:bg-gray-800 border rounded-lg transition-all duration-300",
+                        hasLiveData && isRecentUpdate
+                          ? "border-green-300 dark:border-green-600 shadow-md"
+                          : "border-gray-200 dark:border-gray-600"
+                      )}>
+                        {/* Header with live indicator */}
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium text-gray-900 dark:text-white">{asset.name}</h4>
+                          {hasLiveData && (
+                            <div className="flex items-center space-x-1">
+                              <div className={cn(
+                                "w-2 h-2 rounded-full",
+                                isRecentUpdate ? "bg-green-500 animate-pulse" : "bg-gray-400"
+                              )} />
+                              <span className={cn(
+                                "text-xs",
+                                isRecentUpdate ? "text-green-600 dark:text-green-400" : "text-gray-500"
+                              )}>
+                                {isRecentUpdate ? "LIVE" : "STALE"}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Live Price Display */}
+                        {hasLiveData && (
+                          <div className="mb-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-gray-600 dark:text-gray-300">
+                                {asset.category === 'stocks' ? 'Stock Price:' : 'NAV:'}
+                              </span>
+                              <div className="text-right">
+                                <span className="font-semibold text-gray-900 dark:text-white">
+                                  ₹{livePriceData.price || livePriceData.nav}
+                                </span>
+                                {livePriceData.change && (
+                                  <div className={cn(
+                                    "text-xs flex items-center",
+                                    livePriceData.change >= 0 ? "text-green-600" : "text-red-600"
+                                  )}>
+                                    <span className="mr-1">
+                                      {livePriceData.change >= 0 ? '↗' : '↘'}
+                                    </span>
+                                    {livePriceData.change >= 0 ? '+' : ''}{livePriceData.change.toFixed(2)}
+                                    {livePriceData.changePercent && (
+                                      <span className="ml-1">
+                                        ({livePriceData.changePercent >= 0 ? '+' : ''}{livePriceData.changePercent.toFixed(2)}%)
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            {lastPriceUpdate && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                Updated: {new Date(lastPriceUpdate).toLocaleTimeString()}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="space-y-1 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600 dark:text-gray-300">Current Value:</span>
+                            <span className="font-semibold">{formatLargeNumber(asset.currentValue)}</span>
+                          </div>
+                          {asset.purchaseValue && (
+                            <>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600 dark:text-gray-300">Purchase Value:</span>
+                                <span>{formatLargeNumber(asset.purchaseValue)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600 dark:text-gray-300">Gain/Loss:</span>
+                                <span className={asset.currentValue > asset.purchaseValue ? 'text-green-600' : 'text-red-600'}>
+                                  {asset.currentValue > asset.purchaseValue ? '+' : ''}
+                                  {formatLargeNumber(asset.currentValue - asset.purchaseValue)}
+                                  <span className="ml-1 text-xs">
+                                    ({((asset.currentValue - asset.purchaseValue) / asset.purchaseValue * 100).toFixed(1)}%)
+                                  </span>
+                                </span>
+                              </div>
+                            </>
+                          )}
+                          <div className="flex justify-between">
+                            <span className="text-gray-600 dark:text-gray-300">Portfolio %:</span>
+                            <span className="font-medium">
+                              {((asset.currentValue / totalAssets) * 100).toFixed(2)}%
+                            </span>
+                          </div>
+
+                          {/* Symbol/Code Display */}
+                          {((asset as any).symbol || (asset as any).schemeCode) && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-600 dark:text-gray-300">
+                                {asset.category === 'stocks' ? 'Symbol:' : 'Scheme Code:'}
+                              </span>
+                              <span className="text-xs font-mono bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded">
+                                {(asset as any).symbol || (asset as any).schemeCode}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100 dark:border-gray-600">
+                          {/* Quick Price Refresh for Live Assets */}
+                          {hasLiveData && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  if (asset.category === 'stocks' && (asset as any).symbol) {
+                                    const priceData = await PriceService.getStockPrice((asset as any).symbol);
+                                    if (priceData) {
+                                      await updateAsset(asset.id, {
+                                        currentValue: priceData.price,
+                                        livePriceData: priceData,
+                                        lastPriceUpdate: new Date().toISOString()
+                                      });
+                                    }
+                                  } else if (asset.category === 'mutual_funds' && (asset as any).schemeCode) {
+                                    const navData = await PriceService.getMutualFundPrice((asset as any).schemeCode);
+                                    if (navData) {
+                                      await updateAsset(asset.id, {
+                                        currentValue: navData.nav,
+                                        livePriceData: navData,
+                                        lastPriceUpdate: new Date().toISOString()
+                                      });
+                                    }
+                                  }
+                                } catch (error) {
+                                  console.error('Failed to refresh price:', error);
+                                }
+                              }}
+                              className="p-1 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
+                              title="Refresh Price"
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                            </button>
+                          )}
+
+                          <div className="flex gap-2 ml-auto">
+                            <button
+                              onClick={() => handleEditAsset(asset)}
+                              className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                              title="Edit Asset"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAsset(asset.id)}
+                              className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              title="Delete Asset"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-            <p className="text-sm text-gray-600 dark:text-gray-300">Diversification</p>
-            <p className="text-lg font-semibold text-gray-900 dark:text-white">
-              {Object.keys(assetsByCategory).length} Categories
-            </p>
-            <p className="text-sm text-green-600 dark:text-green-400">Well Diversified</p>
+
+          {/* Asset Performance Summary */}
+          <div className="card">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Portfolio Performance</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-300">Largest Holding</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {assets.length > 0 ? assets.reduce((max, asset) =>
+                    asset.currentValue > max.currentValue ? asset : max
+                  ).name : 'N/A'}
+                </p>
+                <p className="text-sm text-blue-600 dark:text-blue-400">
+                  {assets.length > 0 ? formatLargeNumber(Math.max(...assets.map(a => a.currentValue))) : '₹0'}
+                </p>
+              </div>
+              <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-300">Diversification</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {Object.keys(assetsByCategory).length} Categories
+                </p>
+                <p className="text-sm text-green-600 dark:text-green-400">Well Diversified</p>
+              </div>
+              <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-300">Liquid Assets</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {formatLargeNumber(
+                    assets
+                      .filter(a => ['cash', 'stocks', 'mutual_funds'].includes(a.category))
+                      .reduce((sum, a) => sum + a.currentValue, 0)
+                  )}
+                </p>
+                <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                  {totalAssets > 0 ? (
+                    (assets
+                      .filter(a => ['cash', 'stocks', 'mutual_funds'].includes(a.category))
+                      .reduce((sum, a) => sum + a.currentValue, 0) / totalAssets) * 100
+                  ).toFixed(1) : 0}% of Portfolio
+                </p>
+              </div>
+              <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-300">Average Holding</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {assets.length > 0 ? formatLargeNumber(totalAssets / assets.length) : '₹0'}
+                </p>
+                <p className="text-sm text-purple-600 dark:text-purple-400">Per Asset</p>
+              </div>
+            </div>
           </div>
-          <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-            <p className="text-sm text-gray-600 dark:text-gray-300">Liquid Assets</p>
-            <p className="text-lg font-semibold text-gray-900 dark:text-white">
-              {formatLargeNumber(
-                assets
-                  .filter(a => ['cash', 'stocks', 'mutual_funds'].includes(a.category))
-                  .reduce((sum, a) => sum + a.currentValue, 0)
-              )}
-            </p>
-            <p className="text-sm text-yellow-600 dark:text-yellow-400">
-              {totalAssets > 0 ? (
-                (assets
-                  .filter(a => ['cash', 'stocks', 'mutual_funds'].includes(a.category))
-                  .reduce((sum, a) => sum + a.currentValue, 0) / totalAssets) * 100
-              ).toFixed(1) : 0}% of Portfolio
-            </p>
-          </div>
-          <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-            <p className="text-sm text-gray-600 dark:text-gray-300">Average Holding</p>
-            <p className="text-lg font-semibold text-gray-900 dark:text-white">
-              {assets.length > 0 ? formatLargeNumber(totalAssets / assets.length) : '₹0'}
-            </p>
-            <p className="text-sm text-purple-600 dark:text-purple-400">Per Asset</p>
-          </div>
-        </div>
-      </div>
         </div>
       )}
 
@@ -869,7 +869,7 @@ const Assets: React.FC = () => {
               <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                 <p className={cn(theme.textMuted, 'text-sm mb-2')}>Investment Period</p>
                 <p className={cn(theme.textPrimary, 'text-2xl font-bold')}>
-                  {assets.length > 0 && assets[0].purchaseDate 
+                  {assets.length > 0 && assets[0].purchaseDate
                     ? Math.ceil((new Date().getTime() - new Date(assets[0].purchaseDate).getTime()) / (1000 * 60 * 60 * 24 * 30))
                     : 0}
                 </p>
@@ -901,9 +901,9 @@ const Assets: React.FC = () => {
                     const livePriceData = (asset as any).livePriceData;
                     const lastPriceUpdate = (asset as any).lastPriceUpdate;
                     const hasLiveData = livePriceData && (asset.category === 'stocks' || asset.category === 'mutual_funds');
-                    const isRecentUpdate = lastPriceUpdate && 
+                    const isRecentUpdate = lastPriceUpdate &&
                       (new Date().getTime() - new Date(lastPriceUpdate).getTime()) < 10 * 60 * 1000;
-                    
+
                     return (
                       <tr key={asset.id} className={cn(
                         theme.tableRow,
@@ -1001,7 +1001,7 @@ const Assets: React.FC = () => {
                 <p className={cn(
                   'text-3xl font-bold',
                   diversificationScore.score >= 80 ? 'text-green-600' :
-                  diversificationScore.score >= 60 ? 'text-yellow-600' : 'text-red-600'
+                    diversificationScore.score >= 60 ? 'text-yellow-600' : 'text-red-600'
                 )}>
                   {diversificationScore.score}/100
                 </p>
@@ -1012,13 +1012,13 @@ const Assets: React.FC = () => {
                 className={cn(theme.progressFillLarge,
                   'h-3 rounded-full transition-all duration-300',
                   diversificationScore.score >= 80 ? 'bg-green-500' :
-                  diversificationScore.score >= 60 ? 'bg-yellow-50 dark:bg-yellow-900/200' : 'bg-red-500'
+                    diversificationScore.score >= 60 ? 'bg-yellow-50 dark:bg-yellow-900/200' : 'bg-red-500'
                 )}
                 style={{ width: `${diversificationScore.score}%` }}
               ></div>
             </div>
             <p className={theme.textSecondary}>{diversificationScore.analysis}</p>
-            
+
             {diversificationScore.recommendations.length > 0 && (
               <div className="mt-4">
                 <p className={cn(theme.textPrimary, 'font-medium mb-2')}>Recommendations:</p>
@@ -1048,16 +1048,16 @@ const Assets: React.FC = () => {
                   <div key={index} className={cn(
                     'p-4 rounded-lg border',
                     suggestion.priority === 'high' ? 'border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20' :
-                    suggestion.priority === 'medium' ? 'border-yellow-200 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20' :
-                    'border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20'
+                      suggestion.priority === 'medium' ? 'border-yellow-200 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20' :
+                        'border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20'
                   )}>
                     <div className="flex items-center justify-between mb-2">
                       <h4 className={cn(theme.textPrimary, 'font-medium')}>{suggestion.asset.name}</h4>
                       <span className={cn(
                         'px-2 py-1 text-xs rounded-full',
                         suggestion.priority === 'high' ? 'bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-100' :
-                        suggestion.priority === 'medium' ? 'bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-100' :
-                        'bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-100'
+                          suggestion.priority === 'medium' ? 'bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-100' :
+                            'bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-100'
                       )}>
                         {suggestion.priority} priority
                       </span>
@@ -1152,7 +1152,7 @@ const Assets: React.FC = () => {
                   })}
                 </div>
               </div>
-              
+
               <div>
                 <h4 className={cn(theme.textPrimary, 'font-medium mb-3')}>Asset Quality Metrics</h4>
                 <div className="space-y-3">
@@ -1212,11 +1212,11 @@ const Assets: React.FC = () => {
             </div>
             <div className="mt-4 text-center">
               <p className={theme.textMuted}>
-                {portfolioXIRR && portfolioXIRR > 12.5 
+                {portfolioXIRR && portfolioXIRR > 12.5
                   ? `🎉 Your portfolio is outperforming the market by ${(portfolioXIRR - 12.5).toFixed(1)}%!`
                   : portfolioXIRR && portfolioXIRR > 6.5
-                  ? `📈 Your portfolio is beating fixed deposits by ${(portfolioXIRR - 6.5).toFixed(1)}%`
-                  : '📊 Consider reviewing your investment strategy'
+                    ? `📈 Your portfolio is beating fixed deposits by ${(portfolioXIRR - 6.5).toFixed(1)}%`
+                    : '📊 Consider reviewing your investment strategy'
                 }
               </p>
             </div>
@@ -1227,7 +1227,7 @@ const Assets: React.FC = () => {
       {/* Modals */}
       {/* Image Uploader Modal */}
       {showImageUploader && (
-        <Modal
+        <SidePanel
           isOpen={showImageUploader}
           onClose={() => setShowImageUploader(false)}
           title="Add Assets from Screenshot"
@@ -1242,22 +1242,39 @@ const Assets: React.FC = () => {
             title="Upload Portfolio Screenshot"
             description="Upload a screenshot of your portfolio, bank statement, or investment summary. Our AI will automatically extract asset information."
           />
-        </Modal>
+        </SidePanel>
       )}
 
-      {/* Asset Form Modal */}
-      <Modal
+      {/* Asset Form SidePanel */}
+      <SidePanel
         isOpen={showAssetForm}
         onClose={handleAssetCancel}
         title={editingAsset ? 'Edit Asset' : 'Add New Asset'}
         size="lg"
+        footer={
+          <div className="flex justify-end w-full space-x-2">
+            <button
+              onClick={handleAssetCancel}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="asset-form" // Assumes AssetForm contains a form with id="asset-form"
+              className="btn-primary"
+            >
+              {editingAsset ? 'Update Asset' : 'Add Asset'}
+            </button>
+          </div>
+        }
       >
         <AssetForm
           asset={editingAsset || undefined}
           onSubmit={handleAssetSubmit}
           onCancel={handleAssetCancel}
         />
-      </Modal>
+      </SidePanel>
 
       {/* Confirmation Dialog */}
       <DataConfirmationDialog

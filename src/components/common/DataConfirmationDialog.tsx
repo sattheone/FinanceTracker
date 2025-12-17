@@ -167,37 +167,6 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
     }).format(amount);
   };
 
-  // Helper to get category name from ID
-  const getCategoryName = (id: string, type?: string) => {
-    // If we have categories prop, use it
-    if (categories && categories.length > 0) {
-      const cat = categories.find(c => c.id === id);
-      return cat ? cat.name : id; // Fallback to ID if not found
-    }
-    // Fallback logic
-    return id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, ' ');
-  };
-
-  // Helper to get available categories for a type
-  const getCategoriesForType = (type: string) => {
-    if (categories && categories.length > 0) {
-      // 1. Get system categories applicable to all (like 'transfer')
-      const systemCats = categories.filter(c => c.isSystem);
-
-      // 2. Filter standard categories by type logic (if you have type mapping)
-      // Since Category interface doesn't strictly have 'type', we provide all relevant ones
-      // or filter based on parent/child logic if implemented.
-      // For now, returning relevant categories + system ones.
-
-      // Filter out parents (categories that act as headers) if they shouldn't be selectable, 
-      // or include them. Assuming flat list for now or flattened by caller.
-
-      // Simple logic: Return all categories so user can choose freely
-      return categories;
-    }
-    return [];
-  };
-
   const renderTransactionTable = () => (
     <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200 table-fixed">

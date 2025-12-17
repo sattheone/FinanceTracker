@@ -1,9 +1,9 @@
 import React from 'react';
-import { X, Calendar, CreditCard } from 'lucide-react';
+import { X, CreditCard } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { Transaction } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import Modal from '../common/Modal';
+import SidePanel from '../common/SidePanel';
 import InlineCategoryEditor from './InlineCategoryEditor';
 import InlineTypeEditor from './InlineTypeEditor';
 import { useData } from '../../contexts/DataContext';
@@ -32,8 +32,6 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
     return allTransactions.filter(t => transactionIds.includes(t.id));
   }, [transactions, allTransactions]);
 
-
-
   const handleDeleteTransaction = (transactionId: string) => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       deleteTransaction(transactionId);
@@ -43,11 +41,21 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
   const totalAmount = freshTransactions.reduce((sum, t) => sum + t.amount, 0);
 
   return (
-    <Modal
+    <SidePanel
       isOpen={isOpen}
       onClose={onClose}
       title={title}
-      size="lg"
+      size="xl"
+      footer={
+        <div className="flex justify-end">
+          <button
+            onClick={onClose}
+            className={cn(theme.btnSecondary, 'flex items-center')}
+          >
+            Close
+          </button>
+        </div>
+      }
     >
       <div className="space-y-4">
         {/* Header with summary */}
@@ -71,7 +79,7 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
         </div>
 
         {/* Transaction List */}
-        <div className="max-h-96 overflow-y-auto">
+        <div className="flex-1">
           {freshTransactions.length === 0 ? (
             <div className="text-center py-8">
               <div className="text-gray-400 mb-4">
@@ -84,12 +92,12 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-600">
-                    <th className="text-left py-2 px-3 text-sm font-medium text-gray-500 dark:text-gray-400">Date</th>
-                    <th className="text-left py-2 px-3 text-sm font-medium text-gray-500 dark:text-gray-400">Description</th>
-                    <th className="text-left py-2 px-3 text-sm font-medium text-gray-500 dark:text-gray-400">Category</th>
-                    <th className="text-left py-2 px-3 text-sm font-medium text-gray-500 dark:text-gray-400">Type</th>
-                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-500 dark:text-gray-400">Amount</th>
-                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-500 dark:text-gray-400">Actions</th>
+                    <th className="text-left py-1 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">Date</th>
+                    <th className="text-left py-1 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">Description</th>
+                    <th className="text-left py-1 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">Category</th>
+                    <th className="text-left py-1 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">Type</th>
+                    <th className="text-right py-1 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">Amount</th>
+                    <th className="text-right py-1 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -101,23 +109,22 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
                       )}
                     >
                       {/* Date */}
-                      <td className="py-3 px-3">
+                      <td className="py-1 px-2">
                         <div className="flex items-center space-x-2">
-                          <Calendar className="w-4 h-4 text-gray-400" />
-                          <span className={cn(theme.textSecondary, 'text-sm whitespace-nowrap')}>
+                          <span className={cn(theme.textSecondary, 'text-xs whitespace-nowrap')}>
                             {formatDate(transaction.date)}
                           </span>
                         </div>
                       </td>
 
                       {/* Description */}
-                      <td className="py-3 px-3">
+                      <td className="py-1 px-2">
                         <div>
-                          <p className={cn(theme.textPrimary, 'font-medium truncate max-w-xs')} title={transaction.description}>
+                          <p className={cn(theme.textPrimary, 'text-xs font-medium truncate max-w-xs')} title={transaction.description}>
                             {transaction.description}
                           </p>
                           {transaction.paymentMethod && (
-                            <p className={cn(theme.textMuted, 'text-xs capitalize')}>
+                            <p className={cn(theme.textMuted, 'text-[10px] capitalize')}>
                               {transaction.paymentMethod.replace('_', ' ')}
                             </p>
                           )}
@@ -125,7 +132,7 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
                       </td>
 
                       {/* Category */}
-                      <td className="py-3 px-3">
+                      <td className="py-1 px-2">
                         <InlineCategoryEditor
                           currentCategory={transaction.category || 'other'}
                           onSave={(categoryId) => updateTransaction(transaction.id, { ...transaction, category: categoryId })}
@@ -133,7 +140,7 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
                       </td>
 
                       {/* Type Badge */}
-                      <td className="py-3 px-3">
+                      <td className="py-1 px-2">
                         <InlineTypeEditor
                           currentType={transaction.type}
                           onSave={(newType) => updateTransaction(transaction.id, { ...transaction, type: newType })}
@@ -141,9 +148,9 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
                       </td>
 
                       {/* Amount */}
-                      <td className="py-3 px-3 text-right">
+                      <td className="py-1 px-2 text-right">
                         <span className={cn(
-                          'font-bold',
+                          'text-xs font-bold',
                           transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                         )}>
                           {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
@@ -151,13 +158,13 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3 px-3 text-right">
+                      <td className="py-1 px-2 text-right">
                         <button
                           onClick={() => handleDeleteTransaction(transaction.id)}
                           className="p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:text-red-200 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
                           title="Delete Transaction"
                         >
-                          <X className="w-4 h-4" />
+                          <X className="w-3 h-3" />
                         </button>
                       </td>
                     </tr>
@@ -167,19 +174,8 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-600">
-          <button
-            onClick={onClose}
-            className={cn(theme.btnSecondary, 'flex items-center')}
-          >
-            <X className="w-4 h-4 mr-2" />
-            Close
-          </button>
-        </div>
       </div>
-    </Modal>
+    </SidePanel>
   );
 };
 

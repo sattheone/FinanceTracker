@@ -121,7 +121,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form id="asset-form" onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">

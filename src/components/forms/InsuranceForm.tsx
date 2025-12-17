@@ -83,7 +83,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -114,8 +114,8 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
   };
 
   const getAnnualPremium = () => {
-    const multiplier = formData.premiumFrequency === 'monthly' ? 12 : 
-                     formData.premiumFrequency === 'quarterly' ? 4 : 1;
+    const multiplier = formData.premiumFrequency === 'monthly' ? 12 :
+      formData.premiumFrequency === 'quarterly' ? 4 : 1;
     return formData.premiumAmount * multiplier;
   };
 
@@ -127,7 +127,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
   const showMaturityFields = formData.type === 'endowment' || formData.type === 'other';
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form id="insurance-form" onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">

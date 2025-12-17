@@ -122,7 +122,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
   }, 0);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form id="goal-form" onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="form-label">
@@ -214,8 +214,8 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
                   key={asset.id}
                   onClick={() => toggleSIP(asset.id)}
                   className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${formData.linkedSIPAssets.includes(asset.id)
-                      ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700'
-                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                 >
                   <div className="flex items-center space-x-3">

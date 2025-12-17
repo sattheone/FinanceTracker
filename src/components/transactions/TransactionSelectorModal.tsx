@@ -3,7 +3,7 @@ import { Search, ArrowRight } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { Transaction } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import Modal from '../common/Modal';
+import SidePanel from '../common/SidePanel';
 import { useData } from '../../contexts/DataContext';
 
 interface TransactionSelectorModalProps {
@@ -31,11 +31,11 @@ const TransactionSelectorModal: React.FC<TransactionSelectorModalProps> = ({
         .slice(0, 50); // Limit to top 50 matches for performance
 
     return (
-        <Modal
+        <SidePanel
             isOpen={isOpen}
             onClose={onClose}
             title="Select Base Transaction"
-            size="lg"
+            size="xl"
         >
             <div className="space-y-4">
                 {/* Search Bar */}
@@ -52,19 +52,19 @@ const TransactionSelectorModal: React.FC<TransactionSelectorModalProps> = ({
                 </div>
 
                 {/* List */}
-                <div className="max-h-[60vh] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                <div className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                     {filteredTransactions.length === 0 ? (
                         <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                             No transactions found matching "{searchTerm}"
                         </div>
                     ) : (
-                        <table className="w-full text-left text-sm">
+                        <table className="w-full text-left text-xs">
                             <thead className="bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 sticky top-0">
                                 <tr>
-                                    <th className="px-4 py-3 font-medium">Date</th>
-                                    <th className="px-4 py-3 font-medium">Description</th>
-                                    <th className="px-4 py-3 font-medium text-right">Amount</th>
-                                    <th className="px-4 py-3 font-medium text-center">Action</th>
+                                    <th className="px-2 py-2 font-medium">Date</th>
+                                    <th className="px-2 py-2 font-medium">Description</th>
+                                    <th className="px-2 py-2 font-medium text-right">Amount</th>
+                                    <th className="px-2 py-2 font-medium text-center">Action</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -74,24 +74,24 @@ const TransactionSelectorModal: React.FC<TransactionSelectorModalProps> = ({
                                         className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer group"
                                         onClick={() => onSelect(t)}
                                     >
-                                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                                        <td className="px-2 py-1 text-gray-600 dark:text-gray-300 whitespace-nowrap">
                                             {formatDate(t.date)}
                                         </td>
-                                        <td className="px-4 py-3 text-gray-900 dark:text-white font-medium">
-                                            <div className="truncate max-w-[200px]" title={t.description}>
+                                        <td className="px-2 py-1 text-gray-900 dark:text-white font-medium">
+                                            <div className="truncate max-w-[300px]" title={t.description}>
                                                 {t.description}
                                             </div>
-                                            <div className="text-xs text-gray-400 font-normal">{t.category}</div>
+                                            <div className="text-[10px] text-gray-400 font-normal">{t.category}</div>
                                         </td>
                                         <td className={cn(
-                                            "px-4 py-3 text-right font-medium",
+                                            "px-2 py-1 text-right font-medium",
                                             t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'
                                         )}>
                                             {formatCurrency(t.amount)}
                                         </td>
-                                        <td className="px-4 py-3 text-center">
+                                        <td className="px-2 py-1 text-center">
                                             <button className="text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-blue-50 dark:bg-blue-900/20 rounded-full">
-                                                <ArrowRight className="w-4 h-4" />
+                                                <ArrowRight className="w-3 h-3" />
                                             </button>
                                         </td>
                                     </tr>
@@ -105,7 +105,7 @@ const TransactionSelectorModal: React.FC<TransactionSelectorModalProps> = ({
                     Select a transaction to use its details as a template for the recurring rule.
                 </p>
             </div>
-        </Modal>
+        </SidePanel>
     );
 };
 

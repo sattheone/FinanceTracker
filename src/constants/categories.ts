@@ -70,6 +70,7 @@ export const defaultCategories: Category[] = [
     { id: 'stocks', name: 'Stocks', color: '#059669', icon: '📉', isCustom: false, parentId: 'investment', order: 902 },
     { id: 'gold', name: 'Gold', color: '#059669', icon: '🥇', isCustom: false, parentId: 'investment', order: 903 },
     { id: 'insurance_inv', name: 'Insurance (Inv)', color: '#059669', icon: '🛡️', isCustom: false, parentId: 'investment', order: 904 },
+    { id: 'chit', name: 'Chit', color: '#059669', icon: '🎫', isCustom: false, parentId: 'investment', order: 905 },
 
     // Other (Order 1000)
     { id: 'other', name: 'Other', color: '#6B7280', icon: '📋', isCustom: false, order: 1000, isSystem: true },

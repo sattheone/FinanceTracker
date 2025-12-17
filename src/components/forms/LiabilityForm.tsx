@@ -295,7 +295,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
   const remainingMonthsOnly = remainingMonths % 12;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form id="liability-form" onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="form-label">

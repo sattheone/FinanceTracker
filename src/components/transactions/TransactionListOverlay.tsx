@@ -122,7 +122,7 @@ const TransactionListOverlay: React.FC<TransactionListOverlayProps> = ({
                             <table className={theme.table}>
                                 <thead className="sticky top-0 z-10">
                                     <tr>
-                                        <th className={theme.tableHeader}>
+                                        <th className={cn(theme.tableHeader, '!py-1 !px-2 text-xs')}>
                                             <button
                                                 onClick={handleSelectAll}
                                                 className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
@@ -134,12 +134,12 @@ const TransactionListOverlay: React.FC<TransactionListOverlayProps> = ({
                                                 )}
                                             </button>
                                         </th>
-                                        <th className={theme.tableHeader}>Date</th>
-                                        <th className={theme.tableHeader}>Description</th>
-                                        <th className={theme.tableHeader}>Category</th>
-                                        <th className={theme.tableHeader}>Type</th>
-                                        <th className={cn(theme.tableHeader, 'text-right')}>Amount</th>
-                                        <th className={cn(theme.tableHeader, 'text-right')}>Actions</th>
+                                        <th className={cn(theme.tableHeader, '!py-1 !px-2 text-xs')}>Date</th>
+                                        <th className={cn(theme.tableHeader, '!py-1 !px-2 text-xs')}>Description</th>
+                                        <th className={cn(theme.tableHeader, '!py-1 !px-2 text-xs')}>Category</th>
+                                        <th className={cn(theme.tableHeader, '!py-1 !px-2 text-xs')}>Type</th>
+                                        <th className={cn(theme.tableHeader, '!py-1 !px-2 text-xs text-right')}>Amount</th>
+                                        <th className={cn(theme.tableHeader, '!py-1 !px-2 text-xs text-right')}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -153,7 +153,7 @@ const TransactionListOverlay: React.FC<TransactionListOverlayProps> = ({
                                                 selectedTransactions.has(transaction.id) && 'bg-blue-50 dark:bg-blue-900/30'
                                             )}
                                         >
-                                            <td className={theme.tableCell}>
+                                            <td className={cn(theme.tableCell, '!py-1 !px-2')}>
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -162,59 +162,59 @@ const TransactionListOverlay: React.FC<TransactionListOverlayProps> = ({
                                                     className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-1"
                                                 >
                                                     {selectedTransactions.has(transaction.id) ? (
-                                                        <CheckSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                                        <CheckSquare className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                                                     ) : (
-                                                        <Square className="w-4 h-4" />
+                                                        <Square className="w-3 h-3" />
                                                     )}
                                                 </button>
                                             </td>
-                                            <td className={cn(theme.tableCell, 'whitespace-nowrap text-sm')}>
+                                            <td className={cn(theme.tableCell, '!py-1 !px-2 whitespace-nowrap text-xs')}>
                                                 <span className={theme.textPrimary}>{formatDate(transaction.date)}</span>
                                             </td>
-                                            <td className={cn(theme.tableCell, 'text-sm font-medium max-w-xs truncate')} title={transaction.description}>
+                                            <td className={cn(theme.tableCell, '!py-1 !px-2 text-xs font-medium max-w-xs truncate')} title={transaction.description}>
                                                 <span className={theme.textPrimary}>{transaction.description}</span>
                                             </td>
-                                            <td className={cn(theme.tableCell, 'whitespace-nowrap text-sm')}>
+                                            <td className={cn(theme.tableCell, '!py-1 !px-2 whitespace-nowrap text-xs')}>
                                                 {onUpdateTransaction ? (
                                                     <InlineCategoryEditor
                                                         currentCategory={transaction.category || 'other'}
                                                         onSave={(categoryId) => onUpdateTransaction(transaction.id, { category: categoryId })}
                                                     />
                                                 ) : (
-                                                    <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs">
+                                                    <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-[10px]">
                                                         {transaction.category}
                                                     </span>
                                                 )}
                                             </td>
-                                            <td className={cn(theme.tableCell, 'whitespace-nowrap')}>
+                                            <td className={cn(theme.tableCell, '!py-1 !px-2 whitespace-nowrap')}>
                                                 {onUpdateTransaction ? (
                                                     <InlineTypeEditor
                                                         currentType={transaction.type}
                                                         onSave={(newType) => onUpdateTransaction(transaction.id, { type: newType })}
                                                     />
                                                 ) : (
-                                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTypeColor(transaction.type)}`}>
+                                                    <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-full ${getTypeColor(transaction.type)}`}>
                                                         {transaction.type}
                                                     </span>
                                                 )}
                                             </td>
-                                            <td className={cn(theme.tableCell, 'whitespace-nowrap text-sm text-right font-medium')}>
+                                            <td className={cn(theme.tableCell, '!py-1 !px-2 whitespace-nowrap text-xs text-right font-medium')}>
                                                 <span className={transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
                                                     {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
                                                 </span>
                                             </td>
-                                            <td className={cn(theme.tableCell, 'whitespace-nowrap text-right text-sm font-medium')}>
-                                                <div className="flex justify-end gap-2">
+                                            <td className={cn(theme.tableCell, '!py-1 !px-2 whitespace-nowrap text-right text-xs font-medium')}>
+                                                <div className="flex justify-end gap-1">
                                                     {onTransactionClick && (
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 onTransactionClick(transaction);
                                                             }}
-                                                            className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-200 p-1"
+                                                            className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-200 p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
                                                             title="Edit Transaction"
                                                         >
-                                                            <Edit3 className="w-4 h-4" />
+                                                            <Edit3 className="w-3 h-3" />
                                                         </button>
                                                     )}
                                                     {onDeleteTransaction && (
@@ -223,10 +223,10 @@ const TransactionListOverlay: React.FC<TransactionListOverlayProps> = ({
                                                                 e.stopPropagation();
                                                                 onDeleteTransaction(transaction.id);
                                                             }}
-                                                            className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-200 p-1"
+                                                            className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-200 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
                                                             title="Delete Transaction"
                                                         >
-                                                            <Trash2 className="w-4 h-4" />
+                                                            <Trash2 className="w-3 h-3" />
                                                         </button>
                                                     )}
                                                 </div>

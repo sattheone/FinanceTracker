@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Repeat, Check, Trash2 } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
-import Modal from '../common/Modal';
+import SidePanel from '../common/SidePanel';
 import { Transaction, RecurringTransaction } from '../../types';
 import { formatDate } from '../../utils/formatters';
 import { calculateNextDueDate } from '../../utils/dateUtils';
@@ -69,11 +69,42 @@ const RecurringSetupModal: React.FC<RecurringSetupModalProps> = ({
     const displayName = recurringTransaction?.name || transaction?.description || 'Transaction';
 
     return (
-        <Modal
+        <SidePanel
             isOpen={isOpen}
             onClose={onClose}
             title={recurringTransaction ? "Edit Recurring Rule" : "Make Transaction Recurring"}
-            size="sm"
+            size="md"
+            footer={
+                <div className="flex justify-between items-center w-full">
+                    {recurringTransaction && onDelete ? (
+                        <button
+                            onClick={handleDelete}
+                            className="text-red-600 hover:text-red-700 text-sm flex items-center px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                        >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Stop Recurring
+                        </button>
+                    ) : (
+                        <div></div> // Spacer
+                    )}
+
+                    <div className="flex space-x-3">
+                        <button
+                            onClick={onClose}
+                            className={cn(theme.btnSecondary)}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            className={cn(theme.btnPrimary, 'flex items-center')}
+                        >
+                            <Check className="w-4 h-4 mr-2" />
+                            Save
+                        </button>
+                    </div>
+                </div>
+            }
         >
             <div className="space-y-6">
                 <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg flex items-center space-x-3">
@@ -155,39 +186,8 @@ const RecurringSetupModal: React.FC<RecurringSetupModalProps> = ({
                         {getSummaryText()}
                     </p>
                 </div>
-
-                {/* Actions */}
-                <div className="flex justify-between items-center pt-2">
-                    {recurringTransaction && onDelete ? (
-                        <button
-                            onClick={handleDelete}
-                            className="text-red-600 hover:text-red-700 text-sm flex items-center px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                        >
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            Stop Recurring
-                        </button>
-                    ) : (
-                        <div></div> // Spacer
-                    )}
-
-                    <div className="flex space-x-3">
-                        <button
-                            onClick={onClose}
-                            className={cn(theme.btnSecondary)}
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            className={cn(theme.btnPrimary, 'flex items-center')}
-                        >
-                            <Check className="w-4 h-4 mr-2" />
-                            Save
-                        </button>
-                    </div>
-                </div>
             </div>
-        </Modal>
+        </SidePanel>
     );
 };
 

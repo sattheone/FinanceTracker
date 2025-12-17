@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, ToggleLeft, ToggleRight, AlertCircle, Plus } from 'lucide-react';
+import { Trash2, ToggleLeft, ToggleRight, AlertCircle, Plus, Edit3 } from 'lucide-react';
 import { CategoryRule, Transaction } from '../../types';
 import { useData } from '../../contexts/DataContext';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
@@ -12,6 +12,7 @@ const CategoryRules: React.FC = () => {
     // Use categories from context
     const categories = contextCategories || [];
     const [showAddDialog, setShowAddDialog] = useState(false);
+    const [editingRule, setEditingRule] = useState<CategoryRule | null>(null);
 
     // Removed localstorage loading effect
 
@@ -168,6 +169,13 @@ const CategoryRules: React.FC = () => {
                                     <td className={theme.tableCell}>
                                         <div className="flex items-center gap-2">
                                             <button
+                                                onClick={() => setEditingRule(rule)}
+                                                className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                                                title="Edit Rule"
+                                            >
+                                                <Edit3 className="w-4 h-4" />
+                                            </button>
+                                            <button
                                                 onClick={() => handleDelete(rule.id)}
                                                 className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                                                 title="Delete Rule"
@@ -197,17 +205,26 @@ const CategoryRules: React.FC = () => {
                 </ul>
             </div>
 
-            {/* Manual Rule Creation Dialog */}
-            {showAddDialog && (
+            {/* Manual Rule Creation/Edit Dialog */}
+            {(showAddDialog || editingRule) && (
                 <RuleCreationDialog
-                    isOpen={showAddDialog}
-                    onClose={() => setShowAddDialog(false)}
+                    isOpen={showAddDialog || !!editingRule}
+                    onClose={() => {
+                        setShowAddDialog(false);
+                        setEditingRule(null);
+                    }}
                     transaction={dummyTransaction}
+                    initialRule={editingRule || undefined}
                     transactions={transactions}
                     categories={categories}
                     onCreateRule={(rule) => {
                         addCategoryRule(rule);
                         setShowAddDialog(false);
+                    }}
+                    onEditRule={(updatedRule) => {
+                        const { id, ...updates } = updatedRule;
+                        updateCategoryRule(id, updates);
+                        setEditingRule(null);
                     }}
                 />
             )}

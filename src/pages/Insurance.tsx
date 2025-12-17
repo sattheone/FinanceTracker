@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Shield, Heart, User, Calendar, Plus, Edit3, Trash2, Copy } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, formatDate, formatLargeNumber } from '../utils/formatters';
-import Modal from '../components/common/Modal';
+import SidePanel from '../components/common/SidePanel';
 import InsuranceForm from '../components/forms/InsuranceForm';
 import type { Insurance } from '../types';
 
@@ -250,19 +250,36 @@ const Insurance: React.FC = () => {
 
 
 
-      {/* Insurance Form Modal */}
-      <Modal
+      {/* Insurance Form SidePanel */}
+      <SidePanel
         isOpen={showInsuranceForm}
         onClose={handleInsuranceCancel}
         title={editingInsurance ? 'Edit Insurance Policy' : 'Add New Insurance Policy'}
         size="lg"
+        footer={
+          <div className="flex justify-end w-full space-x-2">
+            <button
+              onClick={handleInsuranceCancel}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="insurance-form" // Assumes InsuranceForm has a form with id="insurance-form"
+              className="btn-primary"
+            >
+              {editingInsurance ? 'Update Policy' : 'Add Policy'}
+            </button>
+          </div>
+        }
       >
         <InsuranceForm
           insurance={editingInsurance || undefined}
           onSubmit={handleInsuranceSubmit}
           onCancel={handleInsuranceCancel}
         />
-      </Modal>
+      </SidePanel>
     </div>
   );
 };

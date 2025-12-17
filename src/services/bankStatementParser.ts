@@ -1,5 +1,5 @@
 import { Transaction } from '../types';
-import AutoCategorizationService from './autoCategorization';
+
 import { ParsedTransaction } from './excelParser';
 
 export interface BankStatementData {

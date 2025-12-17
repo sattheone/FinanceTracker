@@ -7,27 +7,30 @@ class SIPRuleService {
     static matchesRule(transaction: Transaction, rule: SIPRule): boolean {
         if (!rule.isActive) return false;
 
-        // 1. Amount Match
-        const amountMatch = this.checkAmountMatch(transaction.amount, rule.amount, rule.amountTolerance);
-        if (!amountMatch) {
-            // console.log(`❌ Amount mismatch: Val=${transaction.amount} Target=${rule.amount} ±${rule.amountTolerance}%`);
+        // 1. Description/Merchant Match (Check this FIRST as it's the most specific filter)
+        // If description doesn't match, we don't care if the amount happens to be same.
+        const descriptionMatch = this.checkDescriptionMatch(transaction.description, rule.descriptionPattern, rule.matchType);
+        if (!descriptionMatch) {
+            // Only log description mismatches if verbose debug is on, otherwise it spams
+            // But for now keeping it as user requested logs
+            // console.log(`❌ Description mismatch for "${transaction.description}": "${transaction.description}" vs "${rule.descriptionPattern}" (${rule.matchType})`);
             return false;
         }
 
-        // 2. Date Match (check day of month) - Only if expectedDate is defined
+        // 2. Amount Match
+        const amountMatch = this.checkAmountMatch(transaction.amount, rule.amount, rule.amountTolerance);
+        if (!amountMatch) {
+            console.log(`❌ Amount mismatch for "${transaction.description}": Val=${transaction.amount} Target=${rule.amount} ±${rule.amountTolerance}%`);
+            return false;
+        }
+
+        // 3. Date Match (check day of month) - Only if expectedDate is defined
         if (rule.expectedDate) {
             const dateMatch = this.checkDateMatch(transaction.date, rule.expectedDate, rule.dateTolerance || 3);
             if (!dateMatch) {
-                console.log(`❌ Date mismatch: Date=${transaction.date} TargetDay=${rule.expectedDate} ±${rule.dateTolerance} days`);
+                console.log(`❌ Date mismatch for "${transaction.description}": Date=${transaction.date} TargetDay=${rule.expectedDate} ±${rule.dateTolerance} days`);
                 return false;
             }
-        }
-
-        // 3. Description/Merchant Match
-        const descriptionMatch = this.checkDescriptionMatch(transaction.description, rule.descriptionPattern, rule.matchType);
-        if (!descriptionMatch) {
-            // console.log(`❌ Description mismatch: "${transaction.description}" vs "${rule.descriptionPattern}" (${rule.matchType})`);
-            return false;
         }
 
         return true;
@@ -41,6 +44,7 @@ class SIPRuleService {
      * 3. Tolerance tightness (smaller tolerance is better)
      */
     static findBestMatch(transaction: Transaction, rules: SIPRule[]): SIPRule | null {
+        console.log(`🔍 Checking ${rules.length} SIP rules against: "${transaction.description}"`);
         const matchingRules = rules.filter(rule => this.matchesRule(transaction, rule));
 
         if (matchingRules.length === 0) return null;
