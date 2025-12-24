@@ -13,6 +13,7 @@ import DuplicateConfirmationDialog from '../components/common/DuplicateConfirmat
 import Modal from '../components/common/Modal';
 
 import BankAccountForm from '../components/forms/BankAccountForm';
+import SimpleTransactionForm from '../components/forms/SimpleTransactionForm';
 import SimpleTransactionModal from '../components/transactions/SimpleTransactionModal';
 import InlineCategoryEditor from '../components/transactions/InlineCategoryEditor';
 import InlineTypeEditor from '../components/transactions/InlineTypeEditor';
@@ -45,7 +46,8 @@ const Transactions: React.FC = () => {
     categories,
     sipRules,
     categoryRules,
-    addRecurringTransaction
+    addRecurringTransaction,
+    addTransaction
   } = useData();
 
 
@@ -109,6 +111,7 @@ const Transactions: React.FC = () => {
   // Removed transaction form - using inline editing and import workflow
   const [showBankAccountForm, setShowBankAccountForm] = useState(false);
   const [editingBankAccount, setEditingBankAccount] = useState<BankAccount | null>(null);
+  const [showManualAddModal, setShowManualAddModal] = useState(false);
   const [extractedData, setExtractedData] = useState<any[]>([]);
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [showBulkActions, setShowBulkActions] = useState(false);
@@ -228,17 +231,17 @@ const Transactions: React.FC = () => {
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(transaction => {
-      const matchesSearch = transaction.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        transaction.category.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (transaction.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (typeof transaction.category === 'string' ? transaction.category : '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesFilter = filterType === 'all' || transaction.type === filterType;
 
       // Filter by selected month and bank account for transactions tab
       if (activeTab === 'transactions') {
         const matchesAccount = selectedAccount === 'all_accounts' ? true : transaction.bankAccountId === selectedAccount;
 
-        // If searching, ignore month filter
+        // If searching, ignore month filter AND account filter
         if (searchTerm) {
-          return matchesSearch && matchesFilter && matchesAccount;
+          return matchesSearch && matchesFilter;
         }
 
         const transactionDate = new Date(transaction.date);
@@ -341,12 +344,13 @@ const Transactions: React.FC = () => {
       // If category is missing (which we forced in parser), try to find a match
       if (!category) {
         // console.log(`🔍 Auto-categorizing file tx: "${transaction.description}"`);
-        category = AutoCategorizationService.suggestCategoryForTransaction(
+        const result = AutoCategorizationService.suggestCategoryForTransaction(
           transaction.description,
           transaction.amount,
           transaction.type as any,
           currentRules
         );
+        category = result.categoryId;
       }
 
       // Check SIP Rules
@@ -504,6 +508,16 @@ const Transactions: React.FC = () => {
   const handleBankAccountCancel = () => {
     setShowBankAccountForm(false);
     setEditingBankAccount(null);
+  };
+
+  const handleManualAddSubmit = async (transactionData: Omit<Transaction, 'id'>) => {
+    try {
+      await addTransaction(transactionData);
+      setShowManualAddModal(false);
+    } catch (error) {
+      console.error('Failed to add transaction:', error);
+      alert('Failed to add transaction. Please try again.');
+    }
   };
 
   const handleEditBankAccount = (account: BankAccount) => {
@@ -828,6 +842,20 @@ const Transactions: React.FC = () => {
     );
   }
 
+  // Render Manual Add Modal
+  const renderManualAddModal = () => (
+    <Modal
+      isOpen={showManualAddModal}
+      onClose={() => setShowManualAddModal(false)}
+      title="Add Transaction"
+    >
+      <SimpleTransactionForm
+        onSubmit={handleManualAddSubmit}
+        onCancel={() => setShowManualAddModal(false)}
+      />
+    </Modal>
+  );
+
   const handleScanTransfers = async () => {
     const { default: TransferDetectionService } = await import('../services/transferDetectionService');
     const pairs = TransferDetectionService.detectTransfers(transactions);
@@ -897,7 +925,7 @@ const Transactions: React.FC = () => {
               Scan Transfers
             </button>
             <button
-              onClick={() => setShowImageUploader(true)}
+              onClick={() => setShowManualAddModal(true)}
               className="flex items-center px-3 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={!currentAccount || selectedAccount === 'all_accounts'}
             >
@@ -1416,16 +1444,16 @@ const Transactions: React.FC = () => {
                       <input
                         type="text"
                         placeholder="Search transactions..."
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                       />
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-gray-400" />
+                    <Filter className="h-4 w-4 text-gray-400 dark:text-gray-300" />
                     <select
-                      className="px-4 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       value={filterType}
                       onChange={(e) => setFilterType(e.target.value)}
                     >
@@ -1927,6 +1955,9 @@ const Transactions: React.FC = () => {
           onChangeType={(t) => handleOpenSingleBulkAction(t, 'type')}
         />
       )}
+      {/* Modals */}
+      {renderManualAddModal()}
+      {/* ... other modals ... */}
     </div>
   );
 };

@@ -3,7 +3,7 @@ import { Save } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { SIPRule, Transaction, Asset } from '../../types';
 
-import Modal from '../common/Modal';
+import SidePanel from '../common/SidePanel';
 
 interface SIPRuleCreationDialogProps {
     isOpen: boolean;
@@ -97,11 +97,30 @@ const SIPRuleCreationDialog: React.FC<SIPRuleCreationDialogProps> = ({
     };
 
     return (
-        <Modal
+
+        <SidePanel
             isOpen={isOpen}
             onClose={onClose}
             title={initialRule ? 'Edit SIP Rule' : 'Create SIP Rule'}
             size="lg"
+            footer={
+                <div className="flex justify-end space-x-3">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className={theme.btnSecondary}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        className={theme.btnPrimary}
+                    >
+                        <Save className="w-4 h-4 mr-2" />
+                        {initialRule ? 'Update Rule' : 'Create Rule'}
+                    </button>
+                </div>
+            }
         >
             <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Linked SIP */}
@@ -252,26 +271,8 @@ const SIPRuleCreationDialog: React.FC<SIPRuleCreationDialogProps> = ({
                         Higher numbers run first. Useful if multiple rules might match the same transaction.
                     </p>
                 </div>
-
-                {/* Actions */}
-                <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className={theme.btnSecondary}
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type="submit"
-                        className={theme.btnPrimary}
-                    >
-                        <Save className="w-4 h-4 mr-2" />
-                        {initialRule ? 'Update Rule' : 'Create Rule'}
-                    </button>
-                </div>
             </form>
-        </Modal>
+        </SidePanel>
     );
 };
 

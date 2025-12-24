@@ -6,8 +6,7 @@ import {
   Wallet,
   Calendar,
   AlertCircle,
-  ArrowRight,
-  Link2
+  ArrowRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import MetricCard from '../components/MetricCard';
@@ -15,14 +14,11 @@ import { useData } from '../contexts/DataContext';
 import { formatCurrency, formatLargeNumber, formatDate } from '../utils/formatters';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
 import SpendingInsightsWidget from '../components/insights/SpendingInsightsWidget';
-import AIInsightsDashboard from '../components/dashboard/AIInsightsDashboard';
 import SmartAlertsWidget from '../components/dashboard/SmartAlertsWidget';
-import FinancialWellnessWidget from '../components/dashboard/FinancialWellnessWidget';
-import MarketInsightsWidget from '../components/dashboard/MarketInsightsWidget';
 import UnifiedGoalCard from '../components/goals/UnifiedGoalCard';
 
 const Dashboard: React.FC = () => {
-  const { assets, goals, insurance, transactions, bankAccounts, liabilities, recurringTransactions, getUpcomingBills, getOverdueBills } = useData();
+  const { assets, goals, insurance, transactions, bankAccounts, liabilities, recurringTransactions, categories } = useData();
   const navigate = useNavigate();
   const theme = useThemeClasses();
 
@@ -82,15 +78,50 @@ const Dashboard: React.FC = () => {
   const currentMonthSurplus = currentMonthIncome - currentMonthExpenses - currentMonthInvestments;
 
   // Recurring transactions and bills data
-  const upcomingBills = getUpcomingBills(7); // Next 7 days
-  const overdueBills = getOverdueBills();
   const activeRecurringTransactions = recurringTransactions.filter(rt => rt.isActive);
 
-  // Calculate category breakdown for expenses
-  const expensesByCategory = currentMonthTransactions
-    .filter(t => t.type === 'expense')
+  // Dashboard Timeline Switcher State
+  const [expenseTimeRange, setExpenseTimeRange] = React.useState<'1M' | '6M' | '1Y'>('1M');
+
+  const filteredExpenseTransactions = React.useMemo(() => {
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    return transactions.filter(t => {
+      if (t.type !== 'expense' || t.category === 'transfer') return false;
+      const tDate = new Date(t.date);
+
+      if (expenseTimeRange === '1M') {
+        // Current Month
+        return tDate >= currentMonthStart;
+      } else if (expenseTimeRange === '6M') {
+        // Last 6 Months
+        const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+        return tDate >= sixMonthsAgo;
+      } else {
+        // Last 1 Year
+        const oneYearAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+        return tDate >= oneYearAgo;
+      }
+    });
+  }, [transactions, expenseTimeRange]);
+
+
+  // Calculate category breakdown for expenses (using filtered timeframe)
+  const expensesByCategory = filteredExpenseTransactions
     .reduce((acc, t) => {
-      acc[t.category] = (acc[t.category] || 0) + t.amount;
+      let cat = t.category;
+      // Handle legacy/corrupt data where category is an object
+      if (typeof cat === 'object' && cat !== null) {
+        cat = (cat as any).id || (cat as any).name || 'Unknown';
+      }
+      // Handle null/undefined
+      if (!cat) cat = 'Unknown';
+
+      // Safe string conversion to avoid [Object Object] key
+      const catKey = String(cat);
+
+      acc[catKey] = (acc[catKey] || 0) + t.amount;
       return acc;
     }, {} as Record<string, number>);
 
@@ -296,36 +327,56 @@ const Dashboard: React.FC = () => {
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
-              Top Expense Categories
+              Top Expenses
             </h3>
-            <button
-              onClick={() => navigate('/transactions')}
-              className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
-            >
-              View All
-              <ArrowRight className="w-4 h-4 ml-1" />
-            </button>
+
+            {/* Timeline Switcher */}
+            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+              {(['1M', '6M', '1Y'] as const).map((range) => (
+                <button
+                  key={range}
+                  onClick={() => setExpenseTimeRange(range)}
+                  className={`
+                    px-3 py-1 text-xs font-medium rounded-md transition-all
+                    ${expenseTimeRange === range
+                      ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                    }
+                  `}
+                >
+                  {range}
+                </button>
+              ))}
+            </div>
           </div>
+
           <div className="space-y-3">
             {topExpenseCategories.length > 0 ? (
-              topExpenseCategories.map(([category, amount]) => {
-                const percentage = currentMonthExpenses > 0 ? (amount / currentMonthExpenses) * 100 : 0;
+              topExpenseCategories.map(([categoryId, amount]) => {
+                // Calculate percentage relative to the TOTAL expenses in this filtered period
+                const totalFilteredExpenses = filteredExpenseTransactions.reduce((sum, t) => sum + t.amount, 0);
+                const percentage = totalFilteredExpenses > 0 ? (amount / totalFilteredExpenses) * 100 : 0;
+
+                const categoryObj = categories.find(c => c.id === categoryId);
+                const categoryName = categoryObj ? categoryObj.name : categoryId;
+
                 return (
-                  <div key={category} className="space-y-1">
+                  <div key={categoryId} className="space-y-1">
                     <div className="flex justify-between text-sm">
                       <button
-                        onClick={() => navigate(`/transactions?category=${encodeURIComponent(category)}`)}
-                        className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:text-blue-400 text-left"
+                        onClick={() => navigate(`/transactions?category=${encodeURIComponent(categoryId)}`)}
+                        className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:text-blue-400 text-left capitalize truncate max-w-[150px]"
+                        title={categoryName}
                       >
-                        {category}
+                        {categoryName}
                       </button>
-                      <span className="font-medium">
-                        {formatCurrency(amount)} ({percentage.toFixed(1)}%)
+                      <span className="font-medium whitespace-nowrap">
+                        {formatCurrency(amount)} <span className="text-xs text-gray-400">({percentage.toFixed(0)}%)</span>
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
                       <div
-                        className="bg-red-500 h-2 rounded-full transition-all duration-300"
+                        className="bg-red-500 h-1.5 rounded-full transition-all duration-300"
                         style={{ width: `${percentage}%` }}
                       ></div>
                     </div>
@@ -335,11 +386,21 @@ const Dashboard: React.FC = () => {
             ) : (
               <div className="text-center py-8">
                 <div className="text-gray-400 mb-2">
-                  <TrendingUp className="h-12 w-12 mx-auto" />
+                  <TrendingUp className="h-10 w-10 mx-auto opacity-50" />
                 </div>
-                <p className="text-gray-500 dark:text-gray-400">No expenses this month</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">No expenses in this period</p>
               </div>
             )}
+
+            {/* Footer Link */}
+            <div className="pt-2 mt-2 border-t border-gray-100 dark:border-gray-700 text-center">
+              <button
+                onClick={() => navigate('/transactions')}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 flex items-center justify-center mx-auto"
+              >
+                View All Transactions <ArrowRight className="w-3 h-3 ml-1" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -505,68 +566,8 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Bills & Recurring Transactions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Upcoming Bills */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-              <AlertCircle className="h-5 w-5 mr-2" />
-              Upcoming Bills
-            </h3>
-            <button
-              onClick={() => navigate('/recurring')}
-              className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center"
-            >
-              View All
-              <ArrowRight className="h-4 w-4 ml-1" />
-            </button>
-          </div>
+      <div className="grid grid-cols-1 gap-6">
 
-          {overdueBills.length > 0 && (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
-              <p className="text-red-800 dark:text-red-200 text-sm font-medium">
-                ⚠️ {overdueBills.length} overdue bill(s) need attention
-              </p>
-            </div>
-          )}
-
-          {upcomingBills.length === 0 ? (
-            <div className="text-center py-6">
-              <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-              <p className="text-gray-500 dark:text-gray-400">No upcoming bills</p>
-              <button
-                onClick={() => navigate('/recurring')}
-                className="text-blue-600 hover:text-blue-700 text-sm mt-2"
-              >
-                Add your first bill
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {upcomingBills.slice(0, 3).map(bill => {
-                const daysUntil = Math.ceil((new Date(bill.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                return (
-                  <div key={bill.id} className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-white">{bill.name}</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Due in {daysUntil} day{daysUntil !== 1 ? 's' : ''} • {bill.category}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-gray-900 dark:text-white">{formatCurrency(bill.amount)}</p>
-                    </div>
-                  </div>
-                );
-              })}
-              {upcomingBills.length > 3 && (
-                <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-                  +{upcomingBills.length - 3} more bills
-                </p>
-              )}
-            </div>
-          )}
-        </div>
 
         {/* Active Recurring Transactions */}
         <div className="card">
@@ -668,73 +669,11 @@ const Dashboard: React.FC = () => {
       {/* Smart Alerts - High Priority */}
       <SmartAlertsWidget />
 
-      {/* AI-Powered Financial Insights */}
-      <AIInsightsDashboard />
-
-      {/* Financial Wellness Score */}
-      <FinancialWellnessWidget />
-
-      {/* Market Insights & Analysis */}
-      <MarketInsightsWidget />
+      {/* Smart Alerts - High Priority */}
+      <SmartAlertsWidget />
 
       {/* Mint-like Spending Insights */}
       <SpendingInsightsWidget />
-
-      {/* Transaction Linking Quick Access */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <Link2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Transaction Linking</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">Connect transactions to your financial goals</p>
-            </div>
-          </div>
-          <button
-            onClick={() => navigate('/transaction-linking')}
-            className={cn(theme.btnPrimary, 'flex items-center')}
-          >
-            Manage Links
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400 mb-1">
-              {transactions.filter(t => t.isLinked).length}
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Linked Transactions</p>
-          </div>
-
-          <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-1">
-              {transactions.filter(t => t.autoLinked).length}
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Auto-Linked</p>
-          </div>
-
-          <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400 mb-1">
-              {goals.filter(g => transactions.some(t => t.entityLinks?.some(l => l.type === 'goal' && l.id === g.id))).length}
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Connected Goals</p>
-          </div>
-        </div>
-
-        {transactions.filter(t => !t.isLinked).length > 0 && (
-          <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
-            <div className="flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                You have {transactions.filter(t => !t.isLinked).length} unlinked transactions that could benefit from entity connections.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 };

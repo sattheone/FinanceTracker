@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Trash2, ToggleLeft, ToggleRight, AlertCircle, Plus, Edit3 } from 'lucide-react';
+import { Trash2, ToggleLeft, ToggleRight, AlertCircle, Plus, Edit3, Play } from 'lucide-react';
 import { CategoryRule, Transaction } from '../../types';
 import { useData } from '../../contexts/DataContext';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import RuleCreationDialog from '../transactions/RuleCreationDialog';
+import AutoCategorizationService from '../../services/autoCategorization';
 
 const CategoryRules: React.FC = () => {
     const theme = useThemeClasses();
-    const { categoryRules, deleteCategoryRule, updateCategoryRule, addCategoryRule, transactions, categories: contextCategories } = useData();
+    const { categoryRules, deleteCategoryRule, updateCategoryRule, addCategoryRule, transactions, categories: contextCategories, updateTransaction } = useData();
     const [searchTerm, setSearchTerm] = useState('');
     // Use categories from context
     const categories = contextCategories || [];
@@ -64,13 +65,76 @@ const CategoryRules: React.FC = () => {
                         Manage auto-categorization rules for transactions
                     </p>
                 </div>
-                <button
-                    onClick={() => setShowAddDialog(true)}
-                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm"
-                >
-                    <Plus className="w-5 h-5" />
-                    <span>Add Rule</span>
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={async () => {
+                            if (!window.confirm('This will scan all past transactions and apply your active rules. Existing categories might be overwritten if a rule matches. Continue?')) return;
+
+                            let updatedCount = 0;
+                            const updates: Record<string, Partial<Transaction>> = {};
+                            const activeRules = categoryRules.filter(r => r.isActive);
+
+                            // Optimization: Build a rule matcher function or just loop
+                            transactions.forEach(t => {
+                                // Find best matching rule
+                                const result = AutoCategorizationService.suggestCategoryForTransaction(
+                                    t.description,
+                                    t.amount,
+                                    t.type as any,
+                                    activeRules
+                                );
+
+                                if (result.appliedRule) {
+                                    // If rule matches, check if we need to update
+                                    // Update if:
+                                    // 1. Category is different 
+                                    // 2. OR Category is same but 'appliedRule' metadata is missing (Backfill attribution)
+                                    const needsUpdate = t.category !== result.categoryId || !t.appliedRule || t.appliedRule.id !== result.appliedRule.id;
+
+                                    if (needsUpdate) {
+                                        updates[t.id] = {
+                                            category: result.categoryId,
+                                            appliedRule: result.appliedRule
+                                        };
+                                        updatedCount++;
+                                    }
+                                }
+                            });
+
+                            if (updatedCount > 0) {
+                                // Process updates (Bulk update not directly available as object map in context, need loop or specialized bulk)
+                                // Context provides bulkUpdateTransactions(ids[], update). But we have DIFFERENT updates per ID.
+                                // So we must use single updates or improved bulk.
+                                // Actually dataContext has `updateTransaction`.
+                                // For performance, maybe chunked? 
+                                // Let's use Promise.all with chunking to avoid overwhelming Firestore.
+                                let processed = 0;
+                                const transactionIds = Object.keys(updates);
+                                const BATCH_SIZE = 50;
+
+                                for (let i = 0; i < transactionIds.length; i += BATCH_SIZE) {
+                                    const batch = transactionIds.slice(i, i + BATCH_SIZE);
+                                    await Promise.all(batch.map(id => updateTransaction(id, updates[id])));
+                                    processed += batch.length;
+                                }
+                                alert(`Successfully updated ${updatedCount} transactions.`);
+                            } else {
+                                alert('No transactions matched new rules.');
+                            }
+                        }}
+                        className="flex items-center space-x-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors shadow-sm"
+                    >
+                        <Play className="w-4 h-4" />
+                        <span>Run Rules</span>
+                    </button>
+                    <button
+                        onClick={() => setShowAddDialog(true)}
+                        className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm"
+                    >
+                        <Plus className="w-5 h-5" />
+                        <span>Add Rule</span>
+                    </button>
+                </div>
             </div>
 
             {/* Search */}

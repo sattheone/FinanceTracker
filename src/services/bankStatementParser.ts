@@ -261,7 +261,7 @@ class BankStatementParser {
   private cleanDescription(description: string): string {
     return description
       .replace(/\s+/g, ' ') // Multiple spaces to single space
-      .replace(/[^\w\s\-\.\/]/g, '') // Remove special characters except basic ones
+      .replace(/[^\w\s\-\.\/\@\&\(\)\:\#\,\+\?]/g, '') // Remove special characters but keep useful ones for finance
       .trim()
       .substring(0, 200); // Limit length
   }

@@ -44,9 +44,8 @@ class AutoCategorizationService {
     _amount: number,
     _type: string,
     customRules: CategoryRule[] = []
-  ): string {
+  ): { categoryId: string, appliedRule?: { id: string, name: string } } {
     // 1. Apply user-defined custom rules first (highest precedence)
-    // Default isActive to true if undefined to support legacy rules
     const activeRules = customRules.filter(r => r.isActive !== false);
 
     // Debug: Log active rules count
@@ -55,21 +54,15 @@ class AutoCategorizationService {
     for (const rule of activeRules) {
       if (this.matchesRule(rule, description)) {
         console.log(`✅ Custom Rule Match: "${description}" matched rule "${rule.name}" -> ${rule.categoryId}`);
-        return rule.categoryId;
+        return {
+          categoryId: rule.categoryId,
+          appliedRule: { id: rule.id, name: rule.name }
+        };
       }
     }
 
-    // 2. Fallback to default static rules
-    // Disabled as per user request - only use custom rules or default to 'other'
-    /*
-    const defaultCategory = this.autoAssignCategoryDefault(description);
-    if (defaultCategory !== 'other') {
-       console.log(`ℹ️ Default Rule Match: "${description}" -> ${defaultCategory}`);
-    }
-    return defaultCategory;
-    */
-
-    return 'other';
+    // Default Fallback
+    return { categoryId: 'other' };
   }
 
   private static matchesRule(rule: CategoryRule, description: string): boolean {
@@ -79,8 +72,16 @@ class AutoCategorizationService {
     if (rule.matchType === 'exact') {
       return descLower === pattern;
     }
-    // Partial match
-    return descLower.includes(pattern);
+
+    // Partial/Contains Match
+    if (descLower.includes(pattern)) return true;
+
+    // Fast Normalized Fallback (for spacing/separator issues)
+    // "ACH - D" matches "ACH D"
+    const normDesc = descLower.replace(/[^a-z0-9]/g, '');
+    const normPattern = pattern.replace(/[^a-z0-9]/g, '');
+
+    return normDesc.includes(normPattern);
   }
 
   /*
@@ -107,7 +108,8 @@ class AutoCategorizationService {
 
   // Deprecated: Kept for backward compatibility if needed, but redirects to new logic
   static autoAssignCategory(description: string, amount: number, type: string): string {
-    return this.suggestCategoryForTransaction(description, amount, type, []);
+    const result = this.suggestCategoryForTransaction(description, amount, type, []);
+    return result.categoryId;
   }
 
   // Helper to add custom rule (this seems unused now as rules come from DataContext/Firestore)

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { Transaction } from '../../types';
@@ -23,20 +24,59 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
 }) => {
     const theme = useThemeClasses();
     const [isOpen, setIsOpen] = useState(false);
+    const [popoverPosition, setPopoverPosition] = useState<{ top?: number; bottom?: number; left: number; width?: number; maxHeight?: number } | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const popoverRef = useRef<HTMLDivElement>(null);
+
+    // Calculate position when opening
+    useEffect(() => {
+        if (isOpen && containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+            const POPOVER_HEIGHT = 200; // Estimated max height (shorter than category list)
+            const GAP = 4;
+
+            // Check space below
+            const spaceBelow = viewportHeight - rect.bottom;
+            const showAbove = spaceBelow < POPOVER_HEIGHT && rect.top > POPOVER_HEIGHT;
+
+            setPopoverPosition({
+                top: showAbove ? undefined : rect.bottom + GAP,
+                bottom: showAbove ? (viewportHeight - rect.top + GAP) : undefined,
+                left: rect.left,
+                width: 192, // w-48
+                maxHeight: showAbove ? Math.min(POPOVER_HEIGHT, rect.top - GAP * 2) : Math.min(POPOVER_HEIGHT, viewportHeight - rect.bottom - GAP * 2)
+            });
+        }
+    }, [isOpen]);
 
     // Close when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+            const target = event.target as Node;
+            const isInsideTrigger = containerRef.current && containerRef.current.contains(target);
+            const isInsidePopover = popoverRef.current && popoverRef.current.contains(target);
+
+            if (!isInsideTrigger && !isInsidePopover) {
                 setIsOpen(false);
                 if (onCancel) onCancel();
             }
         };
 
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [onCancel]);
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+            const handleScroll = () => {
+                // close on scroll to avoid detached floating elements
+                setIsOpen(false);
+            };
+            window.addEventListener('scroll', handleScroll, true);
+
+            return () => {
+                document.removeEventListener('mousedown', handleClickOutside);
+                window.removeEventListener('scroll', handleScroll, true);
+            };
+        }
+    }, [isOpen, onCancel]);
 
     const currentTypeObj = transactionTypes.find(t => t.value === currentType) || transactionTypes[1];
 
@@ -62,12 +102,22 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
                 <ChevronDown className="w-4 h-4 text-gray-400 ml-auto" />
             </button>
 
-            {/* Popover Menu */}
-            {isOpen && (
+            {/* Popover Menu - Portal */}
+            {isOpen && popoverPosition && createPortal(
                 <div
+                    ref={popoverRef}
                     onClick={(e) => e.stopPropagation()}
+                    style={{
+                        position: 'fixed',
+                        top: popoverPosition.top,
+                        bottom: popoverPosition.bottom,
+                        left: popoverPosition.left,
+                        width: popoverPosition.width,
+                        maxHeight: popoverPosition.maxHeight,
+                        overflowY: 'auto'
+                    }}
                     className={cn(
-                        "absolute top-full left-0 mt-1 w-48 rounded-lg shadow-xl border z-50",
+                        "rounded-lg shadow-xl border z-[9999] flex flex-col",
                         theme.bgElevated,
                         theme.border
                     )}
@@ -76,7 +126,8 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
                         {transactionTypes.map(type => (
                             <button
                                 key={type.value}
-                                onClick={() => {
+                                onClick={(e) => {
+                                    e.stopPropagation();
                                     onSave(type.value);
                                     setIsOpen(false);
                                 }}
@@ -95,7 +146,8 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
                             </button>
                         ))}
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

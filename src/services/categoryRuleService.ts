@@ -17,7 +17,18 @@ class CategoryRuleService {
             return transactionDesc === ruleName;
         } else {
             // Partial match - check if transaction description contains the rule pattern
-            return transactionDesc.includes(ruleName);
+            if (transactionDesc.includes(ruleName)) return true;
+
+            // Fallback: Normalized match (ignore spaces and special chars)
+            // This allows "ACH-D" to match "ACH D" or "UPI - Name" to match "UPI-Name"
+            const normalizedDesc = transactionDesc.replace(/[^a-z0-9]/g, '');
+            const normalizedRule = ruleName.replace(/[^a-z0-9]/g, '');
+
+            const isMatch = normalizedDesc.includes(normalizedRule);
+            if (isMatch) {
+                // console.log(`✅ Category Rule Match: "${rule.name}" matches "${transaction.description}"`);
+            }
+            return isMatch;
         }
     }
 
@@ -70,6 +81,8 @@ class CategoryRuleService {
      * Returns the category ID and optional type if a rule matched, otherwise null
      */
     autoApplyRules(transaction: Transaction, rules: CategoryRule[]): { categoryId: string, transactionType?: string } | null {
+        console.log(`🔍 Checking ${rules.length} Category rules against: "${transaction.description}"`);
+
         // Sort rules by most recently used first
         const sortedRules = [...rules].sort((a, b) => {
             if (!a.lastUsed) return 1;
@@ -80,6 +93,7 @@ class CategoryRuleService {
         // Find first matching rule
         for (const rule of sortedRules) {
             if (this.matchesRule(transaction, rule)) {
+                console.log(`✅ Matched Category Rule: "${rule.name}" for "${transaction.description}"`);
                 return {
                     categoryId: rule.categoryId,
                     transactionType: rule.transactionType

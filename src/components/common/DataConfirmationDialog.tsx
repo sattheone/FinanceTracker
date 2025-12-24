@@ -6,11 +6,12 @@ import { Category } from '../../constants/categories';
 interface DataConfirmationDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (confirmedData: any[]) => void;
+  onConfirm: (confirmedData: any[], isHistorical?: boolean) => void;
   data: any[];
   type: 'assets' | 'transactions' | 'insurance';
   title: string;
   categories?: Category[];
+  accountName?: string;
 }
 
 const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
@@ -20,12 +21,14 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
   data,
   type,
   title,
-  categories = []
+  categories = [],
+  accountName
 }) => {
   const [editableData, setEditableData] = useState(data);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(
     new Set(data.map((_, index) => index))
   );
+  const [isHistorical, setIsHistorical] = useState(false);
 
   // Update editableData when data prop changes
   React.useEffect(() => {
@@ -53,7 +56,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
 
   const handleConfirm = () => {
     const confirmedData = editableData.filter((_, index) => selectedItems.has(index));
-    onConfirm(confirmedData);
+    onConfirm(confirmedData, isHistorical);
     onClose();
   };
 
@@ -232,7 +235,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                   type="date"
                   value={item.date}
                   onChange={(e) => handleFieldChange(index, 'date', e.target.value)}
-                  className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-500 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 />
               </td>
               <td className="px-3 py-2">
@@ -241,7 +244,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                     type="text"
                     value={item.description}
                     onChange={(e) => handleFieldChange(index, 'description', e.target.value)}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-500 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 truncate"
+                    className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 truncate bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     placeholder="Transaction description"
                     title={item.description} // Native tooltip as fallback
                   />
@@ -260,7 +263,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                     type="number"
                     value={item.amount}
                     onChange={(e) => handleFieldChange(index, 'amount', Number(e.target.value))}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-500 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     min="0"
                     step="0.01"
                   />
@@ -278,7 +281,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                       handleFieldChange(index, 'category', categories[0]);
                     }
                   }}
-                  className={`w-full px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 ${getTypeColor(item.type)}`}
+                  className={`w-full px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-800 ${getTypeColor(item.type)}`}
                 >
                   <option value="income">Income</option>
                   <option value="expense">Expense</option>
@@ -290,7 +293,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                 <select
                   value={item.category}
                   onChange={(e) => handleFieldChange(index, 'category', e.target.value)}
-                  className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-500 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                 >
                   {/* Default Option if value is missing */}
                   {!item.category && <option value="">Select Category</option>}
@@ -427,6 +430,11 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
               <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                 Review and edit the extracted data before adding to your account
               </p>
+              {accountName && (
+                <p className="text-sm font-medium text-blue-600 dark:text-blue-400 mt-1">
+                  Target Account: {accountName}
+                </p>
+              )}
             </div>
             <button
               onClick={onClose}
@@ -496,16 +504,29 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
         </div>
 
         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 flex justify-between items-center">
-          <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
-            <span>Selected: {selectedItems.size} of {editableData.length}</span>
-            {type === 'transactions' && selectedItems.size > 0 && (
-              <span>
-                Total Amount: {formatCurrency(
-                  editableData
-                    .filter((_, index) => selectedItems.has(index))
-                    .reduce((sum, item) => sum + (item.amount || 0), 0)
-                )}
-              </span>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
+              <span>Selected: {selectedItems.size} of {editableData.length}</span>
+              {type === 'transactions' && selectedItems.size > 0 && (
+                <span>
+                  Total Amount: {formatCurrency(
+                    editableData
+                      .filter((_, index) => selectedItems.has(index))
+                      .reduce((sum, item) => sum + (item.amount || 0), 0)
+                  )}
+                </span>
+              )}
+            </div>
+            {type === 'transactions' && (
+              <label className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isHistorical}
+                  onChange={(e) => setIsHistorical(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span>Historical Data (Keep current balance unchanged)</span>
+              </label>
             )}
           </div>
           <div className="flex gap-3">

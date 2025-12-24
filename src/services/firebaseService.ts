@@ -168,26 +168,47 @@ export class FirebaseService {
     }
   }
 
-  static async bulkAddTransactions(userId: string, transactions: Omit<Transaction, 'id'>[]): Promise<void> {
+  static async bulkAddTransactions(
+    userId: string,
+    transactions: Omit<Transaction, 'id'>[],
+    onProgress?: (progress: number, total: number) => void
+  ): Promise<void> {
     try {
-      const batch = writeBatch(db);
+      const BATCH_SIZE = 450; // Firestore limit is 500, keeping safety margin
+      const total = transactions.length;
+      let processed = 0;
 
-      transactions.forEach(transaction => {
-        // Filter out undefined values as Firebase doesn't support them
-        const cleanTransaction = Object.fromEntries(
-          Object.entries(transaction).filter(([_, value]) => value !== undefined)
-        );
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        const batch = writeBatch(db);
+        const chunk = transactions.slice(i, i + BATCH_SIZE);
 
-        const docRef = doc(collection(db, this.COLLECTIONS.TRANSACTIONS));
-        batch.set(docRef, {
-          ...cleanTransaction,
-          userId,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
+        chunk.forEach(transaction => {
+          // Filter out undefined values as Firebase doesn't support them
+          const cleanTransaction = Object.fromEntries(
+            Object.entries(transaction).filter(([_, value]) => value !== undefined)
+          );
+
+          const docRef = doc(collection(db, this.COLLECTIONS.TRANSACTIONS));
+          batch.set(docRef, {
+            ...cleanTransaction,
+            userId,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
         });
-      });
 
-      await batch.commit();
+        await batch.commit();
+        processed += chunk.length;
+
+        if (onProgress) {
+          onProgress(processed, total);
+        }
+
+        // Small delay to prevent rate limiting if many batches
+        if (total > 1000) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
     } catch (error) {
       console.error('Error bulk adding transactions:', error);
       throw error;

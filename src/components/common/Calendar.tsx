@@ -92,7 +92,7 @@ const Calendar: React.FC<CalendarProps> = ({
     if (showRecurring) {
       recurringTransactions.forEach(recurring => {
         if (!recurring.isActive) return;
-        
+
         const nextDue = new Date(recurring.nextDueDate);
         if (nextDue.getMonth() === month && nextDue.getFullYear() === year) {
           events.push({
@@ -148,7 +148,7 @@ const Calendar: React.FC<CalendarProps> = ({
   }, [calendarEvents]);
 
   // Get events for selected date
-  const selectedDateEvents = selectedDate 
+  const selectedDateEvents = selectedDate
     ? eventsByDate[selectedDate.getDate().toString()] || []
     : [];
 
@@ -163,11 +163,11 @@ const Calendar: React.FC<CalendarProps> = ({
   const getEventTypeColor = (type: string, isCompleted?: boolean, isOverdue?: boolean) => {
     if (isOverdue) return 'bg-red-500 text-white';
     if (isCompleted) return 'bg-green-500 text-white';
-    
+
     switch (type) {
       case 'transaction': return 'bg-blue-500 text-white';
-      case 'recurring': return 'bg-purple-50 dark:bg-purple-900/200 text-white';
-      case 'bill': return 'bg-orange-50 dark:bg-orange-900/200 text-white';
+      case 'recurring': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-200';
+      case 'bill': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-200';
       default: return 'bg-gray-500 text-white';
     }
   };
@@ -183,7 +183,7 @@ const Calendar: React.FC<CalendarProps> = ({
 
   // Generate calendar days
   const calendarDays = [];
-  
+
   // Add empty cells for days before the first day of the month
   for (let i = 0; i < firstDayOfWeek; i++) {
     calendarDays.push(
@@ -196,7 +196,7 @@ const Calendar: React.FC<CalendarProps> = ({
     const dayEvents = eventsByDate[day.toString()] || [];
     const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
     const isSelected = selectedDate?.getDate() === day && selectedDate?.getMonth() === month && selectedDate?.getFullYear() === year;
-    
+
     calendarDays.push(
       <div
         key={day}
@@ -266,15 +266,15 @@ const Calendar: React.FC<CalendarProps> = ({
               <span className={theme.textMuted}>Transactions</span>
             </div>
             <div className="flex items-center space-x-1">
-              <div className="w-3 h-3 bg-purple-50 dark:bg-purple-900/200 rounded"></div>
+              <div className="w-3 h-3 bg-purple-100 dark:bg-purple-900/50 rounded"></div>
               <span className={theme.textMuted}>Recurring</span>
             </div>
             <div className="flex items-center space-x-1">
-              <div className="w-3 h-3 bg-orange-50 dark:bg-orange-900/200 rounded"></div>
+              <div className="w-3 h-3 bg-orange-100 dark:bg-orange-900/50 rounded"></div>
               <span className={theme.textMuted}>Bills</span>
             </div>
           </div>
-          
+
           {/* Navigation */}
           <div className="flex items-center space-x-2">
             <button
@@ -283,7 +283,7 @@ const Calendar: React.FC<CalendarProps> = ({
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            
+
             <div className="flex items-center space-x-2">
               <span className={cn(theme.textPrimary, 'font-medium text-lg')}>
                 {monthNames[month]} {year}
@@ -295,7 +295,7 @@ const Calendar: React.FC<CalendarProps> = ({
                 Today
               </button>
             </div>
-            
+
             <button
               onClick={goToNextMonth}
               className={cn(theme.btnSecondary, 'p-2')}
@@ -316,7 +316,7 @@ const Calendar: React.FC<CalendarProps> = ({
             </div>
           ))}
         </div>
-        
+
         {/* Calendar Days */}
         <div className="grid grid-cols-7">
           {calendarDays}
@@ -327,11 +327,11 @@ const Calendar: React.FC<CalendarProps> = ({
       {selectedDate && selectedDateEvents.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 p-4">
           <h3 className={cn(theme.textPrimary, 'font-semibold mb-3')}>
-            Events for {selectedDate.toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
+            Events for {selectedDate.toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
             })}
           </h3>
           <div className="space-y-2">

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, Plus, Check } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
-// removed localstorage dependent imports if any (none specific to remove, but adding useData)
 import { useData } from '../../contexts/DataContext';
 import SidePanel from '../common/SidePanel';
-import { Category } from '../../constants/categories'; // defaultCategories not needed anymore, but keeping just in case for type
+import { Category } from '../../constants/categories';
 import CategoryForm from '../categories/CategoryForm';
 
 interface InlineCategoryEditorProps {
@@ -27,15 +27,47 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
+  const [popoverPosition, setPopoverPosition] = useState<{ top?: number; bottom?: number; left: number; width?: number; maxHeight?: number } | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Calculate position when opening
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const POPOVER_HEIGHT = 300; // Estimated max height
+      const GAP = 4;
+
+      // Check space below
+      const spaceBelow = viewportHeight - rect.bottom;
+      const showAbove = spaceBelow < POPOVER_HEIGHT && rect.top > POPOVER_HEIGHT;
+
+      setPopoverPosition({
+        top: showAbove ? undefined : rect.bottom + GAP,
+        bottom: showAbove ? (viewportHeight - rect.top + GAP) : undefined,
+        left: rect.left,
+        width: 256,
+        // If showing above, we might want to dynamically adjust height if space is tight, 
+        // but simple flip is a good start.
+        maxHeight: showAbove ? Math.min(POPOVER_HEIGHT, rect.top - GAP * 2) : Math.min(POPOVER_HEIGHT, viewportHeight - rect.bottom - GAP * 2)
+      });
+    }
+  }, [isOpen]);
 
   // Close when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Logic unchanged
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      // Check if click is inside trigger button (containerRef) OR inside popover (popoverRef)
+      const target = event.target as Node;
+
+      const isInsideTrigger = containerRef.current && containerRef.current.contains(target);
+      const isInsidePopover = popoverRef.current && popoverRef.current.contains(target);
+      const isInsideModal = document.getElementById('category-form-modal')?.contains(target); // Safety check for nested modal
+
+      if (!isInsideTrigger && !isInsidePopover && !isInsideModal) {
         if (!showNewCategoryModal) {
           setIsOpen(false);
           if (onCancel) onCancel();
@@ -43,14 +75,28 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [onCancel, showNewCategoryModal]);
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      // Handle scroll to close/reposition? For now, close on scroll often safest for fixed popovers
+      // pushing it: let's close on scroll to avoid detached floating elements
+      const handleScroll = () => {
+        // Optional: real-time update or close. Closing is simpler.
+        // setIsOpen(false); 
+      };
+      window.addEventListener('scroll', handleScroll, true); // Capture phase for all scroll containers
+
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        window.removeEventListener('scroll', handleScroll, true);
+      };
+    }
+  }, [isOpen, onCancel, showNewCategoryModal]);
 
   // Focus search when opening
   useEffect(() => {
     if (isOpen && searchInputRef.current) {
-      searchInputRef.current.focus();
+      // Small timeout to allow render
+      setTimeout(() => searchInputRef.current?.focus(), 50);
     }
   }, [isOpen]);
 
@@ -102,9 +148,6 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
     // 3. Include children of matching parents
     categories.forEach(c => {
       if (c.parentId && matchIds.has(c.parentId)) {
-        // Optional: only show all children if parent matches? 
-        // Or just show matching children?
-        // User usually expects to see children if parent matches.
         if (categories.find(p => p.id === c.parentId)?.name.toLowerCase().includes(lowerSearch)) {
           matchIds.add(c.id);
         }
@@ -127,7 +170,7 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
 
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative inline-block" ref={containerRef}>
       {/* Trigger Button - Chip Style */}
       <button
         onClick={(e) => {
@@ -135,7 +178,7 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
           setIsOpen(!isOpen);
         }}
         className={cn(
-          "flex items-center justify-center space-x-1 px-2 py-0.5 rounded-full transition-all w-fit",
+          "flex items-center justify-center space-x-1 px-2 py-0.5 rounded-full transition-all w-fit max-w-[140px]",
           // Remove default border/bg classes as we override them
           "hover:opacity-80"
         )}
@@ -144,18 +187,28 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
           color: currentCategoryObj?.color || '#374151'
         }}
       >
-        <span className="text-xs">{currentCategoryObj?.icon || '📋'}</span>
+        <span className="text-xs flex-shrink-0">{currentCategoryObj?.icon || '📋'}</span>
         <span className="text-[10px] font-bold truncate uppercase tracking-wider">
           {currentCategoryObj?.name || 'SELECT'}
         </span>
       </button>
 
-      {/* Popover Menu */}
-      {isOpen && (
+      {/* Popover Menu - Rendered via Portal */}
+      {isOpen && popoverPosition && createPortal(
         <div
+          ref={popoverRef}
           onClick={(e) => e.stopPropagation()}
+          style={{
+            top: popoverPosition.top,
+            bottom: popoverPosition.bottom,
+            left: popoverPosition.left,
+            width: popoverPosition.width,
+            maxHeight: popoverPosition.maxHeight || 300
+          }}
           className={cn(
-            "absolute top-full left-0 mt-1 w-64 max-h-96 rounded-lg shadow-xl border z-50 flex flex-col",
+            "fixed rounded-lg shadow-xl border z-[9999] flex flex-col transform transition-all",
+            // Adjust position if it goes off screen (basic check needed? usually browser handles basic layout, but fixed needs care)
+            // For now rely on basic calc.
             theme.bgElevated,
             theme.border
           )}
@@ -181,12 +234,13 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
           </div>
 
           {/* Categories List */}
-          <div className="overflow-y-auto flex-1 p-1">
+          <div className="overflow-y-auto flex-1 p-1 max-h-[300px]">
             {displayGroups.map(({ parent, children }) => (
               <div key={parent.id} className="mb-1">
                 {/* Parent */}
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     onSave(parent.id);
                     setIsOpen(false);
                   }}
@@ -206,7 +260,8 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
                 {children.map(child => (
                   <button
                     key={child.id}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       onSave(child.id);
                       setIsOpen(false);
                     }}
@@ -235,14 +290,18 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
           {/* Footer: New Category */}
           <div className="p-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-lg">
             <button
-              onClick={() => setShowNewCategoryModal(true)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowNewCategoryModal(true);
+              }}
               className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
             >
               <Plus className="w-4 h-4" />
               <span>New Category</span>
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* New Category Modal */}
@@ -250,18 +309,15 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
         isOpen={showNewCategoryModal}
         onClose={() => setShowNewCategoryModal(false)}
         title="Add New Category"
-        footer={<></>} // Empty footer as CategoryForm handles its own buttons, or we should move buttons here. 
-      // Looking at CategoryForm, it has its own buttons. 
-      // Ideally we move them to footer, but for now let's just use SidePanel to wrap it.
-      // However, SidePanel usually expects footer for buttons. 
-      // Let's pass undefined footer if not strictly required, or null.
-      // But wait, SidePanel might render default footer? No, it renders footer prop.
+        footer={<></>}
       >
-        <CategoryForm
-          categories={categories}
-          onSave={handleSaveNewCategory}
-          onCancel={() => setShowNewCategoryModal(false)}
-        />
+        <div id="category-form-modal" onClick={(e) => e.stopPropagation()}>
+          <CategoryForm
+            categories={categories}
+            onSave={handleSaveNewCategory}
+            onCancel={() => setShowNewCategoryModal(false)}
+          />
+        </div>
       </SidePanel>
     </div>
   );

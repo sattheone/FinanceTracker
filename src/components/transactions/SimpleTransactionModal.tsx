@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { X, Calendar, DollarSign, Tag, CreditCard, Edit3, Save, Repeat } from 'lucide-react';
+import { X, Calendar, DollarSign, Tag, CreditCard, Edit3, Save, Repeat, Landmark } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { useData } from '../../contexts/DataContext';
 import { Transaction } from '../../types';
@@ -7,6 +7,7 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 import SidePanel from '../common/SidePanel';
 import RecurringSetupModal from './RecurringSetupModal';
 import { calculateNextDueDate } from '../../utils/dateUtils';
+import AutoCategorizationService from '../../services/autoCategorization';
 
 interface SimpleTransactionModalProps {
   transaction: Transaction;
@@ -35,13 +36,43 @@ const normalizeMerchant = (text: string) => {
 };
 
 const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
-  transaction,
+  transaction: passedTransaction,
   isOpen,
   onClose,
   onTransactionClick
 }) => {
   const theme = useThemeClasses();
-  const { transactions: allTransactions, updateTransaction, addRecurringTransaction, categories: contextCategories } = useData();
+  const { transactions: allTransactions, updateTransaction, addRecurringTransaction, categories: contextCategories, bankAccounts, categoryRules } = useData();
+
+  // LIVE DATA: Use the latest version from context to ensure updates (like lazy repair) are shown immediately
+  const transaction = allTransactions.find(t => t.id === passedTransaction.id) || passedTransaction;
+
+  // Lazy Repair: Check if we can retroactive apply a rule when viewing
+  useEffect(() => {
+    if (isOpen && transaction && !transaction.appliedRule) {
+      const activeRules = categoryRules.filter(r => r.isActive);
+      const result = AutoCategorizationService.suggestCategoryForTransaction(
+        transaction.description,
+        transaction.amount,
+        transaction.type as any,
+        activeRules
+      );
+
+      if (result.appliedRule) {
+        const isGeneric = !transaction.category || transaction.category === 'other' || transaction.category === 'uncategorized';
+        const matchesCategory = transaction.category === result.categoryId;
+
+        if (isGeneric || matchesCategory) {
+          console.log(`🪄 Auto-repairing rule attribution for: ${transaction.description}`);
+          updateTransaction(transaction.id, {
+            ...transaction,
+            category: result.categoryId,
+            appliedRule: result.appliedRule
+          });
+        }
+      }
+    }
+  }, [isOpen, transaction, categoryRules, updateTransaction]);
 
   // Use categories from context
   const categories = contextCategories || [];
@@ -270,7 +301,7 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
             ) : (
               <>
                 <h2
-                  className="text-xl font-semibold text-gray-900 dark:text-white mb-2 break-words"
+                  className="text-xl font-semibold text-gray-900 dark:text-white mb-2 break-words line-clamp-3 overflow-hidden text-ellipsis"
                   title={transaction.description}
                 >
                   {transaction.description}
@@ -325,6 +356,20 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
                     <span className="text-sm font-medium text-gray-900 dark:text-white capitalize">
                       {getCategoryById(transaction.category || 'other').name}
                     </span>
+                    {(transaction as any).appliedRule && (
+                      <div className="ml-2 relative group flex items-center">
+                        <div className="cursor-help text-purple-500">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-wand-2">
+                            <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z" /><path d="m14 7 3 3" /><path d="M5 6v4" /><path d="M19 14v4" /><path d="M10 2v2" /><path d="M7 8H3" /><path d="M21 16h-4" /><path d="M11 3H9" />
+                          </svg>
+                        </div>
+                        {/* Custom Tooltip */}
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                          Matched Rule: "{(transaction as any).appliedRule.name}"
+                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -377,6 +422,32 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
                     {transaction.paymentMethod?.replace('_', ' ') || 'Not specified'}
                   </p>
                 )}
+              </div>
+            </div>
+
+            <div className="flex items-center p-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg">
+              <Landmark className="w-5 h-5 text-gray-500 mr-4" />
+              <div className="flex-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Bank Account</p>
+                <div className="flex items-center space-x-2 mt-1">
+                  {(() => {
+                    const account = bankAccounts.find(a => a.id === transaction.bankAccountId);
+                    if (account) {
+                      return (
+                        <>
+                          <span className="text-lg">{account.logo || '🏦'}</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {account.bank} {" "}
+                            <span className="text-gray-500 font-normal">
+                              ({account.number.slice(-4).padStart(account.number.length, '•').slice(-4)})
+                            </span>
+                          </span>
+                        </>
+                      );
+                    }
+                    return <span className="text-sm text-gray-500 italic">No account linked</span>;
+                  })()}
+                </div>
               </div>
             </div>
           </div>

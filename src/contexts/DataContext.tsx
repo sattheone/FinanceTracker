@@ -71,9 +71,11 @@ interface DataContextType {
   addTransaction: (transaction: Omit<Transaction, 'id'>) => void;
   addTransactionsBulk: (transactions: Omit<Transaction, 'id'>[]) => Promise<{ success: boolean; summary?: any; error?: string }>;
   updateTransaction: (id: string, transaction: Partial<Transaction>) => void;
+  bulkUpdateTransactions: (ids: string[], update: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => void;
+  bulkDeleteTransactions: (ids: string[]) => Promise<void>;
 
-  addBankAccount: (account: Omit<BankAccount, 'id'>) => void;
+  addBankAccount: (account: Omit<BankAccount, 'id'>) => Promise<string | undefined>;
   updateBankAccount: (id: string, account: Partial<BankAccount>) => void;
   deleteBankAccount: (id: string) => void;
 
@@ -579,7 +581,86 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
-  const addTransactionsBulk = async (newTransactions: Omit<Transaction, 'id'>[]): Promise<{ success: boolean; summary?: any; error?: string }> => {
+  const bulkUpdateTransactions = async (ids: string[], update: Partial<Transaction>) => {
+    try {
+      // 1. Update in Firebase (Parallel)
+      await Promise.all(ids.map(id => FirebaseService.updateTransaction(id, update)));
+
+      // 2. Compute new state locally *once*
+      const updatedTransactions = transactions.map(t =>
+        ids.includes(t.id) ? { ...t, ...update } : t
+      );
+
+      setTransactions(updatedTransactions);
+
+      // 3. Recalculate balances for ALL affected accounts *once*
+      const affectedAccounts = new Set<string>();
+
+      ids.forEach(id => {
+        const oldTransaction = transactions.find(t => t.id === id);
+        if (oldTransaction) {
+          // Add old account
+          if (oldTransaction.bankAccountId) affectedAccounts.add(oldTransaction.bankAccountId);
+          // Add new account if changed
+          if (update.bankAccountId && update.bankAccountId !== oldTransaction.bankAccountId) {
+            affectedAccounts.add(update.bankAccountId);
+          }
+        }
+      });
+
+      if (affectedAccounts.size > 0) {
+        setBankAccounts(prev => prev.map(account => {
+          if (!affectedAccounts.has(account.id)) return account;
+
+          // Recalculate balance using the FULL updated transactions list
+          const accountTransactions = updatedTransactions.filter(
+            t => t.bankAccountId === account.id
+          );
+
+          const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
+            return sum + (t.type === 'income' ? t.amount : -t.amount);
+          }, 0);
+
+          // Ensure initialBalance is set (reuse logic from updateTransaction)
+          const currentInitialBalance = account.initialBalance;
+          let initialBalance = currentInitialBalance;
+
+          if (initialBalance === undefined) {
+            const currentBalance = account.balance ?? 0;
+            // Use OLD transactions state to derive initial balance if missing
+            const oldAccountTransactions = transactions.filter(t => t.bankAccountId === account.id);
+            const oldTotalTransactionAmount = oldAccountTransactions.reduce((sum, t) => {
+              return sum + (t.type === 'income' ? t.amount : -t.amount);
+            }, 0);
+            initialBalance = currentBalance - oldTotalTransactionAmount;
+          }
+
+          const newBalance = (initialBalance ?? 0) + totalTransactionAmount;
+
+          // Update in Firebase
+          const updateData: any = { balance: newBalance };
+          if (currentInitialBalance === undefined) {
+            updateData.initialBalance = initialBalance;
+          }
+          FirebaseService.updateBankAccount(account.id, updateData);
+
+          return {
+            ...account,
+            balance: newBalance,
+            initialBalance: initialBalance
+          };
+        }));
+      }
+
+    } catch (error) {
+      console.error('Error bulk updating transactions:', error);
+    }
+  };
+
+  const addTransactionsBulk = async (
+    newTransactions: Omit<Transaction, 'id'>[],
+    options?: { isHistorical?: boolean }
+  ): Promise<{ success: boolean; summary?: any; error?: string }> => {
     console.log('addTransactionsBulk called with', newTransactions.length, 'transactions');
     console.log('Current user:', user);
 
@@ -667,20 +748,30 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
             return sum + (t.type === 'income' ? t.amount : -t.amount);
           }, 0);
 
-          const initialBalance = account.initialBalance ?? account.balance ?? 0;
+          let initialBalance = account.initialBalance ?? account.balance ?? 0;
+
+          // If historical import, adjust initialBalance so that the FINAL balance remains unchanged
+          if (options?.isHistorical) {
+            const importedForAccount = cleanedTransactions.filter(t => t.bankAccountId === account.id);
+            const netImported = importedForAccount.reduce((sum, t) => {
+              return sum + (t.type === 'income' ? t.amount : -t.amount);
+            }, 0);
+            initialBalance -= netImported;
+          }
+
           const newBalance = initialBalance + totalTransactionAmount;
 
           // Update both balance and initialBalance if not set
           const updatedAccount = {
             ...account,
             balance: newBalance,
-            initialBalance: account.initialBalance ?? account.balance ?? 0
+            initialBalance: initialBalance
           };
 
           // Update in Firebase
           FirebaseService.updateBankAccount(account.id, {
             balance: newBalance,
-            initialBalance: updatedAccount.initialBalance
+            initialBalance: initialBalance
           });
 
           return updatedAccount;
@@ -747,6 +838,74 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
+  const bulkDeleteTransactions = async (ids: string[]) => {
+    try {
+      // 1. Delete from Firebase (Parallel)
+      await Promise.all(ids.map(id => FirebaseService.deleteTransaction(id)));
+
+      // 2. Compute new state locally *once*
+      // Need to keep the deleted transactions to know which accounts to update
+      const transactionsToDelete = transactions.filter(t => ids.includes(t.id));
+      setTransactions(prev => prev.filter(t => !ids.includes(t.id)));
+
+      // 3. Recalculate balances for ALL affected accounts *once*
+      const affectedAccounts = new Set<string>();
+      transactionsToDelete.forEach(t => {
+        if (t.bankAccountId) affectedAccounts.add(t.bankAccountId);
+      });
+
+      if (affectedAccounts.size > 0) {
+        // We need the *remaining* transactions for recalculation
+        const remainingTransactions = transactions.filter(t => !ids.includes(t.id));
+
+        setBankAccounts(prev => prev.map(account => {
+          if (!affectedAccounts.has(account.id)) return account;
+
+          // Recalculate balance using the REMAINING transactions
+          const accountTransactions = remainingTransactions.filter(
+            t => t.bankAccountId === account.id
+          );
+
+          const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
+            return sum + (t.type === 'income' ? t.amount : -t.amount);
+          }, 0);
+
+          // Ensure initialBalance is set (reuse logic)
+          const currentInitialBalance = account.initialBalance;
+          let initialBalance = currentInitialBalance;
+
+          if (initialBalance === undefined) {
+            const currentBalance = account.balance ?? 0;
+            // Here we use the list BEFORE deletion (which is `transactions`) because `currentBalance` includes the deleted ones
+            const oldAccountTransactions = transactions.filter(t => t.bankAccountId === account.id);
+            const oldTotalTransactionAmount = oldAccountTransactions.reduce((sum, t) => {
+              return sum + (t.type === 'income' ? t.amount : -t.amount);
+            }, 0);
+            initialBalance = currentBalance - oldTotalTransactionAmount;
+          }
+
+          const newBalance = (initialBalance ?? 0) + totalTransactionAmount;
+
+          // Update in Firebase
+          const updateData: any = { balance: newBalance };
+          if (currentInitialBalance === undefined) {
+            updateData.initialBalance = initialBalance;
+          }
+          FirebaseService.updateBankAccount(account.id, updateData);
+
+          return {
+            ...account,
+            balance: newBalance,
+            initialBalance: initialBalance
+          };
+        }));
+      }
+
+    } catch (error) {
+      console.error('Error bulk deleting transactions:', error);
+    }
+  };
+
   // Bank Account operations
   const addBankAccount = async (account: Omit<BankAccount, 'id'>) => {
     if (!user) return;
@@ -755,6 +914,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const id = await FirebaseService.addBankAccount(user.id, account);
       const newAccount: BankAccount = { ...account, id };
       setBankAccounts(prev => [...prev, newAccount]);
+      return id;
     } catch (error) {
       console.error('Error adding bank account:', error);
     }
@@ -1254,7 +1414,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
     // Utility
     resetUserData,
-    isDataLoaded
+    isDataLoaded,
+    bulkUpdateTransactions,
+    bulkDeleteTransactions
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

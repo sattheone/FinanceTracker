@@ -1,24 +1,33 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, FileSpreadsheet, X, Loader2, AlertCircle, CheckCircle, Lock, Eye, EyeOff, FileText } from 'lucide-react';
-import { excelParser, ParsedTransaction } from '../../services/excelParser';
+import { excelParser, ParsedTransaction, HeaderDetectionError } from '../../services/excelParser';
 import bankStatementParser from '../../services/bankStatementParser';
+import { backupImporter } from '../../services/backupImporter';
+import ColumnMappingDialog from './ColumnMappingDialog';
 
 interface FileUploaderProps {
   onTransactionsParsed: (transactions: ParsedTransaction[]) => void;
   title: string;
   description: string;
+  importType?: 'bank' | 'backup'; // Default is 'bank'
 }
 
 const FileUploader: React.FC<FileUploaderProps> = ({
   onTransactionsParsed,
   title,
-  description
+  description,
+  importType = 'bank'
 }) => {
   const [isParsing, setIsParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [parseResult, setParseResult] = useState<ParsedTransaction[] | null>(null);
+
+  // Manual Mapping State
+  const [showMappingDialog, setShowMappingDialog] = useState(false);
+  const [mappingRawData, setMappingRawData] = useState<string[][]>([]);
+  const [mappingFileName, setMappingFileName] = useState('');
 
   // Password handling
   const [isPasswordProtected, setIsPasswordProtected] = useState(false);
@@ -53,7 +62,9 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
       let transactions: ParsedTransaction[] = [];
 
-      if (file.name.toLowerCase().endsWith('.csv')) {
+      if (importType === 'backup' && file.name.toLowerCase().endsWith('.csv')) {
+        transactions = await backupImporter.parseBackupCSV(file);
+      } else if (file.name.toLowerCase().endsWith('.csv')) {
         transactions = await excelParser.parseCSVFile(file);
       } else if (file.name.toLowerCase().match(/\.(xlsx?|xls)$/)) {
         transactions = await excelParser.parseExcelFile(file);
@@ -136,6 +147,21 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       setParseResult(transactions);
       onTransactionsParsed(transactions);
     } catch (error) {
+      // Check for HeaderDetectionError by instance OR by name (safer for HMR/transpilation issues)
+      if (error instanceof HeaderDetectionError || (error as any).name === 'HeaderDetectionError') {
+        const rawData = (error as any).rawData || (error as HeaderDetectionError).rawData;
+
+        // If header detection failed, show manual mapping dialog
+        console.warn("Header detection failed, requesting manual mapping");
+        if (rawData) {
+          setMappingRawData(rawData);
+          setMappingFileName(file.name);
+          setShowMappingDialog(true);
+          setIsParsing(false); // Stop loader
+          return; // Don't show error yet
+        }
+      }
+
       const errorMessage = error instanceof Error ? error.message : 'Failed to parse file';
 
       // Only show as password error if it's actually an incorrect password
@@ -143,19 +169,48 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         setPasswordError('Incorrect password. Please try again.');
       } else {
         // For all other errors (including "No transactions found"), show as general error
-        // We need to make sure we're not in password mode anymore if we successfully unlocked but failed parsing
-        // However, we can't easily change state here and have it reflect immediately in render
-        // So we'll use the error message to decide where to show it
-
-        // If we are in password protected mode, but the error is NOT "Incorrect password",
-        // it means we unlocked it but found no data. We should probably hide the password field
-        // and show the error.
         if (isPasswordProtected && errorMessage !== 'Incorrect password') {
           setIsPasswordProtected(false);
         }
         setError(errorMessage);
       }
     } finally {
+      // If showing mapping dialog, we keep parsing state "off" but don't reset everything
+      if (!showMappingDialog) {
+        setIsParsing(false);
+      }
+    }
+  };
+
+  const handleMappingConfirm = (mapping: Record<string, number>, headerRowIndex: number) => {
+    setShowMappingDialog(false);
+    setIsParsing(true);
+
+    try {
+      if (!mappingRawData || mappingRawData.length === 0) {
+        throw new Error("No data available to map.");
+      }
+
+      const transactions = excelParser.parseWithMapping(mappingRawData, mapping, headerRowIndex);
+
+      if (transactions.length === 0) {
+        throw new Error('No valid transactions found with provided mapping.');
+      }
+
+      // Add file info
+      if (uploadedFile) {
+        (transactions as any).fileInfo = {
+          name: uploadedFile.name,
+          size: uploadedFile.size,
+          lastModified: uploadedFile.lastModified
+        };
+      }
+
+      setParseResult(transactions);
+      onTransactionsParsed(transactions);
+      setIsParsing(false);
+    } catch (err: any) {
+      setError(err.message || "Failed to parse with given mapping.");
       setIsParsing(false);
     }
   };
@@ -194,6 +249,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     setError(null);
     setParseResult(null);
     setIsPasswordProtected(false);
+    setShowMappingDialog(false); // Reset mapping dialog
     setPassword('');
     setPasswordError(null);
   };
@@ -218,8 +274,8 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         <div
           {...getRootProps()}
           className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${isDragActive
-            ? 'border-primary-500 bg-primary-50'
-            : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'
+            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+            : 'border-gray-300 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-gray-50 dark:hover:bg-gray-800'
             }`}
         >
           <input {...getInputProps()} />
@@ -349,7 +405,18 @@ const FileUploader: React.FC<FileUploaderProps> = ({
           <li>• You can edit any transaction details before saving</li>
         </ul>
       </div>
-    </div>
+
+      <ColumnMappingDialog
+        isOpen={showMappingDialog}
+        onClose={() => {
+          setShowMappingDialog(false);
+          setUploadedFile(null); // Cancel upload if they cancel mapping
+        }}
+        onConfirm={handleMappingConfirm}
+        rawData={mappingRawData}
+        fileName={mappingFileName}
+      />
+    </div >
   );
 };
 

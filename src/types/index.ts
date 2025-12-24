@@ -16,6 +16,10 @@ export interface Transaction {
     id: string;
     name: string;
   }[];
+  appliedRule?: { // Metadata if categorized by a rule
+    id: string;
+    name: string;
+  };
 }
 
 // Simple Goal Contribution Tracking
@@ -162,6 +166,7 @@ export interface MonthlyBudget {
     other: number;
   };
   surplus: number;
+  categoryBudgets?: Record<string, number>;
 }
 
 export interface BankAccount {

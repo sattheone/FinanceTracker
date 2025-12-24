@@ -70,6 +70,7 @@ const SimpleTransactionForm: React.FC<SimpleTransactionFormProps> = ({
     if (!formData.description.trim()) newErrors.description = 'Description is required';
     if (!formData.category) newErrors.category = 'Category is required';
     if (formData.amount <= 0) newErrors.amount = 'Amount must be greater than 0';
+    if (!formData.bankAccountId) newErrors.bankAccountId = 'Bank Account is required';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -100,7 +101,7 @@ const SimpleTransactionForm: React.FC<SimpleTransactionFormProps> = ({
 
     // Auto-suggest category when description changes
     if (field === 'description' && value.length > 3) {
-      const suggestedCategory = AutoCategorizationService.suggestCategoryForTransaction(
+      const result = AutoCategorizationService.suggestCategoryForTransaction(
         value,
         formData.amount,
         formData.type
@@ -108,7 +109,7 @@ const SimpleTransactionForm: React.FC<SimpleTransactionFormProps> = ({
 
       // Only auto-assign if no category is selected yet
       if (!formData.category || formData.category === '') {
-        setFormData(prev => ({ ...prev, category: suggestedCategory }));
+        setFormData(prev => ({ ...prev, category: result.categoryId }));
       }
     }
   };
@@ -226,7 +227,7 @@ const SimpleTransactionForm: React.FC<SimpleTransactionFormProps> = ({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-            Bank Account
+            Bank Account *
           </label>
           <select
             value={formData.bankAccountId}
@@ -240,6 +241,7 @@ const SimpleTransactionForm: React.FC<SimpleTransactionFormProps> = ({
               </option>
             ))}
           </select>
+          {errors.bankAccountId && <p className="text-red-500 text-sm mt-1">{errors.bankAccountId}</p>}
         </div>
       </div>
 

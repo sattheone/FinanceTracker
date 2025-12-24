@@ -15,7 +15,7 @@ import { mintLikeFeatures, SpendingInsight } from '../../services/mintLikeFeatur
 
 const SpendingInsightsWidget: React.FC = () => {
   const theme = useThemeClasses();
-  const { transactions, monthlyBudget } = useData();
+  const { transactions, monthlyBudget, categories } = useData();
 
   const [insights, setInsights] = useState<SpendingInsight[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'trend' | 'alert' | 'achievement'>('all');
@@ -55,7 +55,8 @@ const SpendingInsightsWidget: React.FC = () => {
       const generatedInsights = mintLikeFeatures.generateSpendingInsights(
         currentMonthTransactions,
         monthlyBudget,
-        previousMonthTransactions
+        previousMonthTransactions,
+        categories
       );
 
       setInsights(generatedInsights);

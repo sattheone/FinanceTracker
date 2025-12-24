@@ -9,28 +9,28 @@ class CategoryMigrationService {
   static fixTransactionCategories(transactions: Transaction[]): Transaction[] {
     return transactions.map(transaction => {
       // If category is a transaction type instead of a proper category, fix it
-      if (transaction.category === 'expense' || 
-          transaction.category === 'income' || 
-          transaction.category === 'investment' || 
-          transaction.category === 'insurance' ||
-          !transaction.category ||
-          transaction.category === '') {
-        
+      if (transaction.category === 'expense' ||
+        transaction.category === 'income' ||
+        transaction.category === 'investment' ||
+        transaction.category === 'insurance' ||
+        !transaction.category ||
+        transaction.category === '') {
+
         // Auto-categorize based on description
-        const suggestedCategory = AutoCategorizationService.suggestCategoryForTransaction(
+        const result = AutoCategorizationService.suggestCategoryForTransaction(
           transaction.description,
           transaction.amount,
           transaction.type
         );
-        
-        console.log(`🔄 Migrating transaction "${transaction.description}" from "${transaction.category}" to "${suggestedCategory}"`);
-        
+
+        console.log(`🔄 Migrating transaction "${transaction.description}" from "${transaction.category}" to "${result.categoryId}"`);
+
         return {
           ...transaction,
-          category: suggestedCategory
+          category: result.categoryId
         };
       }
-      
+
       return transaction;
     });
   }
@@ -39,12 +39,12 @@ class CategoryMigrationService {
    * Check if a transaction needs category migration
    */
   static needsCategoryMigration(transaction: Transaction): boolean {
-    return transaction.category === 'expense' || 
-           transaction.category === 'income' || 
-           transaction.category === 'investment' || 
-           transaction.category === 'insurance' ||
-           !transaction.category ||
-           transaction.category === '';
+    return transaction.category === 'expense' ||
+      transaction.category === 'income' ||
+      transaction.category === 'investment' ||
+      transaction.category === 'insurance' ||
+      !transaction.category ||
+      transaction.category === '';
   }
 
   /**
@@ -57,7 +57,7 @@ class CategoryMigrationService {
   } {
     const needsMigration = transactions.filter(t => this.needsCategoryMigration(t));
     const byCurrentCategory: Record<string, number> = {};
-    
+
     needsMigration.forEach(t => {
       const category = t.category || 'empty';
       byCurrentCategory[category] = (byCurrentCategory[category] || 0) + 1;

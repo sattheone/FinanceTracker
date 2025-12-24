@@ -15,7 +15,7 @@ import {
   Moon,
   Sun,
   Bell,
-
+  Tags,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useData } from '../contexts/DataContext';
@@ -32,6 +32,7 @@ const Layout: React.FC = () => {
   const navItems = [
     { to: '/', icon: Home, label: 'Dashboard' },
     { to: '/transactions', icon: CreditCard, label: 'Transactions' },
+    { to: '/categories', icon: Tags, label: 'Categories' },
     { to: '/calendar', icon: Calendar, label: 'Calendar' },
     { to: '/recurring', icon: Calendar, label: 'Recurring & Bills' },
     { to: '/assets', icon: TrendingUp, label: 'Assets' },

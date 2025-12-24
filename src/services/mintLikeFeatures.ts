@@ -1,4 +1,5 @@
 import { Transaction, MonthlyBudget } from '../types';
+import { Category } from '../constants/categories'; // Ensure this matches actual location or type definition
 
 // Enhanced categorization system similar to Mint
 export interface CategoryHierarchy {
@@ -56,7 +57,7 @@ export interface BudgetAlert {
 
 export class MintLikeFeatures {
   private static instance: MintLikeFeatures;
-  
+
   // Default category hierarchy similar to Mint
   private defaultCategories: CategoryHierarchy[] = [
     {
@@ -177,7 +178,7 @@ export class MintLikeFeatures {
   // Auto-categorize transactions based on merchant recognition
   autoCategorizeTrasaction(transaction: Transaction): string {
     const description = transaction.description.toLowerCase();
-    
+
     // Try to match with known merchants
     for (const merchant of this.merchantDatabase) {
       for (const alias of merchant.aliases) {
@@ -216,9 +217,10 @@ export class MintLikeFeatures {
 
   // Generate spending insights similar to Mint
   generateSpendingInsights(
-    transactions: Transaction[], 
+    transactions: Transaction[],
     budget: MonthlyBudget,
-    previousMonthTransactions: Transaction[]
+    previousMonthTransactions: Transaction[],
+    categories: Category[] = []
   ): SpendingInsight[] {
     const insights: SpendingInsight[] = [];
     const currentMonth = new Date().getMonth();
@@ -229,18 +231,21 @@ export class MintLikeFeatures {
     const previousSpending = this.calculateCategorySpending(previousMonthTransactions, currentMonth - 1, currentYear);
 
     // Generate trend insights
-    for (const [category, amount] of Object.entries(currentSpending)) {
-      const previousAmount = previousSpending[category] || 0;
+    for (const [categoryId, amount] of Object.entries(currentSpending)) {
+      const previousAmount = previousSpending[categoryId] || 0;
       const change = amount - previousAmount;
       const changePercent = previousAmount > 0 ? (change / previousAmount) * 100 : 0;
 
       if (Math.abs(changePercent) > 20) {
+        const categoryName = categories.find(c => c.id === categoryId)?.name || categoryId;
+        const displayName = categoryName.charAt(0).toUpperCase() + categoryName.slice(1);
+
         insights.push({
-          id: `trend_${category}`,
+          id: `trend_${categoryId}`,
           type: 'trend',
-          title: `${category} spending ${change > 0 ? 'increased' : 'decreased'}`,
-          description: `You spent ₹${amount.toLocaleString()} on ${category} this month, ${Math.abs(changePercent).toFixed(1)}% ${change > 0 ? 'more' : 'less'} than last month.`,
-          category,
+          title: `${displayName} spending ${change > 0 ? 'increased' : 'decreased'}`,
+          description: `You spent ₹${amount.toLocaleString()} on ${displayName} this month, ${Math.abs(changePercent).toFixed(1)}% ${change > 0 ? 'more' : 'less'} than last month.`,
+          category: categoryId,
           amount: change,
           percentage: changePercent,
           timeframe: 'month',
@@ -249,7 +254,7 @@ export class MintLikeFeatures {
           action: {
             type: 'category_review',
             label: 'Review Category',
-            data: { category, currentAmount: amount, previousAmount }
+            data: { category: categoryId, currentAmount: amount, previousAmount }
           }
         });
       }
@@ -287,7 +292,7 @@ export class MintLikeFeatures {
 
   private calculateCategorySpending(transactions: Transaction[], month: number, year: number): Record<string, number> {
     const spending: Record<string, number> = {};
-    
+
     transactions
       .filter(t => {
         const date = new Date(t.date);
@@ -303,7 +308,7 @@ export class MintLikeFeatures {
 
   private generateBudgetAlerts(spending: Record<string, number>, budget: MonthlyBudget): BudgetAlert[] {
     const alerts: BudgetAlert[] = [];
-    
+
     // Map budget categories to spending categories
     const budgetMapping = {
       'household': budget.expenses.household,
@@ -362,7 +367,7 @@ export class MintLikeFeatures {
 
   private generateAchievements(transactions: Transaction[], _budget: MonthlyBudget): SpendingInsight[] {
     const achievements: SpendingInsight[] = [];
-    
+
     // Check for spending streaks
     const recentTransactions = transactions
       .filter(t => {
@@ -401,7 +406,7 @@ export class MintLikeFeatures {
   // Find merchant by transaction description
   findMerchant(description: string): MerchantData | null {
     const lowerDescription = description.toLowerCase();
-    
+
     for (const merchant of this.merchantDatabase) {
       for (const alias of merchant.aliases) {
         if (lowerDescription.includes(alias.toLowerCase())) {
@@ -409,7 +414,7 @@ export class MintLikeFeatures {
         }
       }
     }
-    
+
     return null;
   }
 
@@ -434,7 +439,7 @@ export class MintLikeFeatures {
 
     const categoryBreakdown = this.calculateCategorySpending(monthTransactions, month, year);
     const topCategories = Object.entries(categoryBreakdown)
-      .sort(([,a], [,b]) => b - a)
+      .sort(([, a], [, b]) => b - a)
       .slice(0, 5);
 
     return {
@@ -448,7 +453,7 @@ export class MintLikeFeatures {
       categoryBreakdown,
       topCategories,
       transactionCount: monthTransactions.length,
-      averageTransactionAmount: monthTransactions.length > 0 ? 
+      averageTransactionAmount: monthTransactions.length > 0 ?
         monthTransactions.reduce((sum, t) => sum + t.amount, 0) / monthTransactions.length : 0
     };
   }

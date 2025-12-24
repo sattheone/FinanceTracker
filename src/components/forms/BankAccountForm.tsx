@@ -8,12 +8,30 @@ interface BankAccountFormProps {
   onCancel: () => void;
 }
 
+const bankLogos = [
+  { name: 'HDFC Bank', logo: '🏦' },
+  { name: 'State Bank of India', logo: '🏛️' },
+  { name: 'ICICI Bank', logo: '🏢' },
+  { name: 'Axis Bank', logo: '🏪' },
+  { name: 'Kotak Mahindra Bank', logo: '🏬' },
+  { name: 'Punjab National Bank', logo: '🏭' },
+  { name: 'Bank of Baroda', logo: '🏯' },
+  { name: 'Canara Bank', logo: '🏰' },
+  { name: 'Union Bank', logo: '🏛️' },
+  { name: 'Other', logo: '💳' },
+];
+
 const BankAccountForm: React.FC<BankAccountFormProps> = ({
   account,
   onSubmit,
   onCancel,
 }) => {
   const { user } = useAuth();
+
+  // Determine if initial bank is custom (not in the predefined list, ignoring 'Other')
+  const isInitiallyCustom = account?.bank && !bankLogos.some(b => b.name === account.bank && b.name !== 'Other');
+  const [isCustomBank, setIsCustomBank] = useState(isInitiallyCustom || false);
+
   const [formData, setFormData] = useState({
     bank: account?.bank || '',
     accountNumber: account?.number ? account.number.replace('xx', '') : '',
@@ -22,19 +40,6 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const bankLogos = [
-    { name: 'HDFC Bank', logo: '🏦' },
-    { name: 'State Bank of India', logo: '🏛️' },
-    { name: 'ICICI Bank', logo: '🏢' },
-    { name: 'Axis Bank', logo: '🏪' },
-    { name: 'Kotak Mahindra Bank', logo: '🏬' },
-    { name: 'Punjab National Bank', logo: '🏭' },
-    { name: 'Bank of Baroda', logo: '🏯' },
-    { name: 'Canara Bank', logo: '🏰' },
-    { name: 'Union Bank', logo: '🏛️' },
-    { name: 'Other', logo: '💳' },
-  ];
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -73,9 +78,12 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
   };
 
   const handleBankSelect = (bankName: string, logo: string) => {
+    const isCustom = bankName === 'Other';
+    setIsCustomBank(isCustom);
+
     setFormData(prev => ({
       ...prev,
-      bank: bankName,
+      bank: isCustom ? '' : bankName, // Clear bank name if custom so user can type
       logo: logo,
     }));
   };
@@ -93,9 +101,9 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
               key={bank.name}
               type="button"
               onClick={() => handleBankSelect(bank.name, bank.logo)}
-              className={`flex items-center space-x-2 p-3 border-2 rounded-lg transition-all ${formData.bank === bank.name
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                : 'border-gray-200 hover:border-gray-300'
+              className={`flex items-center space-x-2 p-3 border-2 rounded-lg transition-all ${(!isCustomBank && formData.bank === bank.name) || (isCustomBank && bank.name === 'Other')
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                  : 'border-gray-200 hover:border-gray-300'
                 }`}
             >
               <span className="text-xl">{bank.logo}</span>
@@ -111,17 +119,18 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
       </div>
 
       {/* Custom Bank Name (if Other is selected) */}
-      {formData.bank === 'Other' && (
+      {isCustomBank && (
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
             Bank Name
           </label>
           <input
             type="text"
-            value={formData.bank === 'Other' ? '' : formData.bank}
+            value={formData.bank}
             onChange={(e) => setFormData(prev => ({ ...prev, bank: e.target.value }))}
             className="theme-input"
             placeholder="Enter bank name"
+            autoFocus
           />
         </div>
       )}

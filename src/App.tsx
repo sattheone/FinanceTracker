@@ -23,6 +23,7 @@ import Reports from './pages/Reports';
 import Forecast from './pages/Forecast';
 import Settings from './pages/Settings';
 import Alerts from './pages/Alerts';
+import Categories from './pages/Categories';
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -80,6 +81,7 @@ const AppContent: React.FC = () => {
         <Route path="forecast" element={<Forecast />} />
         <Route path="alerts" element={<Alerts />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="categories" element={<Categories />} />
       </Route>
     </Routes>
   );

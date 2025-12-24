@@ -1,20 +1,49 @@
 import React, { useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { TrendingUp, Calculator, Target, Calendar } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { TrendingUp, Target, Filter } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, formatLargeNumber } from '../utils/formatters';
+import Modal from '../components/common/Modal';
 
 const Forecast: React.FC = () => {
-  const { goals, monthlyBudget, licPolicies, assets, userProfile } = useData();
+  const { goals, monthlyBudget, assets, userProfile } = useData();
   const [inflationRate, setInflationRate] = useState(6);
-  const [returnRate, setReturnRate] = useState(12);
   const [forecastYears, setForecastYears] = useState(10);
+  const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
+
+  // Asset Exclusion State with Persistence
+  const [excludedAssetIds, setExcludedAssetIds] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('fi_excluded_assets');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+
+  // Save to localStorage whenever it changes
+  React.useEffect(() => {
+    localStorage.setItem('fi_excluded_assets', JSON.stringify(Array.from(excludedAssetIds)));
+  }, [excludedAssetIds]);
+
+  const toggleAssetExclusion = (id: string) => {
+    const newSet = new Set(excludedAssetIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setExcludedAssetIds(newSet);
+  };
+
+  // Filter assets for FI calculation
+  const fiAssets = React.useMemo(() => assets.filter(a => !excludedAssetIds.has(a.id)), [assets, excludedAssetIds]);
 
   // Calculate retirement projection
   const currentAge = userProfile?.financialInfo.currentAge || 30;
   const retirementAge = userProfile?.financialInfo.retirementAge || 60;
   const yearsToRetirement = retirementAge - currentAge;
-  const currentRetirementCorpus = assets.reduce((sum, asset) => sum + asset.currentValue, 0);
+
+  // Use FI Assets for Corpus
+  const currentRetirementCorpus = fiAssets.reduce((sum, asset) => sum + asset.currentValue, 0);
+  const totalAssetsValue = assets.reduce((sum, asset) => sum + asset.currentValue, 0);
+
   const monthlyRetirementSIP = monthlyBudget.surplus + (goals.find(g => g.category === 'retirement')?.monthlyContribution || 0);
 
   const calculateFutureValue = (pv: number, pmt: number, rate: number, years: number) => {
@@ -25,153 +54,236 @@ const Forecast: React.FC = () => {
     return fvPV + fvPMT;
   };
 
-  // Generate forecast data
-  const forecastData = [];
-  const currentYear = new Date().getFullYear();
-  
-  for (let year = 0; year <= forecastYears; year++) {
-    const projectedYear = currentYear + year;
-    const age = currentAge + year;
-    
-    // Retirement corpus projection
-    const retirementCorpus = year <= yearsToRetirement 
-      ? calculateFutureValue(currentRetirementCorpus, monthlyRetirementSIP, returnRate, year)
-      : calculateFutureValue(currentRetirementCorpus, monthlyRetirementSIP, returnRate, yearsToRetirement);
-    
-    // LIC maturity for this year
-    const licMaturity = licPolicies
-      .filter(p => p.maturityYear === projectedYear)
-      .reduce((sum, p) => sum + p.maturityAmount, 0);
-    
-    // Goals projection
-    const goalsValue = goals.reduce((sum, goal) => {
-      const goalYears = (new Date(goal.targetDate).getFullYear() - currentYear);
-      if (year <= goalYears) {
-        return sum + calculateFutureValue(goal.currentAmount, goal.monthlyContribution, returnRate, year);
-      }
-      return sum + goal.targetAmount;
+  // Asset growth rates by category
+  const growthRates: Record<string, number> = {
+    stocks: 12,
+    mutual_funds: 12,
+    real_estate: 8,
+    gold: 6,
+    epf: 8.1,
+    ppf: 7.1,
+    fixed_deposit: 6.5,
+    cash: 4,
+    other: 6
+  };
+
+  // Calculate weighted average return for display (Based on FI Assets)
+  const weightedReturnRate = React.useMemo(() => {
+    const totalValue = fiAssets.reduce((sum, a) => sum + a.currentValue, 0);
+    if (totalValue === 0) return 0;
+
+    const weightedSum = fiAssets.reduce((sum, asset) => {
+      const rate = growthRates[asset.category] || 6;
+      return sum + (asset.currentValue * rate);
     }, 0);
 
-    forecastData.push({
-      year: projectedYear,
-      age,
-      retirementCorpus: Math.round(retirementCorpus),
-      licMaturity,
-      goalsValue: Math.round(goalsValue),
-      totalWealth: Math.round(retirementCorpus + goalsValue + licMaturity)
-    });
-  }
+    return weightedSum / totalValue;
+  }, [fiAssets]);
 
-  // Calculate monthly expenses at retirement (inflated)
+  // Calculate projected growth per asset class
+  const calculateYearlyProjection = (startYear: number, years: number) => {
+    const data = [];
+    // Start with FI assets only
+    let currentAssets = [...fiAssets.map(a => ({ ...a, projectedValue: a.currentValue }))];
+
+    for (let i = 0; i <= years; i++) {
+      const year = startYear + i;
+      const age = currentAge + i;
+
+      // Grow each asset
+      currentAssets = currentAssets.map(asset => {
+        const r = growthRates[asset.category] || 6;
+        const newValue = asset.projectedValue * (1 + r / 100);
+        return { ...asset, projectedValue: newValue };
+      });
+
+      // Add new Investment (SIP)
+      // Simplified approach: Add yearly contribution to a 'New Investments' bucket growing at weighted rate
+      const accumulatedSIP = calculateFutureValue(0, monthlyRetirementSIP, weightedReturnRate, i);
+
+      const assetsTotal = currentAssets.reduce((sum, a) => sum + a.projectedValue, 0);
+      const totalWealth = assetsTotal + accumulatedSIP;
+
+      data.push({
+        year,
+        age,
+        totalWealth: Math.round(totalWealth),
+        investedAmount: Math.round(currentRetirementCorpus + (monthlyRetirementSIP * 12 * i)),
+        growth: Math.round(totalWealth - (currentRetirementCorpus + (monthlyRetirementSIP * 12 * i)))
+      });
+    }
+    return data;
+  };
+
+  const forecastData = React.useMemo(() => calculateYearlyProjection(new Date().getFullYear(), Math.max(forecastYears, yearsToRetirement)), [fiAssets, forecastYears, yearsToRetirement, monthlyRetirementSIP, weightedReturnRate]);
+
+  // Derived Metrics for Dashboard
   const currentMonthlyExpenses = monthlyBudget.expenses.household;
   const inflatedMonthlyExpenses = currentMonthlyExpenses * Math.pow(1 + inflationRate / 100, yearsToRetirement);
-  const requiredCorpusFor4Percent = inflatedMonthlyExpenses * 12 / 0.04; // 4% withdrawal rule
 
-  // Scenario analysis
-  const scenarios = [
-    { name: 'Conservative', returnRate: 8, inflationRate: 7 },
-    { name: 'Moderate', returnRate: 12, inflationRate: 6 },
-    { name: 'Aggressive', returnRate: 15, inflationRate: 5 }
-  ];
+  // Find wealth specifically at retirement age
+  const retirementDatum = forecastData.find(d => d.age === retirementAge);
+  const wealthAtRetirement = retirementDatum ? retirementDatum.totalWealth : calculateYearlyProjection(new Date().getFullYear(), yearsToRetirement).pop()?.totalWealth || 0;
+  const monthlyIncomeAtRetirement = wealthAtRetirement * 0.04 / 12;
+  const isSurplus = monthlyIncomeAtRetirement >= inflatedMonthlyExpenses;
+  const surplusDeficit = monthlyIncomeAtRetirement - inflatedMonthlyExpenses;
 
-  const scenarioData = scenarios.map(scenario => {
-    const corpus = calculateFutureValue(currentRetirementCorpus, monthlyRetirementSIP, scenario.returnRate, yearsToRetirement);
-    const inflatedExpenses = currentMonthlyExpenses * Math.pow(1 + scenario.inflationRate / 100, yearsToRetirement);
-    const requiredCorpus = inflatedExpenses * 12 / 0.04;
-    
-    return {
-      ...scenario,
-      projectedCorpus: corpus,
-      requiredCorpus,
-      surplus: corpus - requiredCorpus,
-      adequacy: (corpus / requiredCorpus) * 100
-    };
-  });
+  // Group assets for display
+  const assetsByCategory = React.useMemo(() => {
+    const grouped: Record<string, typeof assets> = {};
+    assets.forEach(asset => {
+      if (!grouped[asset.category]) grouped[asset.category] = [];
+      grouped[asset.category].push(asset);
+    });
+    return grouped;
+  }, [assets]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Financial Forecast</h1>
-        <p className="text-gray-600 dark:text-gray-300 mt-1">Project your financial future with different scenarios</p>
-      </div>
-
-      {/* Forecast Controls */}
-      <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Forecast Parameters</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-              Expected Return Rate (%)
-            </label>
-            <input
-              type="number"
-              value={returnRate}
-              onChange={(e) => setReturnRate(Number(e.target.value))}
-              className="input-field theme-input"
-              min="1"
-              max="30"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-              Inflation Rate (%)
-            </label>
-            <input
-              type="number"
-              value={inflationRate}
-              onChange={(e) => setInflationRate(Number(e.target.value))}
-              className="input-field theme-input"
-              min="1"
-              max="15"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-              Forecast Years
-            </label>
-            <input
-              type="number"
-              value={forecastYears}
-              onChange={(e) => setForecastYears(Number(e.target.value))}
-              className="input-field theme-input"
-              min="5"
-              max="25"
-            />
-          </div>
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Financial Forecast</h1>
+          <p className="text-gray-600 dark:text-gray-300 mt-1">
+            Wealth projection based on your actual asset mix and growth rates.
+          </p>
         </div>
       </div>
 
-      {/* Key Projections */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="metric-card text-center">
-          <Target className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Retirement Corpus @ 50</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-            {formatLargeNumber(
-              calculateFutureValue(currentRetirementCorpus, monthlyRetirementSIP, returnRate, yearsToRetirement)
-            )}
-          </p>
+      {/* Financial Independence Analysis Dashboard */}
+      <div className="card bg-white dark:bg-gray-800 overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="border-b border-gray-100 dark:border-gray-700 pb-4 mb-4">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <Target className="h-6 w-6 text-blue-600" />
+            Financial Independence Analysis
+          </h2>
         </div>
-        <div className="metric-card text-center">
-          <Calculator className="h-8 w-8 text-green-600 dark:text-green-400 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Required Corpus</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-            {formatLargeNumber(requiredCorpusFor4Percent)}
-          </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
+          {/* Column 1: Current Status */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+              Current Status
+            </h3>
+
+            <div className="grid grid-cols-2 gap-y-4">
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Current Age</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">{currentAge} years</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Target Retirement Age</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">{retirementAge} years</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Years to Retirement</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">{yearsToRetirement} years</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                  Current Net Worth
+                  <button
+                    onClick={() => setIsAssetModalOpen(true)}
+                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 ml-1 p-0.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                    title="Manage included assets"
+                  >
+                    <Filter className="w-3.5 h-3.5" />
+                  </button>
+                </p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatLargeNumber(currentRetirementCorpus)}</p>
+                  {excludedAssetIds.size > 0 && (
+                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded">
+                      {fiAssets.length}/{assets.length} Active
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="col-span-2">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Monthly Investment</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatCurrency(monthlyRetirementSIP)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Column 2: Retirement Projections */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+              Retirement Projections
+            </h3>
+
+            <div className="space-y-4">
+              <div className="flex justify-between items-end border-b border-gray-100 dark:border-gray-700 pb-2">
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Projected Corpus @ {retirementAge}</p>
+                </div>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">
+                  {formatLargeNumber(wealthAtRetirement)}
+                </p>
+              </div>
+
+              <div className="flex justify-between items-end border-b border-gray-100 dark:border-gray-700 pb-2">
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Monthly Income (4% rule)</p>
+                </div>
+                <p className="text-xl font-bold text-green-600 dark:text-green-400">
+                  {formatCurrency(monthlyIncomeAtRetirement)}
+                </p>
+              </div>
+
+              <div className="flex justify-between items-end border-b border-gray-100 dark:border-gray-700 pb-2">
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Inflated Monthly Expenses</p>
+                </div>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">
+                  {formatCurrency(inflatedMonthlyExpenses)}
+                </p>
+              </div>
+
+              <div className="flex justify-between items-end pt-1">
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Surplus / Deficit</p>
+                </div>
+                <p className={`text-2xl font-extrabold ${isSurplus ? 'text-green-600' : 'text-red-600'}`}>
+                  {(isSurplus ? '+' : '') + formatCurrency(surplusDeficit)}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="metric-card text-center">
-          <TrendingUp className="h-8 w-8 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Monthly Income @ 50</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-            {formatCurrency(
-              calculateFutureValue(currentRetirementCorpus, monthlyRetirementSIP, returnRate, yearsToRetirement) * 0.04 / 12
-            )}
-          </p>
+      </div>
+
+      {/* Forecast Controls / Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="card bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+          <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">Portfolio Avg Return</h3>
+          <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{weightedReturnRate.toFixed(1)}%</p>
+          <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">Based on included assets ({formatLargeNumber(currentRetirementCorpus)})</p>
         </div>
-        <div className="metric-card text-center">
-          <Calendar className="h-8 w-8 text-red-600 dark:text-red-400 mx-auto mb-2" />
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Years to Retirement</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{yearsToRetirement}</p>
+        <div className="card">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+            Inflation Rate (%)
+          </label>
+          <input
+            type="number"
+            value={inflationRate}
+            onChange={(e) => setInflationRate(Number(e.target.value))}
+            className="input-field theme-input"
+            min="1"
+            max="15"
+          />
+        </div>
+        <div className="card">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+            Forecast Years
+          </label>
+          <input
+            type="number"
+            value={forecastYears}
+            onChange={(e) => setForecastYears(Number(e.target.value))}
+            className="input-field theme-input"
+            min="5"
+            max="40"
+          />
         </div>
       </div>
 
@@ -183,175 +295,114 @@ const Forecast: React.FC = () => {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="year" />
             <YAxis tickFormatter={(value) => `₹${(value / 10000000).toFixed(1)}Cr`} />
-            <Tooltip 
+            <Tooltip
               formatter={(value, name) => [
                 formatLargeNumber(value as number),
-                name === 'retirementCorpus' ? 'Retirement Corpus' :
-                name === 'goalsValue' ? 'Goals Value' :
-                name === 'licMaturity' ? 'LIC Maturity' : 'Total Wealth'
+                name === 'totalWealth' ? 'Total Wealth' :
+                  name === 'investedAmount' ? 'Principal Invested' : 'Growth'
               ]}
-              labelFormatter={(label) => `Year: ${label}`}
+              labelFormatter={(label) => `Year: ${label} (Age: ${Number(label) - new Date().getFullYear() + currentAge})`}
             />
-            <Line type="monotone" dataKey="retirementCorpus" stroke="#3B82F6" strokeWidth={2} name="Retirement Corpus" />
-            <Line type="monotone" dataKey="goalsValue" stroke="#10B981" strokeWidth={2} name="Goals Value" />
-            <Line type="monotone" dataKey="totalWealth" stroke="#8B5CF6" strokeWidth={3} name="Total Wealth" />
+            <Line type="monotone" dataKey="totalWealth" stroke="#8B5CF6" strokeWidth={3} name="Total Wealth" dot={false} />
+            <Line type="monotone" dataKey="investedAmount" stroke="#3B82F6" strokeWidth={2} name="Invested Amount" dot={false} strokeDasharray="5 5" />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Scenario Analysis */}
-      <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Retirement Scenario Analysis</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Scenario
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Return Rate
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Inflation Rate
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Projected Corpus
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Required Corpus
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Adequacy
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200">
-              {scenarioData.map((scenario) => (
-                <tr key={scenario.name} className="hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-700">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    {scenario.name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {scenario.returnRate}%
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {scenario.inflationRate}%
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900 dark:text-white">
-                    {formatLargeNumber(scenario.projectedCorpus)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">
-                    {formatLargeNumber(scenario.requiredCorpus)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                    <span className={`font-semibold ${scenario.adequacy >= 100 ? 'text-green-600' : 'text-red-600'}`}>
-                      {scenario.adequacy.toFixed(0)}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* LIC Maturity Timeline */}
-      <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Post-Retirement Income Stream (LIC Policies)</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart 
-            data={licPolicies.slice(0, 15).map(p => ({ 
-              year: p.maturityYear, 
-              amount: p.maturityAmount,
-              age: 40 + (p.maturityYear - 2025)
-            }))} 
-            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="year" />
-            <YAxis tickFormatter={(value) => `₹${(value / 100000).toFixed(0)}L`} />
-            <Tooltip 
-              formatter={(value) => [formatCurrency(value as number), 'Maturity Amount']}
-              labelFormatter={(label) => `Year: ${label}`}
-            />
-            <Bar dataKey="amount" fill="#F59E0B" />
-          </BarChart>
-        </ResponsiveContainer>
-        <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
-          Total LIC maturity value: {formatLargeNumber(licPolicies.reduce((sum, p) => sum + p.maturityAmount, 0))} 
-          over 25 years (2036-2060)
-        </p>
-      </div>
-
       {/* Financial Independence Analysis */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Financial Independence Analysis</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h4 className="font-medium text-gray-900 dark:text-white mb-3">Current Status</h4>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Current Age:</span>
-                <span className="font-medium">{currentAge} years</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Target Retirement Age:</span>
-                <span className="font-medium">{retirementAge} years</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Years to Retirement:</span>
-                <span className="font-medium">{yearsToRetirement} years</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Current Net Worth:</span>
-                <span className="font-medium">{formatLargeNumber(currentRetirementCorpus)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Monthly Investment:</span>
-                <span className="font-medium">{formatCurrency(monthlyRetirementSIP)}</span>
-              </div>
-            </div>
-          </div>
-          
-          <div>
-            <h4 className="font-medium text-gray-900 dark:text-white mb-3">Retirement Projections</h4>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Projected Corpus @ 50:</span>
-                <span className="font-medium text-green-600 dark:text-green-400">
-                  {formatLargeNumber(
-                    calculateFutureValue(currentRetirementCorpus, monthlyRetirementSIP, returnRate, yearsToRetirement)
-                  )}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Monthly Income (4% rule):</span>
-                <span className="font-medium">
-                  {formatCurrency(
-                    calculateFutureValue(currentRetirementCorpus, monthlyRetirementSIP, returnRate, yearsToRetirement) * 0.04 / 12
-                  )}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Inflated Monthly Expenses:</span>
-                <span className="font-medium">{formatCurrency(inflatedMonthlyExpenses)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Surplus/Deficit:</span>
-                <span className={`font-medium ${
-                  (calculateFutureValue(currentRetirementCorpus, monthlyRetirementSIP, returnRate, yearsToRetirement) * 0.04 / 12) > inflatedMonthlyExpenses 
-                    ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {formatCurrency(
-                    (calculateFutureValue(currentRetirementCorpus, monthlyRetirementSIP, returnRate, yearsToRetirement) * 0.04 / 12) - inflatedMonthlyExpenses
-                  )}
-                </span>
-              </div>
-            </div>
-          </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Projection Details</h3>
+        <div className="text-sm text-gray-600 dark:text-gray-300">
+          <p>This projection assumes your <span className="font-semibold text-gray-900 dark:text-white">included assets ({formatLargeNumber(currentRetirementCorpus)})</span> grow at rates specific to their category (Equity ~12%, Debt ~7-8%, Gold ~6%).</p>
+          {excludedAssetIds.size > 0 && (
+            <p className="mt-1 text-yellow-600 dark:text-yellow-400">
+              You have excluded {excludedAssetIds.size} assets totaling {formatLargeNumber(totalAssetsValue - currentRetirementCorpus)} from this analysis.
+            </p>
+          )}
+          <p className="mt-2">Future monthly investments of {formatCurrency(monthlyRetirementSIP)} are assumed to grow at the portfolio's weighted average rate of {weightedReturnRate.toFixed(1)}%.</p>
         </div>
       </div>
+
+      {/* Asset Inclusion Modal */}
+      <Modal
+        isOpen={isAssetModalOpen}
+        onClose={() => setIsAssetModalOpen(false)}
+        title="Asset Inclusion for FI Corpus"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Select which assets contribute to your Retirement/Financial Independence corpus.
+            Uncheck assets that are reserved for other goals (like children's education or house purchase).
+          </p>
+
+          <div className="flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800">
+            <span className="text-sm font-medium text-blue-900 dark:text-blue-100">Total Included Corpus:</span>
+            <span className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatLargeNumber(currentRetirementCorpus)}</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 max-h-[60vh] overflow-y-auto pr-2">
+            {Object.entries(assetsByCategory).map(([category, categoryAssets]) => (
+              <div key={category} className="space-y-2">
+                <h4 className="text-sm font-medium text-gray-900 dark:text-white uppercase tracking-wider border-b pb-1 border-gray-100 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-800 z-10">
+                  {category.replace('_', ' ')}
+                </h4>
+                <div className="space-y-2">
+                  {categoryAssets.map(asset => {
+                    const isExcluded = excludedAssetIds.has(asset.id);
+                    const linkedGoal = goals.find(g => g.linkedSIPAssets?.includes(asset.id));
+
+                    return (
+                      <div key={asset.id} className={`flex items-start p-2 rounded-lg transition-colors border ${isExcluded ? 'border-gray-100 bg-gray-50 dark:bg-gray-800/50 dark:border-gray-700 opacity-70' : 'border-gray-200 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700/50'}`}>
+                        <div className="flex items-center h-5">
+                          <input
+                            id={`modal-asset-${asset.id}`}
+                            name={`modal-asset-${asset.id}`}
+                            type="checkbox"
+                            checked={!isExcluded}
+                            onChange={() => toggleAssetExclusion(asset.id)}
+                            className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded cursor-pointer"
+                          />
+                        </div>
+                        <div className="ml-3 text-sm flex-1">
+                          <label htmlFor={`modal-asset-${asset.id}`} className="font-medium text-gray-700 dark:text-gray-300 cursor-pointer block">
+                            {asset.name}
+                          </label>
+                          <div className="flex justify-between items-center mt-1">
+                            <span className="text-gray-500 text-xs">{formatCurrency(asset.currentValue)}</span>
+                            {linkedGoal ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" title={`Linked to goal: ${linkedGoal.name}`}>
+                                <Target className="w-3 h-3 mr-1" />
+                                {linkedGoal.name}
+                              </span>
+                            ) : (
+                              growthRates[asset.category] && (
+                                <span className="text-xs text-green-600 dark:text-green-400">
+                                  <TrendingUp className="w-3 h-3 inline mr-0.5" />
+                                  {growthRates[asset.category]}%
+                                </span>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-gray-700">
+            <button
+              onClick={() => setIsAssetModalOpen(false)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
