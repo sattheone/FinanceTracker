@@ -4,7 +4,6 @@ import { Transaction, MonthlyBudget } from '../../types';
 import { Category } from '../../constants/categories';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { formatCurrency } from '../../utils/formatters';
-import { ArrowRight } from 'lucide-react';
 
 interface CategoryOverviewProps {
     transactions: Transaction[];
@@ -178,7 +177,7 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
     }, [categories, expenses, currentYear, currentMonthIndex, monthlyBudget]);
 
 
-    const CustomTooltip = ({ active, payload, label }: any) => {
+    const CustomTooltip = ({ active, payload }: any) => {
         if (active && payload && payload.length) {
             return (
                 <div className="bg-white dark:bg-gray-800 p-3 border border-gray-100 dark:border-gray-700 shadow-xl rounded-lg">

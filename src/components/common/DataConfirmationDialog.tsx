@@ -49,9 +49,11 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
   };
 
   const handleFieldChange = (index: number, field: string, value: any) => {
-    const newData = [...editableData];
-    newData[index] = { ...newData[index], [field]: value };
-    setEditableData(newData);
+    setEditableData(prev => {
+      const newData = [...prev];
+      newData[index] = { ...newData[index], [field]: value };
+      return newData;
+    });
   };
 
   const handleConfirm = () => {
@@ -87,20 +89,20 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">Name</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
           <input
             type="text"
             value={item.name}
             onChange={(e) => handleFieldChange(index, 'name', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded text-sm theme-input"
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">Category</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
           <select
             value={item.category}
             onChange={(e) => handleFieldChange(index, 'category', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded text-sm theme-input"
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
           >
             <option value="stocks">Stocks</option>
             <option value="mutual_funds">Mutual Funds</option>
@@ -111,21 +113,21 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">Current Value</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Current Value</label>
           <input
             type="number"
             value={item.currentValue}
             onChange={(e) => handleFieldChange(index, 'currentValue', Number(e.target.value))}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded text-sm theme-input"
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">Purchase Value (Optional)</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Purchase Value (Optional)</label>
           <input
             type="number"
             value={item.purchaseValue || ''}
             onChange={(e) => handleFieldChange(index, 'purchaseValue', Number(e.target.value) || undefined)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded text-sm theme-input"
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
           />
         </div>
       </div>
@@ -153,11 +155,11 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'income': return 'text-green-600 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700';
-      case 'expense': return 'text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700';
-      case 'investment': return 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700';
-      case 'insurance': return 'text-purple-600 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700';
-      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+      case 'income': return 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800';
+      case 'expense': return 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800';
+      case 'investment': return 'text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800';
+      case 'insurance': return 'text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800';
+      default: return 'text-gray-700 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700';
     }
   };
 
@@ -171,9 +173,9 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
   };
 
   const renderTransactionTable = () => (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 table-fixed">
-        <thead className="bg-gray-50 dark:bg-gray-700">
+    <div className="overflow-x-auto ring-1 ring-gray-200 dark:ring-gray-700 rounded-lg">
+      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed">
+        <thead className="bg-gray-50 dark:bg-gray-800">
           <tr>
             <th className="px-3 py-3 text-left w-12">
               <input
@@ -186,48 +188,48 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                     setSelectedItems(new Set());
                   }
                 }}
-                className="h-4 w-4 text-primary-600 rounded"
+                className="h-4 w-4 text-primary-600 rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:ring-primary-500"
               />
             </th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">
+            <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">
               <div className="flex items-center">
                 <Calendar className="w-4 h-4 mr-1" />
                 Date
               </div>
             </th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Description
-              <span className="text-gray-400 font-normal normal-case ml-1 text-xs">(hover for full)</span>
+              <span className="text-gray-400 dark:text-gray-500 font-normal normal-case ml-1 text-xs">(hover for full)</span>
             </th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">
+            <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">
               <div className="flex items-center">
                 <DollarSign className="w-4 h-4 mr-1" />
                 Amount
               </div>
             </th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">
+            <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">
               Type
             </th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-40">
+            <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-40">
               <div className="flex items-center">
                 <Tag className="w-4 h-4 mr-1" />
                 Category
               </div>
             </th>
-            <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
+            <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
               Confidence
             </th>
           </tr>
         </thead>
-        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200">
+        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
           {editableData.map((item, index) => (
-            <tr key={index} className={`hover:bg-gray-50 ${selectedItems.has(index) ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+            <tr key={index} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${selectedItems.has(index) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
               <td className="px-3 py-2">
                 <input
                   type="checkbox"
                   checked={selectedItems.has(index)}
                   onChange={() => handleItemToggle(index)}
-                  className="h-4 w-4 text-primary-600 rounded"
+                  className="h-4 w-4 text-primary-600 rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:ring-primary-500"
                 />
               </td>
               <td className="px-3 py-2">
@@ -235,7 +237,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                   type="date"
                   value={item.date}
                   onChange={(e) => handleFieldChange(index, 'date', e.target.value)}
-                  className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm dark:[color-scheme:dark]"
                 />
               </td>
               <td className="px-3 py-2">
@@ -244,26 +246,26 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                     type="text"
                     value={item.description}
                     onChange={(e) => handleFieldChange(index, 'description', e.target.value)}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 truncate bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 truncate transition-colors shadow-sm"
                     placeholder="Transaction description"
                     title={item.description} // Native tooltip as fallback
                   />
                   {item.description && item.description.length > 40 && (
-                    <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 max-w-md whitespace-normal pointer-events-none">
+                    <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-gray-900 dark:bg-black text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 max-w-md whitespace-normal pointer-events-none border border-gray-700">
                       {item.description}
-                      <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                      <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-black"></div>
                     </div>
                   )}
                 </div>
               </td>
               <td className="px-3 py-2">
-                <div className="flex items-center">
-                  <span className="text-gray-500 dark:text-gray-400 mr-1">₹</span>
+                <div className="relative">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 text-xs">₹</span>
                   <input
                     type="number"
                     value={item.amount}
                     onChange={(e) => handleFieldChange(index, 'amount', Number(e.target.value))}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="w-full pl-5 pr-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm"
                     min="0"
                     step="0.01"
                   />
@@ -275,13 +277,20 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                   onChange={(e) => {
                     const newType = e.target.value;
                     handleFieldChange(index, 'type', newType);
-                    // Auto-update category when type changes
-                    const categories = getCategoryOptions(newType);
+
                     if (categories.length > 0) {
-                      handleFieldChange(index, 'category', categories[0]);
+                      // Default to Uncategorized when changing types to avoid incorrect guesses
+                      const defaultCatId = 'uncategorized';
+                      handleFieldChange(index, 'category', defaultCatId);
+                    } else {
+                      // Legacy mode
+                      const options = getCategoryOptions(newType);
+                      if (options.length > 0) {
+                        handleFieldChange(index, 'category', options[0]);
+                      }
                     }
                   }}
-                  className={`w-full px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-800 ${getTypeColor(item.type)}`}
+                  className={`w-full px-2 py-1.5 text-sm border rounded shadow-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium ${getTypeColor(item.type)}`}
                 >
                   <option value="income">Income</option>
                   <option value="expense">Expense</option>
@@ -293,18 +302,27 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                 <select
                   value={item.category}
                   onChange={(e) => handleFieldChange(index, 'category', e.target.value)}
-                  className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-colors"
                 >
                   {/* Default Option if value is missing */}
                   {!item.category && <option value="">Select Category</option>}
 
-                  {/* Dynamic Options */}
+                  {/* Show Uncategorized if selected, or if we want to allow seeing it */}
+                  {(item.category === 'uncategorized' || categories.find(c => c.id === 'uncategorized')) && (
+                    <option value="uncategorized">❓ Uncategorized</option>
+                  )}
+
+                  {/* Dynamic Options - Filter out uncategorized to hide it from manual selection list if desired, 
+                      but kept if it's the current one (handled above) 
+                  */}
                   {categories.length > 0 ? (
-                    categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.icon} {cat.name}
-                      </option>
-                    ))
+                    categories
+                      .filter(c => c.id !== 'uncategorized')
+                      .map(cat => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.icon} {cat.name}
+                        </option>
+                      ))
                   ) : (
                     // Fallback Hardcoded Options (Legacy)
                     getCategoryOptions(item.type).map(category => (
@@ -314,9 +332,9 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                 </select>
               </td>
               <td className="px-3 py-2 text-center">
-                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${item.confidence >= 0.8 ? 'bg-green-100 text-green-700 dark:text-green-300' :
-                  item.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300' :
-                    'bg-red-100 text-red-700 dark:text-red-300'
+                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${item.confidence >= 0.8 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' :
+                  item.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300' :
+                    'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
                   }`}>
                   {Math.round(item.confidence * 100)}%
                 </span>
@@ -355,20 +373,20 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">Policy Name</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Policy Name</label>
           <input
             type="text"
             value={item.policyName}
             onChange={(e) => handleFieldChange(index, 'policyName', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded text-sm theme-input"
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">Type</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
           <select
             value={item.type}
             onChange={(e) => handleFieldChange(index, 'type', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded text-sm theme-input"
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
           >
             <option value="term">Term</option>
             <option value="endowment">Endowment</option>
@@ -377,21 +395,21 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">Cover Amount</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Cover Amount</label>
           <input
             type="number"
             value={item.coverAmount}
             onChange={(e) => handleFieldChange(index, 'coverAmount', Number(e.target.value))}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded text-sm theme-input"
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">Premium Amount</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Premium Amount</label>
           <input
             type="number"
             value={item.premiumAmount}
             onChange={(e) => handleFieldChange(index, 'premiumAmount', Number(e.target.value))}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded text-sm theme-input"
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
           />
         </div>
       </div>

@@ -14,7 +14,7 @@ import { Category } from '../../constants/categories';
 import { cn } from '../../hooks/useThemeClasses';
 import { formatCurrency } from '../../utils/formatters';
 import TransactionTable from '../transactions/TransactionTable';
-import TransactionDetailOverlay from '../transactions/TransactionDetailOverlay';
+import SimpleTransactionModal from '../transactions/SimpleTransactionModal';
 import { useData } from '../../contexts/DataContext';
 
 interface CategoryDetailProps {
@@ -30,7 +30,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     monthlyBudget,
     currentMonth
 }) => {
-    const { updateTransaction, deleteTransaction } = useData();
+    const { updateTransaction } = useData();
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
 
     // --- Calculations ---
@@ -188,13 +188,14 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
             </div>
 
             {/* Detail Overlay */}
-            <TransactionDetailOverlay
-                isOpen={!!selectedTransaction}
-                onClose={() => setSelectedTransaction(null)}
-                transaction={selectedTransaction}
-                onUpdate={updateTransaction}
-                onDelete={deleteTransaction}
-            />
+            {selectedTransaction && (
+                <SimpleTransactionModal
+                    transaction={selectedTransaction}
+                    isOpen={!!selectedTransaction}
+                    onClose={() => setSelectedTransaction(null)}
+                    onTransactionClick={(t) => setSelectedTransaction(t)}
+                />
+            )}
         </div>
     );
 };

@@ -78,4 +78,7 @@ export const defaultCategories: Category[] = [
 
     // Transfer (System) (Order 1100)
     { id: 'transfer', name: 'Transfer', color: '#8B5CF6', icon: '↔️', isCustom: false, order: 1100, isSystem: true },
+
+    // Uncategorized (System) (Order 0 - Top or Bottom? Let's generic it)
+    { id: 'uncategorized', name: 'Uncategorized', color: '#9CA3AF', icon: '❓', isCustom: false, order: 1200, isSystem: true },
 ];

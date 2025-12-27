@@ -20,7 +20,7 @@ import TransactionListModal from '../components/transactions/TransactionListModa
 import AutoCategorizationService from '../services/autoCategorization';
 import CategoryMigrationService from '../services/categoryMigration';
 import { ParsedTransaction } from '../services/excelParser';
-import { useThemeClasses } from '../hooks/useThemeClasses';
+// import { useThemeClasses } from '../hooks/useThemeClasses'; // Unused
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { PieChart as PieChartIcon } from 'lucide-react';
 import CategoryBreakdownOverlay from '../components/transactions/CategoryBreakdownOverlay';
@@ -51,7 +51,6 @@ const Transactions: React.FC = () => {
   } = useData();
 
 
-  const theme = useThemeClasses();
   // const navigate = useNavigate(); // Remove unused navigate
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; transaction: Transaction } | null>(null);
 
@@ -475,11 +474,6 @@ const Transactions: React.FC = () => {
   // Removed - focus on import/categorization workflow
 
   // Removed - using combined detail/edit modal
-
-  const handleTransactionClick = (transaction: Transaction) => {
-    setSelectedTransactionForDetail(transaction);
-    setShowDetailModal(true);
-  };
 
   const handleDetailModalClose = () => {
     setShowDetailModal(false);

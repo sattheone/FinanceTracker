@@ -177,6 +177,7 @@ const SimpleTransactionForm: React.FC<SimpleTransactionFormProps> = ({
             <option value="">Select Category</option>
             {categories
               .filter(c => formData.type !== 'expense' || c.id !== 'salary')
+              .filter(c => c.id !== 'uncategorized' || c.id === formData.category)
               .map(category => (
                 <option key={category.id} value={category.id}>
                   {category.icon} {category.name}

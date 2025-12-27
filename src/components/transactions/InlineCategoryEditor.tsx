@@ -22,7 +22,7 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
   const theme = useThemeClasses();
 
   // Use categories from context
-  const categories = contextCategories || [];
+  const categories = (contextCategories || []).filter(c => c.id !== 'uncategorized' || c.id === currentCategory);
 
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');

@@ -4,33 +4,43 @@ import CategoryList from '../components/categories/CategoryList';
 import CategoryDetail from '../components/categories/CategoryDetail';
 import CategoryOverview from '../components/categories/CategoryOverview';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
-import { X } from 'lucide-react';
+import { X, ChevronDown } from 'lucide-react';
 
 const Categories: React.FC = () => {
     const { categories, transactions, monthlyBudget } = useData();
     const theme = useThemeClasses();
 
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
 
     // --- 1. Aggregation for List View ---
     const currentMonth = useMemo(() => new Date(), []);
 
     const spendingByCategory = useMemo(() => {
         const spending: Record<string, number> = {};
-        const currentMonthKey = `${currentMonth.getFullYear()}-${currentMonth.getMonth()}`;
+        const now = new Date();
+        const currentMonthKey = `${now.getFullYear()}-${now.getMonth()}`;
+        const currentYearKey = `${now.getFullYear()}`;
 
         transactions.forEach(t => {
             if (t.type === 'expense') {
                 const tDate = new Date(t.date);
-                const tMonthKey = `${tDate.getFullYear()}-${tDate.getMonth()}`;
 
-                if (tMonthKey === currentMonthKey) {
-                    spending[t.category] = (spending[t.category] || 0) + t.amount;
+                if (viewMode === 'month') {
+                    const tMonthKey = `${tDate.getFullYear()}-${tDate.getMonth()}`;
+                    if (tMonthKey === currentMonthKey) {
+                        spending[t.category] = (spending[t.category] || 0) + t.amount;
+                    }
+                } else {
+                    const tYearKey = `${tDate.getFullYear()}`;
+                    if (tYearKey === currentYearKey) {
+                        spending[t.category] = (spending[t.category] || 0) + t.amount;
+                    }
                 }
             }
         });
         return spending;
-    }, [transactions, currentMonth]);
+    }, [transactions, viewMode]);
 
     // --- 2. Selection Handling ---
 
@@ -54,8 +64,24 @@ const Categories: React.FC = () => {
                 "w-full md:w-80 lg:w-96 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col transition-all duration-300",
                 selectedCategoryId ? "hidden md:flex" : "flex"
             )}>
-                <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                    <h1 className={cn(theme.textPrimary, "text-xl font-bold")}>Categories</h1>
+                <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+                    <h1 className={cn(theme.textPrimary, "text-xl font-bold flex items-center gap-2")}>
+                        Categories <span className="text-gray-400 font-normal">· Snapshot</span>
+                    </h1>
+                    <div className="flex items-center gap-1 mt-1">
+                        <span className="text-xs text-gray-500 uppercase tracking-wide font-medium">Showing:</span>
+                        <div className="relative group">
+                            <select
+                                value={viewMode}
+                                onChange={(e) => setViewMode(e.target.value as 'month' | 'year')}
+                                className="appearance-none bg-transparent text-xs font-semibold text-gray-700 dark:text-gray-300 pr-5 cursor-pointer focus:outline-none"
+                            >
+                                <option value="month">This Month</option>
+                                <option value="year">This Year</option>
+                            </select>
+                            <ChevronDown className="w-3 h-3 absolute right-0 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                        </div>
+                    </div>
                 </div>
 
                 <div className="flex-1 overflow-hidden p-2">
