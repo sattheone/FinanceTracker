@@ -272,7 +272,7 @@ const DataDeletionSettings: React.FC = () => {
                                     type="text"
                                     value={confirmInput}
                                     onChange={(e) => setConfirmInput(e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 dark:bg-gray-700 dark:text-white"
+                                    className="input-field theme-input"
                                     placeholder="DELETE"
                                     autoFocus
                                 />

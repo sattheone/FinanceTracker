@@ -10,12 +10,12 @@ const ReviewStep: React.FC = () => {
   const totalGoals = goals.reduce((sum, goal) => sum + goal.targetAmount, 0);
   const totalCoverage = insurance.reduce((sum, policy) => sum + policy.coverAmount, 0);
   const totalPremiums = insurance.reduce((sum, policy) => {
-    const multiplier = policy.premiumFrequency === 'monthly' ? 12 : 
-                     policy.premiumFrequency === 'quarterly' ? 4 : 1;
+    const multiplier = policy.premiumFrequency === 'monthly' ? 12 :
+      policy.premiumFrequency === 'quarterly' ? 4 : 1;
     return sum + (policy.premiumAmount * multiplier);
   }, 0);
 
-  const savingsRate = monthlyBudget.income > 0 ? 
+  const savingsRate = monthlyBudget.income > 0 ?
     ((monthlyBudget.income - monthlyBudget.expenses.household) / monthlyBudget.income) * 100 : 0;
 
   return (
@@ -113,7 +113,7 @@ const ReviewStep: React.FC = () => {
             <div className="text-right">
               <p className="text-sm text-gray-600 dark:text-gray-300">Top Asset</p>
               <p className="font-medium text-gray-900 dark:text-white">
-                {assets.reduce((max, asset) => 
+                {assets.reduce((max, asset) =>
                   asset.currentValue > max.currentValue ? asset : max
                 ).name}
               </p>
@@ -175,9 +175,9 @@ const ReviewStep: React.FC = () => {
       </div>
 
       {/* Next Steps */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 dark:border-blue-700 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-blue-900 mb-3">🎉 What's Next?</h3>
-        <div className="text-sm text-blue-700 dark:text-blue-300 space-y-2">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800 border border-blue-200 dark:border-gray-700 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-3">🎉 What's Next?</h3>
+        <div className="text-sm text-blue-700 dark:text-blue-200 space-y-2">
           <p>• Your personalized dashboard will show real-time financial insights</p>
           <p>• Track your progress towards goals with interactive charts</p>
           <p>• Get forecasts and scenarios for your financial future</p>
@@ -187,8 +187,8 @@ const ReviewStep: React.FC = () => {
       </div>
 
       {/* Completion Message */}
-      <div className="text-center bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-6">
-        <h4 className="font-medium text-green-900 mb-2">
+      <div className="text-center bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6">
+        <h4 className="font-medium text-green-900 dark:text-green-100 mb-2">
           🚀 Ready to Take Control of Your Finances!
         </h4>
         <p className="text-green-700 dark:text-green-300">

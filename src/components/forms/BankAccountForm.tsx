@@ -92,7 +92,7 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Bank Selection */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">
+        <label className="form-label">
           Select Bank
         </label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -102,8 +102,8 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
               type="button"
               onClick={() => handleBankSelect(bank.name, bank.logo)}
               className={`flex items-center space-x-2 p-3 border-2 rounded-lg transition-all ${(!isCustomBank && formData.bank === bank.name) || (isCustomBank && bank.name === 'Other')
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                  : 'border-gray-200 hover:border-gray-300'
+                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                : 'border-gray-200 hover:border-gray-300'
                 }`}
             >
               <span className="text-xl">{bank.logo}</span>
@@ -121,14 +121,14 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
       {/* Custom Bank Name (if Other is selected) */}
       {isCustomBank && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Bank Name
           </label>
           <input
             type="text"
             value={formData.bank}
             onChange={(e) => setFormData(prev => ({ ...prev, bank: e.target.value }))}
-            className="theme-input"
+            className="input-field theme-input"
             placeholder="Enter bank name"
             autoFocus
           />
@@ -137,14 +137,14 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
 
       {/* Account Number */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+        <label className="form-label">
           Account Number
         </label>
         <input
           type="text"
           value={formData.accountNumber}
           onChange={(e) => setFormData(prev => ({ ...prev, accountNumber: e.target.value }))}
-          className="theme-input"
+          className="input-field theme-input"
           placeholder="Enter account number"
         />
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -157,7 +157,7 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
 
       {/* Current Balance */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+        <label className="form-label">
           Current Balance
         </label>
         <input
@@ -165,7 +165,7 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
           step="0.01"
           value={formData.balance}
           onChange={(e) => setFormData(prev => ({ ...prev, balance: parseFloat(e.target.value) || 0 }))}
-          className="theme-input"
+          className="input-field theme-input"
           placeholder="0.00"
         />
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -178,13 +178,13 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+          className="btn-secondary"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="btn-primary"
         >
           {account ? 'Update Account' : 'Add Account'}
         </button>

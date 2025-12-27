@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Mail, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Mail,
+  CheckCircle,
+  AlertCircle,
   Save,
   TestTube,
   Bell
@@ -58,7 +58,7 @@ const SimpleEmailSettings: React.FC = () => {
       const newDays = checked
         ? [...currentDays, days].sort((a, b) => b - a)
         : currentDays.filter(d => d !== days);
-      
+
       return {
         ...prev,
         [parentKey]: {
@@ -144,8 +144,8 @@ const SimpleEmailSettings: React.FC = () => {
       setBrowserNotificationsEnabled(browserNotificationService.isEnabled());
       setTestResult({
         success,
-        message: success 
-          ? 'Browser notification sent! Check your browser for the notification.' 
+        message: success
+          ? 'Browser notification sent! Check your browser for the notification.'
           : 'Browser notifications not supported or permission denied.'
       });
     } catch (error) {
@@ -195,8 +195,8 @@ const SimpleEmailSettings: React.FC = () => {
         {/* Configuration Status */}
         <div className={cn(
           "flex items-center space-x-2 p-3 rounded-lg",
-          isConfigured 
-            ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700" 
+          isConfigured
+            ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700"
             : "bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700"
         )}>
           {isConfigured ? (
@@ -220,12 +220,12 @@ const SimpleEmailSettings: React.FC = () => {
       {/* Basic Configuration */}
       <div className={theme.card}>
         <h3 className={cn(theme.heading3, "mb-4")}>Basic Settings</h3>
-        
+
         <div className="space-y-4">
           {/* Enable/Disable */}
           <div className="flex items-center justify-between">
             <div>
-              <label className={theme.label}>Enable Email Notifications</label>
+              <label className="form-label">Enable Email Notifications</label>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Receive automated email alerts for bills, budgets, and financial events
               </p>
@@ -243,13 +243,13 @@ const SimpleEmailSettings: React.FC = () => {
 
           {/* Email Address - Read Only */}
           <div>
-            <label className={theme.label}>Your Email Address</label>
+            <label className="form-label">Your Email Address</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <input
                 type="email"
                 value={settings.emailAddress}
-                className={cn(theme.input, "pl-10 bg-gray-50 dark:bg-gray-700 cursor-not-allowed")}
+                className="input-field theme-input !pl-10 bg-gray-50 dark:bg-gray-700 cursor-not-allowed"
                 placeholder="your.email@example.com"
                 disabled={true}
                 readOnly={true}
@@ -266,7 +266,7 @@ const SimpleEmailSettings: React.FC = () => {
       {settings.enabled && (
         <div className={theme.card}>
           <h3 className={cn(theme.heading3, "mb-4")}>Notification Preferences</h3>
-          
+
           <div className="space-y-6">
             {/* Bill Reminders */}
             <div>
@@ -287,7 +287,7 @@ const SimpleEmailSettings: React.FC = () => {
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 </label>
               </div>
-              
+
               {settings.billReminders.enabled && (
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">Send reminders:</p>
@@ -329,7 +329,7 @@ const SimpleEmailSettings: React.FC = () => {
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 </label>
               </div>
-              
+
               {settings.recurringReminders.enabled && (
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">Send reminders:</p>
@@ -371,7 +371,7 @@ const SimpleEmailSettings: React.FC = () => {
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 </label>
               </div>
-              
+
               {settings.budgetAlerts.enabled && (
                 <div>
                   <label className="block text-sm text-gray-600 dark:text-gray-300 mb-2">
@@ -433,7 +433,7 @@ const SimpleEmailSettings: React.FC = () => {
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 </label>
               </div>
-              
+
               {settings.monthlyReports.enabled && (
                 <div>
                   <label className="block text-sm text-gray-600 dark:text-gray-300 mb-2">
@@ -445,7 +445,7 @@ const SimpleEmailSettings: React.FC = () => {
                     max="28"
                     value={settings.monthlyReports.dayOfMonth}
                     onChange={(e) => handleNestedSettingChange('monthlyReports', 'dayOfMonth', Number(e.target.value))}
-                    className={cn(theme.input, "w-20")}
+                    className="input-field theme-input w-20"
                   />
                 </div>
               )}
@@ -457,11 +457,11 @@ const SimpleEmailSettings: React.FC = () => {
       {/* Browser Notifications Alternative */}
       <div className={theme.card}>
         <h3 className={cn(theme.heading3, "mb-4")}>🔔 Browser Notifications (Alternative)</h3>
-        
+
         <div className="space-y-4">
           <div className={cn(
             "p-4 rounded-lg border",
-            browserNotificationsEnabled 
+            browserNotificationsEnabled
               ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700"
               : "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700"
           )}>
@@ -473,11 +473,11 @@ const SimpleEmailSettings: React.FC = () => {
               )}
               <span className={cn(
                 "font-medium",
-                browserNotificationsEnabled 
+                browserNotificationsEnabled
                   ? "text-green-800 dark:text-green-200"
                   : "text-yellow-800 dark:text-yellow-200"
               )}>
-                {browserNotificationsEnabled 
+                {browserNotificationsEnabled
                   ? "Browser notifications are enabled"
                   : "Browser notifications available as backup"
                 }
@@ -485,11 +485,11 @@ const SimpleEmailSettings: React.FC = () => {
             </div>
             <p className={cn(
               "text-sm",
-              browserNotificationsEnabled 
+              browserNotificationsEnabled
                 ? "text-green-700 dark:text-green-300"
                 : "text-yellow-700 dark:text-yellow-300"
             )}>
-              {browserNotificationsEnabled 
+              {browserNotificationsEnabled
                 ? "You'll receive instant notifications in your browser for bills, budgets, and alerts."
                 : "Enable browser notifications as a reliable alternative to email notifications."
               }
@@ -506,7 +506,7 @@ const SimpleEmailSettings: React.FC = () => {
                 Enable Browser Notifications
               </button>
             )}
-            
+
             <button
               onClick={handleTestBrowserNotification}
               disabled={isTestingBrowser}
@@ -563,7 +563,7 @@ const SimpleEmailSettings: React.FC = () => {
       {testResult && (
         <div className={cn(
           "p-4 rounded-lg border",
-          testResult.success 
+          testResult.success
             ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-800 dark:text-green-200"
             : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700 text-red-800 dark:text-red-200"
         )}>

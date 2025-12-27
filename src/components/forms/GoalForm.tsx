@@ -132,7 +132,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
             type="text"
             value={formData.name}
             onChange={(e) => handleChange('name', e.target.value)}
-            className={`input-field ${errors.name ? 'border-red-500' : ''}`}
+            className={`input-field theme-input ${errors.name ? 'border-red-500' : ''}`}
             placeholder="e.g., Child's Education, House Down Payment"
           />
           {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
@@ -165,7 +165,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
               type="number"
               value={formData.targetAmount || ''}
               onChange={(e) => handleChange('targetAmount', Number(e.target.value))}
-              className={`input-field pl-8 ${errors.targetAmount ? 'border-red-500' : ''}`}
+              className={`input-field theme-input pl-8 ${errors.targetAmount ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
               step="1000"
@@ -182,7 +182,7 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
             type="date"
             value={formData.targetDate}
             onChange={(e) => handleChange('targetDate', e.target.value)}
-            className={`input-field ${errors.targetDate ? 'border-red-500' : ''}`}
+            className={`input-field theme-input ${errors.targetDate ? 'border-red-500' : ''}`}
             min={new Date(Date.now() + 86400000).toISOString().split('T')[0]} // Tomorrow
           />
           {errors.targetDate && <p className="text-red-500 text-sm mt-1">{errors.targetDate}</p>}

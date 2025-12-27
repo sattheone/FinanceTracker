@@ -130,21 +130,21 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
     <form id="insurance-form" onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Policy Name *
           </label>
           <input
             type="text"
             value={formData.policyName}
             onChange={(e) => handleChange('policyName', e.target.value)}
-            className={`input-field ${errors.policyName ? 'border-red-500' : ''}`}
+            className={`input-field theme-input ${errors.policyName ? 'border-red-500' : ''}`}
             placeholder="e.g., HDFC Life Term Plan, Star Health Policy"
           />
           {errors.policyName && <p className="text-red-500 text-sm mt-1">{errors.policyName}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Insurance Type *
           </label>
           <select
@@ -161,7 +161,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Sum Assured *
           </label>
           <div className="relative">
@@ -170,7 +170,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
               type="number"
               value={formData.coverAmount || ''}
               onChange={(e) => handleChange('coverAmount', Number(e.target.value))}
-              className={`input-field pl-8 ${errors.coverAmount ? 'border-red-500' : ''}`}
+              className={`input-field theme-input pl-8 ${errors.coverAmount ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
               step="any"
@@ -180,7 +180,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Premium Amount *
           </label>
           <div className="relative">
@@ -189,7 +189,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
               type="number"
               value={formData.premiumAmount || ''}
               onChange={(e) => handleChange('premiumAmount', Number(e.target.value))}
-              className={`input-field pl-8 ${errors.premiumAmount ? 'border-red-500' : ''}`}
+              className={`input-field theme-input pl-8 ${errors.premiumAmount ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
               step="any"
@@ -199,7 +199,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Bonus, Guaranteed Addition (Optional)
           </label>
           <div className="relative">
@@ -208,7 +208,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
               type="number"
               value={formData.bonusGuaranteedAddition || ''}
               onChange={(e) => handleChange('bonusGuaranteedAddition', Number(e.target.value))}
-              className="input-field pl-8"
+              className="input-field theme-input pl-8"
               placeholder="0"
               min="0"
               step="any"
@@ -217,7 +217,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Premium Frequency *
           </label>
           <select
@@ -233,26 +233,26 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
 
         {/* New fields */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Policy Start Date
           </label>
           <input
             type="date"
             value={formData.policyStartDate}
             onChange={(e) => handleChange('policyStartDate', e.target.value)}
-            className="input-field"
+            className="input-field theme-input"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Premium Paying Term (Years)
           </label>
           <input
             type="number"
             value={formData.premiumPayingTerm || ''}
             onChange={(e) => handleChange('premiumPayingTerm', Number(e.target.value))}
-            className="input-field"
+            className="input-field theme-input"
             placeholder="0"
             min="0"
             step="1"
@@ -275,21 +275,21 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
         {showMaturityFields && (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+              <label className="form-label">
                 Maturity Date (Optional)
               </label>
               <input
                 type="date"
                 value={formData.maturityDate}
                 onChange={(e) => handleChange('maturityDate', e.target.value)}
-                className={`input-field ${errors.maturityDate ? 'border-red-500' : ''}`}
+                className={`input-field theme-input ${errors.maturityDate ? 'border-red-500' : ''}`}
                 min={new Date().toISOString().split('T')[0]}
               />
               {errors.maturityDate && <p className="text-red-500 text-sm mt-1">{errors.maturityDate}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+              <label className="form-label">
                 Maturity Amount
               </label>
               <div className="relative">
@@ -297,7 +297,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
                 <input
                   type="number"
                   value={formData.coverAmount + formData.bonusGuaranteedAddition}
-                  className="input-field pl-8 bg-gray-100 dark:bg-gray-700"
+                  className="input-field theme-input pl-8 bg-gray-100 dark:bg-gray-700"
                   readOnly
                   tabIndex={-1}
                 />

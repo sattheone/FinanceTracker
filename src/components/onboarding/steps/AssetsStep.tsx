@@ -52,9 +52,9 @@ const AssetsStep: React.FC = () => {
         purchaseDate: '',
       });
     });
-    
+
     setShowImageUploader(false);
-    
+
     // Show success message
     if (extractedAssets.length > 0) {
       // You could add a toast notification here
@@ -74,7 +74,7 @@ const AssetsStep: React.FC = () => {
       </div>
 
       {/* Summary */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-lg p-6">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Total Portfolio Value</h3>
@@ -231,7 +231,7 @@ const AssetsStep: React.FC = () => {
             <p className="text-gray-600 dark:text-gray-300 mb-6">
               Start by adding your investments, savings, and other assets to track your portfolio.
             </p>
-            
+
             {/* Quick Start Options */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <button
@@ -250,7 +250,7 @@ const AssetsStep: React.FC = () => {
                 Add Manually
               </button>
             </div>
-            
+
             {/* Help Text */}
             <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-left max-w-md mx-auto">
               <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">💡 Quick Import Tips</h4>
@@ -267,7 +267,7 @@ const AssetsStep: React.FC = () => {
             const category = assetCategories.find(cat => cat.value === asset.category);
             const gainLoss = asset.purchaseValue ? asset.currentValue - asset.purchaseValue : 0;
             const gainLossPercent = asset.purchaseValue ? (gainLoss / asset.purchaseValue) * 100 : 0;
-            
+
             return (
               <div key={asset.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
                 <div className="flex items-start justify-between">
@@ -279,7 +279,7 @@ const AssetsStep: React.FC = () => {
                         <p className="text-sm text-gray-600 dark:text-gray-300">{category?.label}</p>
                       </div>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
                         <p className="text-gray-600 dark:text-gray-300">Current Value</p>
@@ -311,7 +311,7 @@ const AssetsStep: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  
+
                   <button
                     onClick={() => deleteAsset(asset.id)}
                     className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 p-2 rounded-lg"
@@ -334,9 +334,9 @@ const AssetsStep: React.FC = () => {
               const categoryAssets = assets.filter(a => a.category === category.value);
               const categoryValue = categoryAssets.reduce((sum, a) => sum + a.currentValue, 0);
               const percentage = totalAssetValue > 0 ? (categoryValue / totalAssetValue) * 100 : 0;
-              
+
               if (categoryValue === 0) return null;
-              
+
               return (
                 <div key={category.value} className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
                   <div className="text-xl mb-1">{category.icon}</div>

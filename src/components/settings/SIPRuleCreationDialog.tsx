@@ -192,7 +192,7 @@ const SIPRuleCreationDialog: React.FC<SIPRuleCreationDialogProps> = ({
                             }}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <label className={theme.label}>Match specific date?</label>
+                        <label className="form-label">Match specific date?</label>
                     </div>
 
                     {formData.expectedDate && (

@@ -66,7 +66,7 @@ const SIPRules: React.FC = () => {
                     placeholder="Search SIP rules..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className={cn(theme.input, 'w-full md:w-96')}
+                    className="input-field theme-input w-full md:w-96"
                 />
             </div>
 

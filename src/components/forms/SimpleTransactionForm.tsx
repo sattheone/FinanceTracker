@@ -118,21 +118,21 @@ const SimpleTransactionForm: React.FC<SimpleTransactionFormProps> = ({
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Date *
           </label>
           <input
             type="date"
             value={formData.date}
             onChange={(e) => handleChange('date', e.target.value)}
-            className={`input-field ${errors.date ? 'border-red-500' : ''}`}
+            className={`input-field theme-input ${errors.date ? 'border-red-500' : ''}`}
             max={new Date().toISOString().split('T')[0]}
           />
           {errors.date && <p className="text-red-500 text-sm mt-1">{errors.date}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Type *
           </label>
           <select
@@ -152,27 +152,27 @@ const SimpleTransactionForm: React.FC<SimpleTransactionFormProps> = ({
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Description *
           </label>
           <input
             type="text"
             value={formData.description}
             onChange={(e) => handleChange('description', e.target.value)}
-            className={`input-field ${errors.description ? 'border-red-500' : ''}`}
+            className={`input-field theme-input ${errors.description ? 'border-red-500' : ''}`}
             placeholder="e.g., Grocery shopping, Salary payment"
           />
           {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Category *
           </label>
           <select
             value={formData.category}
             onChange={(e) => handleChange('category', e.target.value)}
-            className={`input-field ${errors.category ? 'border-red-500' : ''}`}
+            className={`input-field theme-input ${errors.category ? 'border-red-500' : ''}`}
           >
             <option value="">Select Category</option>
             {categories
@@ -187,7 +187,7 @@ const SimpleTransactionForm: React.FC<SimpleTransactionFormProps> = ({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Amount *
           </label>
           <div className="relative">
@@ -196,7 +196,7 @@ const SimpleTransactionForm: React.FC<SimpleTransactionFormProps> = ({
               type="number"
               value={formData.amount || ''}
               onChange={(e) => handleChange('amount', Number(e.target.value))}
-              className={`input-field pl-8 ${errors.amount ? 'border-red-500' : ''}`}
+              className={`input-field pl-8 theme-input ${errors.amount ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
               step="0.01"
@@ -206,7 +206,7 @@ const SimpleTransactionForm: React.FC<SimpleTransactionFormProps> = ({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Payment Method
           </label>
           <select
@@ -226,7 +226,7 @@ const SimpleTransactionForm: React.FC<SimpleTransactionFormProps> = ({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Bank Account *
           </label>
           <select

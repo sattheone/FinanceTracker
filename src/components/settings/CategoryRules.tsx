@@ -144,10 +144,7 @@ const CategoryRules: React.FC = () => {
                     placeholder="Search rules by pattern or category..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className={cn(
-                        theme.input,
-                        'w-full md:w-96'
-                    )}
+                    className="input-field theme-input w-full md:w-96"
                 />
             </div>
 

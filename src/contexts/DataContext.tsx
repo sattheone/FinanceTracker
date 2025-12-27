@@ -1415,6 +1415,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     // Utility
     resetUserData,
     isDataLoaded,
+    addTransactionsBulk,
     bulkUpdateTransactions,
     bulkDeleteTransactions
   };

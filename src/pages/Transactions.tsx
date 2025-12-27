@@ -47,7 +47,8 @@ const Transactions: React.FC = () => {
     sipRules,
     categoryRules,
     addRecurringTransaction,
-    addTransaction
+    addTransaction,
+    addTransactionsBulk
   } = useData();
 
 
@@ -310,20 +311,56 @@ const Transactions: React.FC = () => {
     setShowConfirmDialog(true);
   };
 
-  const handleConfirmData = async (confirmedData: any[]) => {
-    // const transactionsToAdd: any[] = [];
-    // const sipTransactionsToCreate: { transaction: any, rule: SIPRule }[] = [];
+  const handleConfirmData = async (confirmedData: any[], isHistorical: boolean = false) => {
+    // 1. Process Data & Identify SIPs
+    // Don't auto-create SIPs here, just link them if possible?
+    // Actually, File/Image uploader returns bare objects.
+    // We treat them all as new transactions to be added.
 
-    confirmedData.forEach(() => {
-      // Logic duplicated here safely re-checks but relies on UI "category" primarily
+    const currentSipRules = sipRulesRef.current;
 
-      // let category = transaction.category; // User might have changed it in UI
+    const transactionsToAdd = confirmedData.map(item => {
+      // Basic mapping
+      const tx = {
+        description: item.description,
+        amount: item.amount,
+        date: item.date instanceof Date ? item.date.toISOString().split('T')[0] : item.date,
+        type: item.type,
+        category: item.category,
+        bankAccountId: item.bankAccountId || selectedAccount === 'all_accounts' ? bankAccounts[0]?.id : selectedAccount,
+        tags: ['imported'], // Default tag
+      };
 
-      // ... existing logic for confirm ...
-      // We can rely on 'category' from UI mostly, but we need to identify SIPs for linking
-      // ...
+      // Final SIP Check before saving
+      // (Just relies on category being 'investment' usually, OR we can explicit check rules again)
+      return tx;
     });
-    // ... rest of handleConfirmData ...
+
+    // 2. Add Transactions via Bulk API (handle duplicates logic inside DataContext)
+    const result = await addTransactionsBulk(transactionsToAdd, { isHistorical });
+
+    setShowConfirmDialog(false);
+
+    if (result.success) {
+      if (result.summary?.duplicateTransactions > 0) {
+        // If duplicates found during bulk add (if that logic existed inside addTransactionsBulk)
+        // But currently addTransactionsBulk in DataContext might return a summary
+        // if we want to show a specific UI.
+        // For now, assume success means added.
+      }
+      alert(`Successfully added ${result.summary?.newTransactions || transactionsToAdd.length} transactions.`);
+    } else {
+      // Show Duplicate Dialog if error was related to duplicates and we want manual resolution?
+      // OR just alert error.
+      if (result.summary) {
+        // We have duplicates info
+        setDuplicateSummary(result.summary);
+        setPendingImportData(transactionsToAdd); // Store for potential force add
+        setShowDuplicateDialog(true);
+      } else {
+        alert(`Failed to import: ${result.error}`);
+      }
+    }
   };
 
   /* 
@@ -1423,7 +1460,7 @@ const Transactions: React.FC = () => {
                       <select
                         value={selectedTransactionMonth}
                         onChange={(e) => setSelectedTransactionMonth(e.target.value)}
-                        className="px-3 py-2 pr-8 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 appearance-none text-sm"
+                        className="input-field theme-input pr-8 text-sm appearance-none"
                       >
                         {monthOptions.map(option => (
                           <option key={option.value} value={option.value}>
@@ -1444,7 +1481,7 @@ const Transactions: React.FC = () => {
                       <input
                         type="text"
                         placeholder="Search transactions..."
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                        className="input-field theme-input !pl-10"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                       />
@@ -1453,7 +1490,7 @@ const Transactions: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <Filter className="h-4 w-4 text-gray-400 dark:text-gray-300" />
                     <select
-                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      className="input-field theme-input"
                       value={filterType}
                       onChange={(e) => setFilterType(e.target.value)}
                     >

@@ -124,27 +124,27 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
     <form id="asset-form" onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Asset Name *
           </label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => handleChange('name', e.target.value)}
-            className={`input-field ${errors.name ? 'border-red-500' : ''}`}
+            className={`input-field theme-input ${errors.name ? 'border-red-500' : ''}`}
             placeholder="e.g., HDFC Bank, SBI Equity Fund"
           />
           {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Category *
           </label>
           <select
             value={formData.category}
             onChange={(e) => handleChange('category', e.target.value)}
-            className="input-field"
+            className="input-field theme-input"
           >
             {assetCategories.map(cat => (
               <option key={cat.value} value={cat.value}>
@@ -155,7 +155,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Current Value *
           </label>
           <div className="relative">
@@ -164,7 +164,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
               type="number"
               value={formData.currentValue || ''}
               onChange={(e) => handleChange('currentValue', Number(e.target.value))}
-              className={`input-field pl-8 ${errors.currentValue ? 'border-red-500' : ''}`}
+              className={`input-field theme-input pl-8 ${errors.currentValue ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
               step="0.01"
@@ -195,7 +195,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
             {formData.isSIP && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                  <label className="form-label">
                     {formData.category === 'epf' ? 'Monthly Contribution Amount *' : 'Monthly SIP Amount *'}
                   </label>
                   <div className="relative">
@@ -204,7 +204,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
                       type="number"
                       value={formData.sipAmount || ''}
                       onChange={(e) => handleChange('sipAmount', Number(e.target.value))}
-                      className="input-field pl-8"
+                      className="input-field theme-input pl-8"
                       placeholder="0"
                       min="0"
                       step="100"
@@ -213,7 +213,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                  <label className="form-label">
                     {formData.category === 'epf' ? 'Contribution Date (Day of Month) *' : 'SIP Date (Day of Month) *'}
                   </label>
                   <select
@@ -237,7 +237,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Invested Value (Optional)
           </label>
           <div className="relative">
@@ -246,7 +246,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
               type="number"
               value={formData.investedValue || ''}
               onChange={(e) => handleChange('investedValue', Number(e.target.value))}
-              className={`input-field pl-8 ${errors.investedValue ? 'border-red-500' : ''}`}
+              className={`input-field theme-input pl-8 ${errors.investedValue ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
               step="0.01"
@@ -264,14 +264,14 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Purchase Date (Optional)
           </label>
           <input
             type="date"
             value={formData.purchaseDate}
             onChange={(e) => handleChange('purchaseDate', e.target.value)}
-            className="input-field"
+            className="input-field theme-input"
             max={new Date().toISOString().split('T')[0]}
           />
         </div>

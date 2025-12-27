@@ -51,14 +51,14 @@ const GoalsStep: React.FC = () => {
     const target = new Date(targetDate);
     const now = new Date();
     const monthsRemaining = Math.max(1, Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30)));
-    
+
     // Simple calculation assuming 12% annual return
     const monthlyRate = 0.12 / 12;
     const futureValueOfCurrent = currentAmount * Math.pow(1 + monthlyRate, monthsRemaining);
     const remainingAmount = Math.max(0, targetAmount - futureValueOfCurrent);
-    
+
     if (remainingAmount === 0) return 0;
-    
+
     // PMT calculation for SIP
     const requiredSIP = remainingAmount * monthlyRate / (Math.pow(1 + monthlyRate, monthsRemaining) - 1);
     return Math.ceil(requiredSIP);
@@ -71,15 +71,15 @@ const GoalsStep: React.FC = () => {
   // Auto-suggest retirement goal based on user profile
   const suggestRetirementGoal = () => {
     if (!userProfile?.financialInfo) return;
-    
+
     const { currentAge, retirementAge, monthlyExpenses } = userProfile.financialInfo;
     const yearsToRetirement = retirementAge - currentAge;
-    
+
     if (yearsToRetirement > 0) {
       // Estimate retirement corpus needed (25x annual expenses, inflated)
       const inflatedAnnualExpenses = monthlyExpenses * 12 * Math.pow(1.06, yearsToRetirement);
       const requiredCorpus = inflatedAnnualExpenses * 25;
-      
+
       setNewGoal({
         name: 'Retirement Fund',
         targetAmount: Math.round(requiredCorpus),
@@ -103,19 +103,19 @@ const GoalsStep: React.FC = () => {
 
       {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4">
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-900 rounded-lg p-4">
           <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Goal Value</h3>
           <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
             {formatCurrency(totalGoalValue)}
           </p>
         </div>
-        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4">
+        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-gray-800 dark:to-gray-900 rounded-lg p-4">
           <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Current Progress</h3>
           <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
             {formatCurrency(totalCurrentValue)}
           </p>
         </div>
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4">
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-gray-800 dark:to-gray-900 rounded-lg p-4">
           <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Monthly SIP</h3>
           <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
             {formatCurrency(totalMonthlySIP)}
@@ -259,79 +259,79 @@ const GoalsStep: React.FC = () => {
       {/* Goals List */}
       <div className="space-y-4">
         {goals.map((goal) => {
-            const category = goalCategories.find(cat => cat.value === goal.category);
-            const progress = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0;
-            const remainingAmount = goal.targetAmount - goal.currentAmount;
-            
-            return (
-              <div key={goal.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center mb-3">
-                      <span className="text-2xl mr-3">{category?.icon}</span>
-                      <div>
-                        <h4 className="font-medium text-gray-900 dark:text-white">{goal.name}</h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">{category?.label} Goal</p>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-3">
-                      <div>
-                        <p className="text-gray-600 dark:text-gray-300">Target Amount</p>
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {formatCurrency(goal.targetAmount)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600 dark:text-gray-300">Current Amount</p>
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {formatCurrency(goal.currentAmount)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600 dark:text-gray-300">Monthly SIP</p>
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {formatCurrency(goal.monthlyContribution)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600 dark:text-gray-300">Target Date</p>
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {new Date(goal.targetDate).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
+          const category = goalCategories.find(cat => cat.value === goal.category);
+          const progress = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0;
+          const remainingAmount = goal.targetAmount - goal.currentAmount;
 
-                    {/* Progress Bar */}
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600 dark:text-gray-300">Progress</span>
-                        <span className="font-medium">{progress.toFixed(1)}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div
-                          className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full"
-                          style={{ width: `${Math.min(progress, 100)}%` }}
-                        ></div>
-                      </div>
-                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                        <span>₹0</span>
-                        <span>Remaining: {formatCurrency(remainingAmount)}</span>
-                        <span>{formatCurrency(goal.targetAmount)}</span>
-                      </div>
+          return (
+            <div key={goal.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center mb-3">
+                    <span className="text-2xl mr-3">{category?.icon}</span>
+                    <div>
+                      <h4 className="font-medium text-gray-900 dark:text-white">{goal.name}</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-300">{category?.label} Goal</p>
                     </div>
                   </div>
-                  
-                  <button
-                    onClick={() => deleteGoal(goal.id)}
-                    className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 p-2 rounded-lg ml-4"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-3">
+                    <div>
+                      <p className="text-gray-600 dark:text-gray-300">Target Amount</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        {formatCurrency(goal.targetAmount)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 dark:text-gray-300">Current Amount</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        {formatCurrency(goal.currentAmount)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 dark:text-gray-300">Monthly SIP</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        {formatCurrency(goal.monthlyContribution)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 dark:text-gray-300">Target Date</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        {new Date(goal.targetDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-300">Progress</span>
+                      <span className="font-medium">{progress.toFixed(1)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full"
+                        style={{ width: `${Math.min(progress, 100)}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                      <span>₹0</span>
+                      <span>Remaining: {formatCurrency(remainingAmount)}</span>
+                      <span>{formatCurrency(goal.targetAmount)}</span>
+                    </div>
+                  </div>
                 </div>
+
+                <button
+                  onClick={() => deleteGoal(goal.id)}
+                  className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 p-2 rounded-lg ml-4"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
-            );
-          })}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

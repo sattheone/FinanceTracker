@@ -24,7 +24,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useData } from '../contexts/DataContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { useThemeClasses } from '../hooks/useThemeClasses';
+
 import SimpleCategoryManager from '../components/categories/SimpleCategoryManager';
 import CategoryMigration from '../components/settings/CategoryMigration';
 import CategoryRules from '../components/settings/CategoryRules';
@@ -59,7 +59,7 @@ const Settings: React.FC = () => {
   const { user, deleteAccount } = useAuth();
   const { userProfile, bankAccounts } = useData();
   const { theme, setTheme } = useTheme();
-  const themeClasses = useThemeClasses();
+
 
   const [activeTab, setActiveTab] = useState('profile');
 
@@ -204,45 +204,45 @@ Type "DELETE" to confirm:`;
             type="text"
             value={settings.name}
             onChange={(e) => handleSettingChange('name', e.target.value)}
-            className="input-field theme-input"
+            className="input-field theme-input border-gray-300 dark:border-gray-500"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Email Address</label>
+          <label className="form-label">Email Address</label>
           <div className="relative">
             <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="email"
               value={settings.email}
               onChange={(e) => handleSettingChange('email', e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="input-field theme-input !pl-10"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Phone Number</label>
+          <label className="form-label">Phone Number</label>
           <div className="relative">
             <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="tel"
               value={settings.phone}
               onChange={(e) => handleSettingChange('phone', e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="input-field theme-input !pl-10"
               placeholder="+91 98765 43210"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">New Password</label>
+          <label className="form-label">New Password</label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type={showPassword ? 'text' : 'password'}
               placeholder="Enter new password"
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="input-field theme-input !pl-10 !pr-10"
             />
             <button
               type="button"
@@ -279,11 +279,11 @@ Type "DELETE" to confirm:`;
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Default Currency</label>
+          <label className="form-label">Default Currency</label>
           <select
             value={settings.currency}
             onChange={(e) => handleSettingChange('currency', e.target.value)}
-            className={themeClasses.select}
+            className="input-field theme-input border-gray-300 dark:border-gray-500"
           >
             <option value="INR">Indian Rupee (₹)</option>
             <option value="USD">US Dollar ($)</option>
@@ -293,11 +293,11 @@ Type "DELETE" to confirm:`;
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Number Format</label>
+          <label className="form-label">Number Format</label>
           <select
             value={settings.numberFormat}
             onChange={(e) => handleSettingChange('numberFormat', e.target.value)}
-            className={themeClasses.select}
+            className="input-field theme-input border-gray-300 dark:border-gray-500"
           >
             <option value="indian">Indian (1,00,000)</option>
             <option value="international">International (100,000)</option>
@@ -305,13 +305,13 @@ Type "DELETE" to confirm:`;
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Financial Year Start</label>
+          <label className="form-label">Financial Year Start</label>
           <div className="relative">
             <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <select
               value={settings.financialYearStart}
               onChange={(e) => handleSettingChange('financialYearStart', e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="input-field theme-input !pl-10"
             >
               <option value="april">April (Indian FY)</option>
               <option value="january">January (Calendar Year)</option>
@@ -324,21 +324,21 @@ Type "DELETE" to confirm:`;
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Budget Alerts</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Monthly Budget Limit</label>
+            <label className="form-label">Monthly Budget Limit</label>
             <input
               type="number"
               placeholder="50000"
-              className={themeClasses.input}
+              className="input-field theme-input"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Alert Threshold (%)</label>
+            <label className="form-label">Alert Threshold (%)</label>
             <input
               type="number"
               placeholder="80"
               min="1"
               max="100"
-              className={themeClasses.input}
+              className="input-field theme-input"
             />
           </div>
         </div>
@@ -394,7 +394,7 @@ Type "DELETE" to confirm:`;
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 dark:text-gray-300 mb-2">Theme</label>
+          <label className="form-label">Theme</label>
           <select
             value={settings.theme}
             onChange={(e) => handleSettingChange('theme', e.target.value)}
@@ -410,13 +410,13 @@ Type "DELETE" to confirm:`;
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Language</label>
+          <label className="form-label">Language</label>
           <div className="relative">
             <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <select
               value={settings.language}
               onChange={(e) => handleSettingChange('language', e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="input-field theme-input !pl-10"
             >
               <option value="english">English</option>
               <option value="hindi">हिंदी (Hindi)</option>
@@ -427,11 +427,11 @@ Type "DELETE" to confirm:`;
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Dashboard Layout</label>
+          <label className="form-label">Dashboard Layout</label>
           <select
             value={settings.dashboardLayout}
             onChange={(e) => handleSettingChange('dashboardLayout', e.target.value)}
-            className={themeClasses.select}
+            className="input-field theme-input border-gray-300 dark:border-gray-500"
           >
             <option value="default">Default</option>
             <option value="compact">Compact</option>

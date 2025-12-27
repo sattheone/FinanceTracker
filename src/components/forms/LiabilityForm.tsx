@@ -305,7 +305,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
             type="text"
             value={formData.name}
             onChange={(e) => handleChange('name', e.target.value)}
-            className={`input-field ${errors.name ? 'border-red-500 dark:border-red-400' : ''}`}
+            className={`input-field theme-input ${errors.name ? 'border-red-500 dark:border-red-400' : ''}`}
             placeholder="e.g., Home Loan - HDFC, Car Loan - SBI"
           />
           {errors.name && <p className="form-error">{errors.name}</p>}
@@ -329,7 +329,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Principal Amount *
           </label>
           <div className="relative">
@@ -338,7 +338,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
               type="number"
               value={formData.principalAmount || ''}
               onChange={(e) => handleChange('principalAmount', Number(e.target.value))}
-              className={`input-field pl-8 ${errors.principalAmount ? 'border-red-500' : ''}`}
+              className={`input-field pl-8 theme-input ${errors.principalAmount ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
               step="0.01"
@@ -349,7 +349,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Current Outstanding Balance *
           </label>
           <div className="relative">
@@ -358,7 +358,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
               type="number"
               value={formData.currentBalance || ''}
               onChange={(e) => handleChange('currentBalance', Number(e.target.value))}
-              className={`input-field pl-8 ${errors.currentBalance ? 'border-red-500' : ''}`}
+              className={`input-field pl-8 theme-input ${errors.currentBalance ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
               step="0.01"
@@ -382,7 +382,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
 
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Interest Rate (Annual)
           </label>
           <div className="relative">
@@ -390,7 +390,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
               type="number"
               value={formData.interestRate || ''}
               onChange={(e) => handleChange('interestRate', Number(e.target.value))}
-              className={`input-field pr-8 ${errors.interestRate ? 'border-red-500' : ''}`}
+              className={`input-field pr-8 theme-input ${errors.interestRate ? 'border-red-500' : ''}`}
               placeholder="8.5"
               min="0"
               max="50"
@@ -403,7 +403,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Monthly EMI *
           </label>
           <div className="relative">
@@ -412,7 +412,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
               type="number"
               value={formData.emiAmount || ''}
               onChange={(e) => handleChange('emiAmount', Number(e.target.value))}
-              className={`input-field pl-8 ${errors.emiAmount ? 'border-red-500' : ''}`}
+              className={`input-field pl-8 theme-input ${errors.emiAmount ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
               step="0.01"
@@ -437,28 +437,28 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Loan Start Date *
           </label>
           <input
             type="date"
             value={formData.startDate}
             onChange={(e) => handleChange('startDate', e.target.value)}
-            className={`input-field ${errors.startDate ? 'border-red-500' : ''}`}
+            className={`input-field theme-input ${errors.startDate ? 'border-red-500' : ''}`}
           />
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">When the loan started</p>
           {errors.startDate && <p className="text-red-500 text-sm mt-1">{errors.startDate}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Number of Dues (Months)
           </label>
           <input
             type="number"
             value={formData.numberOfDues || ''}
             onChange={(e) => handleNumberOfDuesChange(Number(e.target.value))}
-            className="input-field"
+            className="input-field theme-input"
             placeholder="0"
             min="0"
             step="1"
@@ -467,14 +467,14 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Loan End Date *
           </label>
           <input
             type="date"
             value={formData.endDate}
             onChange={(e) => handleEndDateChange(e.target.value)}
-            className={`input-field ${errors.endDate ? 'border-red-500' : ''}`}
+            className={`input-field theme-input ${errors.endDate ? 'border-red-500' : ''}`}
             min={formData.startDate}
           />
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -484,21 +484,21 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Bank/Lender Name *
           </label>
           <input
             type="text"
             value={formData.bankName}
             onChange={(e) => handleChange('bankName', e.target.value)}
-            className={`input-field ${errors.bankName ? 'border-red-500' : ''}`}
+            className={`input-field theme-input ${errors.bankName ? 'border-red-500' : ''}`}
             placeholder="e.g., HDFC Bank, SBI, ICICI Bank"
           />
           {errors.bankName && <p className="text-red-500 text-sm mt-1">{errors.bankName}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Account Number (Optional)
           </label>
           <input
@@ -511,7 +511,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label className="form-label">
             Description (Optional)
           </label>
           <textarea

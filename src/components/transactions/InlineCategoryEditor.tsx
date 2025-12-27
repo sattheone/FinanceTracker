@@ -224,10 +224,7 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search..."
                 className={cn(
-                  "w-full pl-8 pr-3 py-1.5 text-sm rounded-md border focus:outline-none focus:ring-2 focus:ring-blue-500",
-                  theme.bgPrimary,
-                  theme.border,
-                  theme.textPrimary
+                  "input-field theme-input !pl-8 text-sm"
                 )}
               />
             </div>

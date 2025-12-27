@@ -89,9 +89,9 @@ const FileUploader: React.FC<FileUploaderProps> = ({
           const pdfText = await bankStatementParser.extractTextFromPDF(base64Data, filePassword);
           console.log('PDF text extracted successfully, length:', pdfText.length);
 
-          // Parse HDFC statement (currently only HDFC supported via PDF)
-          // TODO: Add detection for other banks
-          const statementData = await bankStatementParser.parseHDFCStatement(pdfText);
+
+          // Parse statement using the robust parser which handles multiple formats
+          const statementData = await bankStatementParser.parseStatement(pdfText);
 
           // Convert to ParsedTransaction format
           transactions = statementData.transactions;
@@ -389,7 +389,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       )}
 
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-        <h4 className="font-medium text-blue-900 mb-2">📄 Supported Bank Statement Formats:</h4>
+        <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">📄 Supported Bank Statement Formats:</h4>
         <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
           <li>• <strong>HDFC Bank:</strong> PDF statements (password protected supported)</li>
           <li>• <strong>Excel/CSV:</strong> Standard bank statement formats</li>
@@ -397,7 +397,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       </div>
 
       <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
-        <h4 className="font-medium text-yellow-900 mb-2">💡 Tips for better parsing:</h4>
+        <h4 className="font-medium text-yellow-900 dark:text-yellow-100 mb-2">💡 Tips for better parsing:</h4>
         <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
           <li>• Ensure the file contains standard bank statement columns</li>
           <li>• Remove any summary rows or extra headers before uploading</li>

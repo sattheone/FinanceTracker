@@ -48,7 +48,7 @@ const GmailImportSettings: React.FC = () => {
     try {
       console.log('🚀 Starting manual import...');
       const result = await gmailCrawlerService.processNewEmails();
-      
+
       if (result.transactions.length > 0) {
         // Import transactions into the app
         await addTransactionsBulk(result.transactions);
@@ -125,7 +125,7 @@ const GmailImportSettings: React.FC = () => {
           {/* Authentication Setup */}
           <div className="space-y-4">
             <h4 className="font-medium text-gray-900 dark:text-white">Gmail Authentication</h4>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
@@ -135,11 +135,11 @@ const GmailImportSettings: React.FC = () => {
                   type="text"
                   value={config.clientId}
                   onChange={(e) => handleConfigChange('clientId', e.target.value)}
-                  className={theme.input}
+                  className="input-field theme-input"
                   placeholder="Your Google OAuth Client ID"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                   Google Client Secret
@@ -148,7 +148,7 @@ const GmailImportSettings: React.FC = () => {
                   type="password"
                   value={config.clientSecret}
                   onChange={(e) => handleConfigChange('clientSecret', e.target.value)}
-                  className={theme.input}
+                  className="input-field theme-input"
                   placeholder="Your Google OAuth Client Secret"
                 />
               </div>
@@ -167,7 +167,7 @@ const GmailImportSettings: React.FC = () => {
                 <Mail className="w-4 h-4 mr-2" />
                 {isProcessing ? 'Testing...' : 'Test Connection'}
               </button>
-              
+
               <a
                 href="https://console.developers.google.com/apis/credentials"
                 target="_blank"
@@ -205,7 +205,7 @@ const GmailImportSettings: React.FC = () => {
                     type="email"
                     value={config.bankFilters.hdfc.senderEmail}
                     onChange={(e) => handleBankFilterChange('hdfc', 'senderEmail', e.target.value)}
-                    className={theme.input}
+                    className="input-field theme-input"
                     placeholder="alerts@hdfcbank.net"
                   />
                 </div>
@@ -218,7 +218,7 @@ const GmailImportSettings: React.FC = () => {
                     type="text"
                     value={config.bankFilters.hdfc.subjectKeywords.join(', ')}
                     onChange={(e) => handleBankFilterChange('hdfc', 'subjectKeywords', e.target.value.split(',').map(s => s.trim()))}
-                    className={theme.input}
+                    className="input-field theme-input"
                     placeholder="statement, account statement, monthly statement"
                   />
                 </div>
@@ -228,7 +228,7 @@ const GmailImportSettings: React.FC = () => {
                     Link to Bank Account
                   </label>
                   <select
-                    className={theme.select}
+                    className="input-field theme-input"
                     onChange={(e) => handleBankFilterChange('hdfc', 'linkedAccountId', e.target.value)}
                   >
                     <option value="">Select bank account</option>
@@ -315,7 +315,7 @@ const GmailImportSettings: React.FC = () => {
             {lastImportResult && (
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
                 <p className="text-blue-800 dark:text-blue-200 text-sm">
-                  Last import: Processed {lastImportResult.processed} emails, 
+                  Last import: Processed {lastImportResult.processed} emails,
                   imported {lastImportResult.transactions} transactions
                 </p>
               </div>
@@ -342,7 +342,7 @@ const GmailImportSettings: React.FC = () => {
                     type="date"
                     value={config.lastProcessedDate.split('T')[0]}
                     onChange={(e) => handleConfigChange('lastProcessedDate', new Date(e.target.value).toISOString())}
-                    className={theme.input}
+                    className="input-field theme-input"
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Only emails after this date will be processed

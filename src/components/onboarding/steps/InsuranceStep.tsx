@@ -42,8 +42,8 @@ const InsuranceStep: React.FC = () => {
 
   const totalCover = insurance.reduce((sum, policy) => sum + policy.coverAmount, 0);
   const totalPremiums = insurance.reduce((sum, policy) => {
-    const multiplier = policy.premiumFrequency === 'monthly' ? 12 : 
-                     policy.premiumFrequency === 'quarterly' ? 4 : 1;
+    const multiplier = policy.premiumFrequency === 'monthly' ? 12 :
+      policy.premiumFrequency === 'quarterly' ? 4 : 1;
     return sum + (policy.premiumAmount * multiplier);
   }, 0);
 
@@ -58,19 +58,19 @@ const InsuranceStep: React.FC = () => {
 
       {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-lg p-4">
           <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Coverage</h3>
           <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
             {formatCurrency(totalCover)}
           </p>
         </div>
-        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4">
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-900 rounded-lg p-4">
           <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Annual Premiums</h3>
           <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
             {formatCurrency(totalPremiums)}
           </p>
         </div>
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4">
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-gray-800 dark:to-gray-900 rounded-lg p-4">
           <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Active Policies</h3>
           <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
             {insurance.length}
@@ -218,75 +218,75 @@ const InsuranceStep: React.FC = () => {
       {/* Insurance List */}
       <div className="space-y-4">
         {insurance.map((policy) => {
-            const insuranceType = insuranceTypes.find(type => type.value === policy.type);
-            const annualPremium = policy.premiumFrequency === 'monthly' ? policy.premiumAmount * 12 :
-                                 policy.premiumFrequency === 'quarterly' ? policy.premiumAmount * 4 :
-                                 policy.premiumAmount;
-            
-            return (
-              <div key={policy.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center mb-3">
-                      <span className="text-2xl mr-3">{insuranceType?.icon}</span>
-                      <div>
-                        <h4 className="font-medium text-gray-900 dark:text-white">{policy.policyName}</h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">{insuranceType?.label}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-600 dark:text-gray-300">Coverage</p>
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {formatCurrency(policy.coverAmount)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600 dark:text-gray-300">Premium</p>
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {formatCurrency(policy.premiumAmount)}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{policy.premiumFrequency}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600 dark:text-gray-300">Annual Premium</p>
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {formatCurrency(annualPremium)}
-                        </p>
-                      </div>
-                      {policy.maturityDate && (
-                        <div>
-                          <p className="text-gray-600 dark:text-gray-300">Maturity</p>
-                          <p className="font-semibold text-gray-900 dark:text-white">
-                            {new Date(policy.maturityDate).toLocaleDateString()}
-                          </p>
-                          {policy.maturityAmount && (
-                            <p className="text-xs text-green-600 dark:text-green-400">
-                              {formatCurrency(policy.maturityAmount)}
-                            </p>
-                          )}
-                        </div>
-                      )}
+          const insuranceType = insuranceTypes.find(type => type.value === policy.type);
+          const annualPremium = policy.premiumFrequency === 'monthly' ? policy.premiumAmount * 12 :
+            policy.premiumFrequency === 'quarterly' ? policy.premiumAmount * 4 :
+              policy.premiumAmount;
+
+          return (
+            <div key={policy.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center mb-3">
+                    <span className="text-2xl mr-3">{insuranceType?.icon}</span>
+                    <div>
+                      <h4 className="font-medium text-gray-900 dark:text-white">{policy.policyName}</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-300">{insuranceType?.label}</p>
                     </div>
                   </div>
-                  
-                  <button
-                    onClick={() => deleteInsurance(policy.id)}
-                    className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 p-2 rounded-lg ml-4"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-600 dark:text-gray-300">Coverage</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        {formatCurrency(policy.coverAmount)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 dark:text-gray-300">Premium</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        {formatCurrency(policy.premiumAmount)}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{policy.premiumFrequency}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 dark:text-gray-300">Annual Premium</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        {formatCurrency(annualPremium)}
+                      </p>
+                    </div>
+                    {policy.maturityDate && (
+                      <div>
+                        <p className="text-gray-600 dark:text-gray-300">Maturity</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">
+                          {new Date(policy.maturityDate).toLocaleDateString()}
+                        </p>
+                        {policy.maturityAmount && (
+                          <p className="text-xs text-green-600 dark:text-green-400">
+                            {formatCurrency(policy.maturityAmount)}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                <button
+                  onClick={() => deleteInsurance(policy.id)}
+                  className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 p-2 rounded-lg ml-4"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
-            );
-          })}
+            </div>
+          );
+        })}
       </div>
 
       {/* Insurance Recommendations */}
       {insurance.length > 0 && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-6">
-          <h4 className="font-medium text-blue-900 mb-3">💡 Insurance Recommendations</h4>
+          <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-3">💡 Insurance Recommendations</h4>
           <div className="text-sm text-blue-700 dark:text-blue-300 space-y-2">
             {!insurance.some(p => p.type === 'term') && (
               <p>• Consider adding term life insurance for comprehensive life coverage</p>

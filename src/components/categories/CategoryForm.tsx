@@ -66,7 +66,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="w-full px-4 py-3 text-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                        className="input-field theme-input text-lg"
                         placeholder="e.g., Coffee & Snacks"
                         autoFocus
                     />
@@ -198,7 +198,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
                     <select
                         value={parentId}
                         onChange={(e) => setParentId(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        className="input-field theme-input"
                     >
                         <option value="">No Parent Group</option>
                         {parentOptions.map(parent => (

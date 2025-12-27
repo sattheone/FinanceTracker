@@ -132,27 +132,27 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
       {/* Basic Information */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Bill Name *
           </label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => handleChange('name', e.target.value)}
-            className={cn(theme.input, errors.name && 'border-red-500 dark:border-red-400')}
+            className={`input-field theme-input ${errors.name ? 'border-red-500' : ''}`}
             placeholder="e.g., Electricity Bill, Internet Bill"
           />
           {errors.name && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.name}</p>}
         </div>
 
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Category *
           </label>
           <select
             value={formData.category}
             onChange={(e) => handleChange('category', e.target.value)}
-            className={cn(theme.select, errors.category && 'border-red-500 dark:border-red-400')}
+            className={`input-field theme-input ${errors.category ? 'border-red-500' : ''}`}
           >
             <option value="">Select a category</option>
             {categories
@@ -168,13 +168,13 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
       </div>
 
       <div>
-        <label className={theme.label}>
+        <label className="form-label">
           Description *
         </label>
         <textarea
           value={formData.description}
           onChange={(e) => handleChange('description', e.target.value)}
-          className={cn(theme.textarea, errors.description && 'border-red-500 dark:border-red-400')}
+          className={`input-field theme-input ${errors.description ? 'border-red-500' : ''}`}
           rows={3}
           placeholder="Detailed description of the bill"
         />
@@ -184,7 +184,7 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
       {/* Amount and Due Date */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Amount *
           </label>
           <div className="relative">
@@ -193,7 +193,7 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
               type="number"
               value={formData.amount || ''}
               onChange={(e) => handleChange('amount', Number(e.target.value))}
-              className={cn(theme.input, 'pl-8', errors.amount && 'border-red-500 dark:border-red-400')}
+              className={`input-field theme-input pl-8 ${errors.amount ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
               step="0.01"
@@ -203,26 +203,26 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
         </div>
 
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Due Date *
           </label>
           <input
             type="date"
             value={formData.dueDate}
             onChange={(e) => handleChange('dueDate', e.target.value)}
-            className={cn(theme.input, errors.dueDate && 'border-red-500 dark:border-red-400')}
+            className={`input-field theme-input ${errors.dueDate ? 'border-red-500' : ''}`}
           />
           {errors.dueDate && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.dueDate}</p>}
         </div>
 
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Frequency
           </label>
           <select
             value={formData.frequency}
             onChange={(e) => handleChange('frequency', e.target.value)}
-            className={theme.select}
+            className="input-field theme-input"
           >
             {frequencies.map(freq => (
               <option key={freq.value} value={freq.value}>
@@ -236,13 +236,13 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
       {/* Bank Account and Vendor */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Bank Account
           </label>
           <select
             value={formData.bankAccountId}
             onChange={(e) => handleChange('bankAccountId', e.target.value)}
-            className={theme.select}
+            className={`input-field theme-input ${errors.bankAccountId ? 'border-red-500' : ''}`}
           >
             <option value="">Select bank account</option>
             {bankAccounts.map(account => (
@@ -254,14 +254,14 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
         </div>
 
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Vendor/Provider
           </label>
           {formData.category === 'Utilities' || formData.category === 'Internet & Phone' ? (
             <select
               value={formData.vendor}
               onChange={(e) => handleChange('vendor', e.target.value)}
-              className={theme.select}
+              className="input-field theme-input"
             >
               <option value="">Select provider</option>
               {utilityProviders.map(provider => (
@@ -275,7 +275,7 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
               type="text"
               value={formData.vendor}
               onChange={(e) => handleChange('vendor', e.target.value)}
-              className={theme.input}
+              className="input-field theme-input"
               placeholder="e.g., HDFC Bank, Airtel, Netflix"
             />
           )}
@@ -284,14 +284,14 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
 
       {/* Reminder Settings */}
       <div>
-        <label className={theme.label}>
+        <label className="form-label">
           Reminder Days Before Due Date
         </label>
         <input
           type="number"
           value={formData.reminderDays}
           onChange={(e) => handleChange('reminderDays', Number(e.target.value))}
-          className={theme.input}
+          className="input-field theme-input"
           min="0"
           max="30"
         />
@@ -302,7 +302,7 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
 
       {/* Tags */}
       <div>
-        <label className={theme.label}>
+        <label className="form-label">
           Tags
         </label>
         <div className="flex flex-wrap gap-2 mb-2">
@@ -328,13 +328,13 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
             value={tagInput}
             onChange={(e) => setTagInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-            className={theme.input}
+            className="input-field theme-input"
             placeholder="Add a tag and press Enter"
           />
           <button
             type="button"
             onClick={addTag}
-            className={theme.btnSecondary}
+            className="btn-secondary"
           >
             Add
           </button>
@@ -370,13 +370,13 @@ const BillForm: React.FC<BillFormProps> = ({ bill, onSubmit, onCancel }) => {
         <button
           type="button"
           onClick={onCancel}
-          className={theme.btnSecondary}
+          className="btn-secondary"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className={theme.btnPrimary}
+          className="btn-primary"
         >
           {bill ? 'Update' : 'Create'} Bill
         </button>

@@ -67,11 +67,10 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       {!uploadedImage ? (
         <div
           {...getRootProps()}
-          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-            isDragActive
+          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${isDragActive
               ? 'border-primary-500 bg-primary-50'
               : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'
-          }`}
+            }`}
         >
           <input {...getInputProps()} />
           <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -128,15 +127,15 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           <div className="flex items-start">
             <Info className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mr-3 mt-0.5" />
             <div>
-              <h4 className="font-medium text-yellow-900 mb-2">🔑 API Key Required</h4>
+              <h4 className="font-medium text-yellow-900 dark:text-yellow-100 mb-2">🔑 API Key Required</h4>
               <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-2">
                 To use AI-powered screenshot analysis, you need a free Google Gemini API key.
               </p>
               <p className="text-sm text-yellow-700 dark:text-yellow-300">
                 <strong>Quick Setup:</strong> Get your free key from{' '}
-                <a 
-                  href="https://aistudio.google.com/app/apikey" 
-                  target="_blank" 
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="underline hover:text-yellow-800 dark:text-yellow-200"
                 >
@@ -154,7 +153,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           <div className="flex items-start">
             <Info className="w-5 h-5 text-green-600 dark:text-green-400 mr-3 mt-0.5" />
             <div>
-              <h4 className="font-medium text-green-900 mb-2">✅ AI Analysis Ready</h4>
+              <h4 className="font-medium text-green-900 dark:text-green-100 mb-2">✅ AI Analysis Ready</h4>
               <p className="text-sm text-green-700 dark:text-green-300">
                 Google Gemini API is configured and ready to analyze your portfolio screenshots.
               </p>
@@ -164,7 +163,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       )}
 
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-        <h4 className="font-medium text-blue-900 mb-2">💡 Tips for better results:</h4>
+        <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">💡 Tips for better results:</h4>
         <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
           <li>• Ensure the image is clear and well-lit</li>
           <li>• Include all relevant financial data in the screenshot</li>

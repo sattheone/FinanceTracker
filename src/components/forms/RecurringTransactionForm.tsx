@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RecurringTransaction } from '../../types';
 import { useData } from '../../contexts/DataContext';
-import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
+
 
 interface RecurringTransactionFormProps {
   recurringTransaction?: RecurringTransaction;
@@ -15,7 +15,7 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
   onCancel
 }) => {
   const { bankAccounts, addRecurringTransaction, updateRecurringTransaction, categories: contextCategories } = useData();
-  const theme = useThemeClasses();
+
   // Use categories from context
   const categories = contextCategories || [];
 
@@ -192,27 +192,27 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
       {/* Basic Information */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Transaction Name *
           </label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => handleChange('name', e.target.value)}
-            className={cn(theme.input, errors.name && 'border-red-500 dark:border-red-400')}
+            className={`input-field theme-input ${errors.name ? 'border-red-500' : ''}`}
             placeholder="e.g., Netflix Subscription, Salary, Rent"
           />
           {errors.name && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.name}</p>}
         </div>
 
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Type *
           </label>
           <select
             value={formData.type}
             onChange={(e) => handleChange('type', e.target.value)}
-            className={theme.select}
+            className="input-field theme-input"
           >
             {transactionTypes.map(type => (
               <option key={type.value} value={type.value}>
@@ -224,13 +224,13 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
       </div>
 
       <div>
-        <label className={theme.label}>
+        <label className="form-label">
           Description *
         </label>
         <textarea
           value={formData.description}
           onChange={(e) => handleChange('description', e.target.value)}
-          className={cn(theme.textarea, errors.description && 'border-red-500 dark:border-red-400')}
+          className={`input-field theme-input ${errors.description ? 'border-red-500' : ''}`}
           rows={3}
           placeholder="Detailed description of the recurring transaction"
         />
@@ -240,13 +240,13 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
       {/* Category and Amount */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Category *
           </label>
           <select
             value={formData.category}
             onChange={(e) => handleChange('category', e.target.value)}
-            className={cn(theme.select, errors.category && 'border-red-500 dark:border-red-400')}
+            className={`input-field theme-input ${errors.category ? 'border-red-500' : ''}`}
           >
             <option value="">Select a category</option>
             {getCategoriesForType().map(category => (
@@ -259,7 +259,7 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
         </div>
 
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Amount *
           </label>
           <div className="relative">
@@ -268,7 +268,7 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
               type="number"
               value={formData.amount || ''}
               onChange={(e) => handleChange('amount', Number(e.target.value))}
-              className={cn(theme.input, 'pl-8', errors.amount && 'border-red-500 dark:border-red-400')}
+              className={`input-field theme-input pl-8 ${errors.amount ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
               step="0.01"
@@ -281,13 +281,13 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
       {/* Frequency and Dates */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Frequency *
           </label>
           <select
             value={formData.frequency}
             onChange={(e) => handleChange('frequency', e.target.value)}
-            className={theme.select}
+            className="input-field theme-input"
           >
             {frequencies.map(freq => (
               <option key={freq.value} value={freq.value}>
@@ -298,7 +298,7 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
         </div>
 
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Interval
           </label>
           <div className="flex items-center">
@@ -307,7 +307,7 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
               type="number"
               value={formData.interval}
               onChange={(e) => handleChange('interval', Math.max(1, Number(e.target.value)))}
-              className={cn(theme.input, 'w-20 text-center')}
+              className="input-field theme-input w-20 text-center"
               min="1"
             />
             <span className="ml-2 text-gray-500">
@@ -322,27 +322,27 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
         <div>
 
           <div>
-            <label className={theme.label}>
+            <label className="form-label">
               Start Date *
             </label>
             <input
               type="date"
               value={formData.startDate}
               onChange={(e) => handleChange('startDate', e.target.value)}
-              className={cn(theme.input, errors.startDate && 'border-red-500 dark:border-red-400')}
+              className={`input-field theme-input ${errors.startDate ? 'border-red-500' : ''}`}
             />
             {errors.startDate && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.startDate}</p>}
           </div>
 
           <div>
-            <label className={theme.label}>
+            <label className="form-label">
               End Date (Optional)
             </label>
             <input
               type="date"
               value={formData.endDate}
               onChange={(e) => handleChange('endDate', e.target.value)}
-              className={cn(theme.input, errors.endDate && 'border-red-500 dark:border-red-400')}
+              className={`input-field theme-input ${errors.endDate ? 'border-red-500' : ''}`}
               min={formData.startDate}
             />
             {errors.endDate && <p className="text-red-600 dark:text-red-400 text-sm mt-1">{errors.endDate}</p>}
@@ -353,13 +353,13 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
       {/* Bank Account and Payment Method */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Bank Account
           </label>
           <select
             value={formData.bankAccountId}
             onChange={(e) => handleChange('bankAccountId', e.target.value)}
-            className={theme.select}
+            className="input-field theme-input"
           >
             <option value="">Select bank account</option>
             {bankAccounts.map(account => (
@@ -371,13 +371,13 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
         </div>
 
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Payment Method
           </label>
           <select
             value={formData.paymentMethod}
             onChange={(e) => handleChange('paymentMethod', e.target.value)}
-            className={theme.select}
+            className="input-field theme-input"
           >
             <option value="">Select payment method</option>
             <option value="auto_debit">Auto Debit</option>
@@ -394,13 +394,13 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
       {/* Vendor (for subscriptions) */}
       {formData.category === 'Subscriptions' && (
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Vendor/Service Provider
           </label>
           <select
             value={formData.vendor}
             onChange={(e) => handleChange('vendor', e.target.value)}
-            className={theme.select}
+            className="input-field theme-input"
           >
             <option value="">Select vendor</option>
             {subscriptionVendors.map(vendor => (
@@ -414,7 +414,7 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
 
       {/* Tags */}
       <div>
-        <label className={theme.label}>
+        <label className="form-label">
           Tags
         </label>
         <div className="flex flex-wrap gap-2 mb-2">
@@ -440,13 +440,13 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
             value={tagInput}
             onChange={(e) => setTagInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-            className={theme.input}
+            className="input-field theme-input"
             placeholder="Add a tag and press Enter"
           />
           <button
             type="button"
             onClick={addTag}
-            className={theme.btnSecondary}
+            className="btn-secondary"
           >
             Add
           </button>
@@ -456,14 +456,14 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
       {/* Settings */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className={theme.label}>
+          <label className="form-label">
             Reminder Days Before Due
           </label>
           <input
             type="number"
             value={formData.reminderDays}
             onChange={(e) => handleChange('reminderDays', Number(e.target.value))}
-            className={theme.input}
+            className="input-field theme-input"
             min="0"
             max="30"
           />
@@ -478,7 +478,7 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
               onChange={(e) => handleChange('autoCreate', e.target.checked)}
               className="rounded border-gray-300 dark:border-gray-600"
             />
-            <label htmlFor="autoCreate" className={cn(theme.label, 'ml-2 mb-0')}>
+            <label htmlFor="autoCreate" className="form-label ml-2 mb-0">
               Auto-create transactions
             </label>
           </div>
@@ -491,7 +491,7 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
               onChange={(e) => handleChange('isActive', e.target.checked)}
               className="rounded border-gray-300 dark:border-gray-600"
             />
-            <label htmlFor="isActive" className={cn(theme.label, 'ml-2 mb-0')}>
+            <label htmlFor="isActive" className="form-label ml-2 mb-0">
               Active
             </label>
           </div>
@@ -503,13 +503,13 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
         <button
           type="button"
           onClick={onCancel}
-          className={theme.btnSecondary}
+          className="btn-secondary"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className={theme.btnPrimary}
+          className="btn-primary"
         >
           {recurringTransaction ? 'Update' : 'Create'} Recurring Transaction
         </button>
