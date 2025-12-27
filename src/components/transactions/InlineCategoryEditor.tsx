@@ -92,13 +92,17 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
     }
   }, [isOpen, onCancel, showNewCategoryModal]);
 
-  // Focus search when opening
+  // Focus search when opening and positioned
   useEffect(() => {
-    if (isOpen && searchInputRef.current) {
-      // Small timeout to allow render
-      setTimeout(() => searchInputRef.current?.focus(), 50);
+    if (isOpen && popoverPosition) {
+      // Small timeout to allow render cycle to complete and ref to be attached
+      // standard 50ms usually enough, increasing slightly to 100ms to be safe against heavier renders
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, popoverPosition]);
 
   const handleSaveNewCategory = async (categoryData: Partial<Category>) => {
     try {
@@ -130,8 +134,13 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
   const currentCategoryObj = categories.find(c => c.id === currentCategory) ||
     categories.find(c => c.id === 'other');
 
+  interface DisplayGroup {
+    parent: { id: string; name: string; icon?: string };
+    children: Array<{ id: string; name: string; icon?: string }>;
+  }
+
   // Refined grouping logic that handles search better
-  const displayGroups = useMemo(() => {
+  const displayGroups = useMemo<DisplayGroup[]>(() => {
     const lowerSearch = searchTerm.toLowerCase();
 
     // 1. Find all matching categories
@@ -160,13 +169,41 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
       .filter(c => !c.parentId)
       .sort((a, b) => (a.order || 0) - (b.order || 0));
 
+    // Force strict return type structure
     return roots.map(root => ({
-      parent: root,
+      parent: { id: root.id, name: root.name, icon: root.icon }, // Ensure plain object structure if needed, or just root
       children: relevantCategories
         .filter(c => c.parentId === root.id)
         .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .map(child => ({ id: child.id, name: child.name, icon: child.icon }))
     }));
   }, [categories, searchTerm]);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Flatten the grouped list for keyboard navigation
+  const flatList = useMemo(() => {
+    const flat: Array<{ id: string; name: string; isParent: boolean }> = [];
+    displayGroups.forEach(group => {
+      flat.push({ id: group.parent.id, name: group.parent.name, isParent: true });
+      group.children.forEach(child => {
+        flat.push({ id: child.id, name: child.name, isParent: false });
+      });
+    });
+    return flat;
+  }, [displayGroups]);
+
+  // Reset focus when search changes
+  useEffect(() => {
+    setFocusedIndex(0);
+  }, [searchTerm]);
+
+  const scrollToItem = (index: number) => {
+    const item = document.getElementById(`category-item-${index}`);
+    if (item && listRef.current) {
+      item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  };
 
 
   return (
@@ -221,7 +258,29 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
                 ref={searchInputRef}
                 type="text"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setFocusedIndex(0); // Reset focus on search
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setFocusedIndex(prev => Math.min(prev + 1, flatList.length - 1));
+                    scrollToItem(focusedIndex + 1);
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setFocusedIndex(prev => Math.max(prev - 1, 0));
+                    scrollToItem(focusedIndex - 1);
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (flatList[focusedIndex]) {
+                      onSave(flatList[focusedIndex].id);
+                      setIsOpen(false);
+                    }
+                  } else if (e.key === 'Escape') {
+                    setIsOpen(false);
+                  }
+                }}
                 placeholder="Search..."
                 className={cn(
                   "input-field theme-input !pl-8 text-sm"
@@ -231,7 +290,10 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
           </div>
 
           {/* Categories List */}
-          <div className="overflow-y-auto flex-1 p-1 max-h-[300px]">
+          <div
+            ref={listRef}
+            className="overflow-y-auto flex-1 p-1 max-h-[300px]"
+          >
             {displayGroups.map(({ parent, children }) => (
               <div key={parent.id} className="mb-1">
                 {/* Parent */}
@@ -242,11 +304,13 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
                     setIsOpen(false);
                   }}
                   className={cn(
-                    "w-full flex items-center space-x-2 px-2 py-1 rounded-md text-left transition-colors",
+                    "w-full flex items-center space-x-2 px-2 py-1 rounded-md text-left transition-colors scroll-mt-1",
                     currentCategory === parent.id
                       ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                      : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                      : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200",
+                    focusedIndex === flatList.findIndex(item => item.id === parent.id) && "bg-gray-100 dark:bg-gray-700 ring-1 ring-blue-500/50"
                   )}
+                  id={`category-item-${flatList.findIndex(item => item.id === parent.id)}`}
                 >
                   <span className="text-sm">{parent.icon}</span>
                   <span className="text-xs font-medium flex-1">{parent.name}</span>
@@ -263,11 +327,13 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
                       setIsOpen(false);
                     }}
                     className={cn(
-                      "w-full flex items-center space-x-2 px-2 py-1 pl-8 rounded-md text-left transition-colors",
+                      "w-full flex items-center space-x-2 px-2 py-1 pl-8 rounded-md text-left transition-colors scroll-mt-1",
                       currentCategory === child.id
                         ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                        : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                        : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300",
+                      focusedIndex === flatList.findIndex(item => item.id === child.id) && "bg-gray-100 dark:bg-gray-700 ring-1 ring-blue-500/50"
                     )}
+                    id={`category-item-${flatList.findIndex(item => item.id === child.id)}`}
                   >
                     <span className="text-sm">{child.icon}</span>
                     <span className="text-xs flex-1">{child.name}</span>
@@ -290,6 +356,7 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 setShowNewCategoryModal(true);
+                setIsOpen(false);
               }}
               className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
             >

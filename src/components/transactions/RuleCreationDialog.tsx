@@ -136,7 +136,7 @@ const RuleCreationDialog: React.FC<RuleCreationDialogProps> = ({
 
     return createPortal(
         <div
-            className="fixed inset-0 z-50 overflow-y-auto"
+            className="fixed inset-0 z-[110] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
         >
             {/* Backdrop */}

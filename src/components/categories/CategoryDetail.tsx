@@ -94,7 +94,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     const budgetStatus = getBudgetStatus();
 
     return (
-        <div className="h-full flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="min-h-full flex flex-col bg-white dark:bg-gray-800">
 
             {/* Header Section */}
             <div className="p-6 border-b border-gray-100 dark:border-gray-700">
@@ -178,7 +178,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
             </div>
 
             {/* Transaction List */}
-            <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900/50 p-6">
+            <div className="bg-white dark:bg-gray-900 p-6">
                 <TransactionTable
                     transactions={transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
                     onTransactionClick={(t) => setSelectedTransaction(t)}

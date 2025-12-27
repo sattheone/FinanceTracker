@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Search, Filter, Camera, Edit3, Trash2, FileSpreadsheet, CheckSquare, Square, Tag, Type, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown, ArrowLeftRight } from 'lucide-react';
+import { Plus, Search, Filter, Camera, Edit3, Trash2, FileSpreadsheet, Tag, Type, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown, ArrowLeftRight } from 'lucide-react';
 import { Transaction, BankAccount } from '../types';
 import SIPRuleService from '../services/sipRuleService';
 import { useData } from '../contexts/DataContext';
-import { formatCurrency, formatDate } from '../utils/formatters';
+import { formatCurrency } from '../utils/formatters';
 
 import ImageUploader from '../components/common/ImageUploader';
 import FileUploader from '../components/common/FileUploader';
@@ -15,13 +15,12 @@ import Modal from '../components/common/Modal';
 import BankAccountForm from '../components/forms/BankAccountForm';
 import SimpleTransactionForm from '../components/forms/SimpleTransactionForm';
 import SimpleTransactionModal from '../components/transactions/SimpleTransactionModal';
-import InlineCategoryEditor from '../components/transactions/InlineCategoryEditor';
-import InlineTypeEditor from '../components/transactions/InlineTypeEditor';
+import TransactionTable from '../components/transactions/TransactionTable';
 import TransactionListModal from '../components/transactions/TransactionListModal';
 import AutoCategorizationService from '../services/autoCategorization';
 import CategoryMigrationService from '../services/categoryMigration';
 import { ParsedTransaction } from '../services/excelParser';
-import { useThemeClasses, cn } from '../hooks/useThemeClasses';
+import { useThemeClasses } from '../hooks/useThemeClasses';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { PieChart as PieChartIcon } from 'lucide-react';
 import CategoryBreakdownOverlay from '../components/transactions/CategoryBreakdownOverlay';
@@ -161,6 +160,7 @@ const Transactions: React.FC = () => {
   const [transactionListData, setTransactionListData] = useState<Transaction[]>([]);
   const [transactionListTitle, setTransactionListTitle] = useState('');
   const [transactionListSubtitle, setTransactionListSubtitle] = useState('');
+  const [viewingContextId, setViewingContextId] = useState<string | null>(null);
   const [pieChartType, setPieChartType] = useState<'income' | 'expense'>('expense');
 
   // Rule creation state
@@ -317,7 +317,7 @@ const Transactions: React.FC = () => {
     // Actually, File/Image uploader returns bare objects.
     // We treat them all as new transactions to be added.
 
-    const currentSipRules = sipRulesRef.current;
+
 
     const transactionsToAdd = confirmedData.map(item => {
       // Basic mapping
@@ -821,6 +821,7 @@ const Transactions: React.FC = () => {
     setTransactionListData(filteredTransactions);
     setTransactionListTitle(`${categoryName} Transactions`);
     setTransactionListSubtitle(`${breakdownType === 'income' ? 'Income' : 'Expense'} for ${breakdownTitle}`);
+    setViewingContextId(category.id); // Track which category we are strictly viewing
     setShowTransactionListOverlay(true);
   };
 
@@ -1578,127 +1579,39 @@ const Transactions: React.FC = () => {
                       </button>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className={theme.table}>
-                        <thead>
-                          <tr>
-                            <th className={cn(theme.tableHeader, 'w-10 !py-2 !px-2')}>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSelectAll();
-                                }}
-                                className="flex items-center text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200 p-1"
-                              >
-                                {selectedTransactions.size === filteredTransactions.length && filteredTransactions.length > 0 ? (
-                                  <CheckSquare className="w-4 h-4" />
-                                ) : (
-                                  <Square className="w-4 h-4" />
-                                )}
-                              </button>
-                            </th>
-                            <th className={cn(theme.tableHeader, '!py-2 !px-2 text-xs')}>
-                              Date
-                            </th>
-                            <th className={cn(theme.tableHeader, '!py-2 !px-2 text-xs')}>
-                              Description
-                            </th>
+                    <TransactionTable
+                      transactions={filteredTransactions}
+                      selectedTransactions={selectedTransactions}
+                      onSelectTransaction={handleSelectTransaction}
+                      onSelectAll={handleSelectAll}
+                      onTransactionClick={(t) => {
+                        setSelectedTransactionForDetail(t);
+                        setShowDetailModal(true);
+                      }}
+                      onDeleteTransaction={handleDeleteTransaction}
+                      onUpdateTransaction={(id, updates) => {
+                        const transaction = transactions.find(t => t.id === id);
+                        if (!transaction) return;
 
-                            <th className={cn(theme.tableHeader, '!py-2 !px-2 text-xs')}>
-                              Category
-                            </th>
-                            <th className={cn(theme.tableHeader, '!py-2 !px-2 text-xs')}>
-                              Type
-                            </th>
-                            <th className={cn(theme.tableHeader, 'text-right !py-2 !px-2 text-xs')}>
-                              Amount
-                            </th>
-                            <th className={cn(theme.tableHeader, 'text-right !py-2 !px-2 text-xs')}>
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredTransactions.map((transaction) => (
-                            <tr
-                              key={transaction.id}
-                              onClick={() => handleTransactionClick(transaction)}
-                              className={cn(
-                                theme.tableRow,
-                                'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700',
-                                selectedTransactions.has(transaction.id) && 'bg-blue-50 dark:bg-blue-900/30'
-                              )}
-                              onContextMenu={(e) => handleContextMenu(e, transaction)}
-                            >
-                              <td className={cn(theme.tableCell, '!py-1 !px-2')}>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSelectTransaction(transaction.id);
-                                  }}
-                                  className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-200 p-1"
-                                >
-                                  {selectedTransactions.has(transaction.id) ? (
-                                    <CheckSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                  ) : (
-                                    <Square className="w-4 h-4" />
-                                  )}
-                                </button>
-                              </td>
-                              <td className={cn(theme.tableCell, 'whitespace-nowrap text-xs !py-1 !px-2')}>
-                                <span className={theme.textPrimary}>{formatDate(transaction.date)}</span>
-                              </td>
-                              <td className={cn(theme.tableCell, 'text-xs font-medium max-w-xs truncate !py-1 !px-2')} title={transaction.description}>
-                                <span className={theme.textPrimary}>{transaction.description}</span>
-                              </td>
+                        // Handle specific fields with rule prompts
+                        if (updates.category && updates.category !== transaction.category) {
+                          handleCategoryChangeWithRulePrompt(transaction, updates.category);
+                        }
+                        if (updates.type && updates.type !== transaction.type) {
+                          handleTypeChangeWithRulePrompt(transaction, updates.type);
+                        }
 
-                              <td className={cn(theme.tableCell, 'whitespace-nowrap text-xs !py-1 !px-2')}>
-                                <InlineCategoryEditor
-                                  currentCategory={transaction.category || 'other'}
-                                  onSave={(categoryId) => handleCategoryChangeWithRulePrompt(transaction, categoryId)}
-                                />
-                              </td>
-                              <td className={cn(theme.tableCell, 'whitespace-nowrap !py-1 !px-2')}>
-                                <InlineTypeEditor
-                                  currentType={transaction.type}
-                                  onSave={(type) => handleTypeChangeWithRulePrompt(transaction, type)}
-                                />
-                              </td>
-                              <td className={cn(theme.tableCell, 'whitespace-nowrap text-xs text-right font-medium !py-1 !px-2')}>
-                                <span className={transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                                  {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                                </span>
-                              </td>
-                              <td className={cn(theme.tableCell, 'whitespace-nowrap text-right text-xs font-medium !py-1 !px-2')}>
-                                <div className="flex justify-end gap-2">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedTransactionForDetail(transaction);
-                                      setShowDetailModal(true);
-                                    }}
-                                    className="text-blue-600 dark:text-blue-400 hover:text-blue-900 p-1"
-                                    title="Edit Transaction"
-                                  >
-                                    <Edit3 className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteTransaction(transaction.id);
-                                    }}
-                                    className="text-red-600 dark:text-red-400 hover:text-red-900 p-1"
-                                    title="Delete Transaction"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                        // Apply generic updates ignoring already handled fields
+                        const otherUpdates = { ...updates };
+                        delete otherUpdates.category;
+                        delete otherUpdates.type;
+
+                        if (Object.keys(otherUpdates).length > 0) {
+                          updateTransaction(id, { ...transaction, ...otherUpdates });
+                        }
+                      }}
+                      onContextMenu={handleContextMenu}
+                    />
                   )}
                 </div>
               </div>
@@ -1923,6 +1836,18 @@ const Transactions: React.FC = () => {
         onUpdateTransaction={(transactionId, updates) => {
           const transaction = transactions.find(t => t.id === transactionId);
           if (transaction) {
+            // Optimistically update local state
+            setTransactionListData(prev => {
+              // If we are strictly viewing a specific category, REMOVE the item if category changes
+              if (viewingContextId && updates.category && updates.category !== viewingContextId) {
+                return prev.filter(t => t.id !== transactionId);
+              }
+              // Otherwise just update it in place
+              return prev.map(t =>
+                t.id === transactionId ? { ...t, ...updates } : t
+              );
+            });
+
             // If category is being updated, use the rule prompt handler
             if (updates.category && updates.category !== transaction.category) {
               handleCategoryChangeWithRulePrompt(transaction, updates.category);

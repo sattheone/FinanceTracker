@@ -1,5 +1,7 @@
 import { Transaction } from '../types';
 import { ParsedTransaction } from './excelParser';
+// @ts-ignore - Vite specific import for worker
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 export interface BankStatementData {
   accountNumber: string;
@@ -314,15 +316,10 @@ class BankStatementParser {
 
       // Set worker source using Vite's ?url import to get the correct path to the worker file
       // This ensures the worker is bundled/served correctly by Vite
+      // Set worker source
+      // We use the statically imported URL which Vite handles correctly
       if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-        try {
-          // @ts-ignore - Vite specific import
-          const workerUrl = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
-          pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl.default;
-        } catch (e) {
-          console.warn('Failed to load local PDF worker, falling back to CDN', e);
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-        }
+        pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
       }
 
       // Convert base64 to Uint8Array

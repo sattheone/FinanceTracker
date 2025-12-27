@@ -2,8 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../contexts/DataContext';
 import CategoryList from '../components/categories/CategoryList';
 import CategoryDetail from '../components/categories/CategoryDetail';
+import CategoryOverview from '../components/categories/CategoryOverview';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
-import { X, Tag } from 'lucide-react';
+import { X } from 'lucide-react';
 
 const Categories: React.FC = () => {
     const { categories, transactions, monthlyBudget } = useData();
@@ -46,7 +47,7 @@ const Categories: React.FC = () => {
         [transactions, selectedCategoryId]);
 
     return (
-        <div className={cn(theme.page, "h-[calc(100vh-4rem)] overflow-hidden flex")}>
+        <div className="h-[calc(100vh-4rem)] overflow-hidden flex bg-white dark:bg-gray-900">
 
             {/* LEFT PANE: Category List */}
             <div className={cn(
@@ -70,11 +71,11 @@ const Categories: React.FC = () => {
 
             {/* RIGHT PANE: Detail View */}
             <div className={cn(
-                "flex-1 bg-gray-50 dark:bg-gray-900 flex flex-col min-w-0 transition-all duration-300",
+                "flex-1 bg-white dark:bg-gray-900 flex flex-col min-w-0 transition-all duration-300",
                 !selectedCategoryId ? "hidden md:flex" : "flex"
             )}>
                 {selectedCategory ? (
-                    <div className="h-full flex flex-col">
+                    <div className="h-full flex flex-col overflow-y-scroll">
                         {/* Mobile Header with Back Button */}
                         <div className="md:hidden p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center">
                             <button
@@ -86,7 +87,7 @@ const Categories: React.FC = () => {
                             <span className="font-semibold text-lg">{selectedCategory.name}</span>
                         </div>
 
-                        <div className="flex-1 overflow-hidden p-4 md:p-6">
+                        <div className="flex-1">
                             <CategoryDetail
                                 category={selectedCategory}
                                 transactions={categoryTransactions}
@@ -96,13 +97,11 @@ const Categories: React.FC = () => {
                         </div>
                     </div>
                 ) : (
-                    <div className="h-full flex items-center justify-center text-gray-400">
-                        <div className="text-center">
-                            <Tag className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                            <p className="text-lg font-medium">Select a category</p>
-                            <p className="text-sm">View spending trends and details</p>
-                        </div>
-                    </div>
+                    <CategoryOverview
+                        transactions={transactions}
+                        categories={categories}
+                        monthlyBudget={monthlyBudget}
+                    />
                 )}
             </div>
 

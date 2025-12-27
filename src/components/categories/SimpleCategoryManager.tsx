@@ -195,10 +195,13 @@ const SimpleCategoryManager: React.FC = () => {
 
   // Group categories for display
   const rootCategories = useMemo(() => {
-    return categories
+    // Filter out invalid categories first to prevent crashes
+    const validCategories = categories.filter(c => c && typeof c.name === 'string');
+
+    return validCategories
       .filter(c => !c.parentId &&
         (c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          categories.some(child => child.parentId === c.id && child.name.toLowerCase().includes(searchTerm.toLowerCase())))
+          validCategories.some(child => child.parentId === c.id && child.name.toLowerCase().includes(searchTerm.toLowerCase())))
       )
       .sort((a, b) => (a.order || 0) - (b.order || 0));
   }, [categories, searchTerm]);

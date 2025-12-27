@@ -31,7 +31,7 @@ const RulePrompt: React.FC<RulePromptProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed bottom-6 right-6 z-50 animate-slide-up">
+        <div className="fixed bottom-6 right-6 z-[100] animate-slide-up">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-4 max-w-md">
                 {/* Icon */}
                 <div className="flex-shrink-0 w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-full flex items-center justify-center">

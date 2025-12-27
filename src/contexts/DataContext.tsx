@@ -69,7 +69,7 @@ interface DataContextType {
   deleteGoal: (id: string) => void;
 
   addTransaction: (transaction: Omit<Transaction, 'id'>) => void;
-  addTransactionsBulk: (transactions: Omit<Transaction, 'id'>[]) => Promise<{ success: boolean; summary?: any; error?: string }>;
+  addTransactionsBulk: (transactions: Omit<Transaction, 'id'>[], options?: { isHistorical?: boolean }) => Promise<{ success: boolean; summary?: any; error?: string }>;
   updateTransaction: (id: string, transaction: Partial<Transaction>) => void;
   bulkUpdateTransactions: (ids: string[], update: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => void;
@@ -1415,7 +1415,6 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     // Utility
     resetUserData,
     isDataLoaded,
-    addTransactionsBulk,
     bulkUpdateTransactions,
     bulkDeleteTransactions
   };
