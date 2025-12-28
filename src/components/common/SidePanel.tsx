@@ -9,6 +9,7 @@ interface SidePanelProps {
     title: string;
     children: React.ReactNode;
     footer?: React.ReactNode;
+    headerActions?: React.ReactNode;
     size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
 }
 
@@ -18,6 +19,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
     title,
     children,
     footer,
+    headerActions,
     size = 'md'
 }) => {
 
@@ -72,12 +74,15 @@ const SidePanel: React.FC<SidePanelProps> = ({
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                         {title}
                     </h2>
-                    <button
-                        onClick={onClose}
-                        className="p-2 -mr-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                    >
-                        <X className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center space-x-2">
+                        {headerActions}
+                        <button
+                            onClick={onClose}
+                            className="p-2 -mr-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Content */}

@@ -11,12 +11,16 @@ interface InlineCategoryEditorProps {
   currentCategory: string;
   onSave: (categoryId: string) => void;
   onCancel?: () => void;
+  triggerClassName?: string;
+  renderTrigger?: (onClick: (e: React.MouseEvent) => void) => React.ReactNode;
 }
 
 const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
   currentCategory,
   onSave,
-  onCancel
+  onCancel,
+  triggerClassName,
+  renderTrigger
 }) => {
   const { categories: contextCategories, addCategory } = useData();
   const theme = useThemeClasses();
@@ -185,7 +189,10 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
   const flatList = useMemo(() => {
     const flat: Array<{ id: string; name: string; isParent: boolean }> = [];
     displayGroups.forEach(group => {
-      flat.push({ id: group.parent.id, name: group.parent.name, isParent: true });
+      // Only make parent selectable (and keyboard navigable) if it has no children (standalone category)
+      if (group.children.length === 0) {
+        flat.push({ id: group.parent.id, name: group.parent.name, isParent: true });
+      }
       group.children.forEach(child => {
         flat.push({ id: child.id, name: child.name, isParent: false });
       });
@@ -207,28 +214,36 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
 
 
   return (
-    <div className="relative inline-block" ref={containerRef}>
+    <div className="relative inline-block w-full" ref={containerRef}>
       {/* Trigger Button - Chip Style */}
-      <button
-        onClick={(e) => {
+      {renderTrigger ? (
+        renderTrigger((e) => {
           e.stopPropagation();
           setIsOpen(!isOpen);
-        }}
-        className={cn(
-          "flex items-center justify-center space-x-1 px-2 py-0.5 rounded-full transition-all w-fit max-w-[140px]",
-          // Remove default border/bg classes as we override them
-          "hover:opacity-80"
-        )}
-        style={{
-          backgroundColor: currentCategoryObj?.color ? `${currentCategoryObj.color}20` : '#E5E7EB', // 20 = ~12% opacity
-          color: currentCategoryObj?.color || '#374151'
-        }}
-      >
-        <span className="text-xs flex-shrink-0">{currentCategoryObj?.icon || '📋'}</span>
-        <span className="text-[10px] font-bold truncate uppercase tracking-wider">
-          {currentCategoryObj?.name || 'SELECT'}
-        </span>
-      </button>
+        })
+      ) : (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsOpen(!isOpen);
+          }}
+          className={cn(
+            "flex items-center justify-center space-x-1 px-2 py-0.5 rounded-full transition-all w-fit max-w-[140px]",
+            // Remove default border/bg classes as we override them
+            !triggerClassName && "hover:opacity-80",
+            triggerClassName
+          )}
+          style={!triggerClassName ? {
+            backgroundColor: currentCategoryObj?.color ? `${currentCategoryObj.color}20` : '#E5E7EB', // 20 = ~12% opacity
+            color: currentCategoryObj?.color || '#374151'
+          } : undefined}
+        >
+          <span className="text-xs flex-shrink-0">{currentCategoryObj?.icon || '📋'}</span>
+          <span className="text-[10px] font-bold truncate uppercase tracking-wider">
+            {currentCategoryObj?.name || 'SELECT'}
+          </span>
+        </button>
+      )}
 
       {/* Popover Menu - Rendered via Portal */}
       {isOpen && popoverPosition && createPortal(
@@ -296,26 +311,32 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
           >
             {displayGroups.map(({ parent, children }) => (
               <div key={parent.id} className="mb-1">
-                {/* Parent */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSave(parent.id);
-                    setIsOpen(false);
-                  }}
-                  className={cn(
-                    "w-full flex items-center space-x-2 px-2 py-1 rounded-md text-left transition-colors scroll-mt-1",
-                    currentCategory === parent.id
-                      ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                      : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200",
-                    focusedIndex === flatList.findIndex(item => item.id === parent.id) && "bg-gray-100 dark:bg-gray-700 ring-1 ring-blue-500/50"
-                  )}
-                  id={`category-item-${flatList.findIndex(item => item.id === parent.id)}`}
-                >
-                  <span className="text-sm">{parent.icon}</span>
-                  <span className="text-xs font-medium flex-1">{parent.name}</span>
-                  {currentCategory === parent.id && <Check className="w-3 h-3" />}
-                </button>
+                {/* Parent - Header if has children, Button if standalone */}
+                {children.length > 0 ? (
+                  <div className="px-2 py-1.5 mt-2 first:mt-0 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50 rounded flex items-center gap-1">
+                    <span>{parent.icon}</span> {parent.name}
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSave(parent.id);
+                      setIsOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center space-x-2 px-2 py-1 rounded-md text-left transition-colors scroll-mt-1",
+                      currentCategory === parent.id
+                        ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                        : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200",
+                      focusedIndex === flatList.findIndex(item => item.id === parent.id) && "bg-gray-100 dark:bg-gray-700 ring-1 ring-blue-500/50"
+                    )}
+                    id={`category-item-${flatList.findIndex(item => item.id === parent.id)}`}
+                  >
+                    <span className="text-sm">{parent.icon}</span>
+                    <span className="text-xs font-medium flex-1">{parent.name}</span>
+                    {currentCategory === parent.id && <Check className="w-3 h-3" />}
+                  </button>
+                )}
 
                 {/* Children */}
                 {children.map(child => (

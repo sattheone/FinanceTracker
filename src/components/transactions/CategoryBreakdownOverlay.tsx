@@ -1,13 +1,13 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
+
 import { formatCurrency } from '../../utils/formatters';
 
 interface CategoryBreakdownOverlayProps {
     isOpen: boolean;
     onClose: () => void;
     title: string;
-    type: 'income' | 'expense';
+    type: 'income' | 'expense' | 'investment';
     data: Array<{ name: string; value: number; color?: string }>;
     totalAmount: number;
     onCategoryClick?: (category: string) => void;
@@ -59,7 +59,7 @@ const CategoryBreakdownOverlay: React.FC<CategoryBreakdownOverlayProps> = ({
                         {/* Left: Title */}
                         <div className="flex-1">
                             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                                {type === 'income' ? 'Income' : 'Spend'}
+                                {type === 'income' ? 'Income' : type === 'investment' ? 'Investment' : 'Spend'}
                             </h2>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
                                 Category breakdown
@@ -78,44 +78,7 @@ const CategoryBreakdownOverlay: React.FC<CategoryBreakdownOverlayProps> = ({
                     </div>
                 </div>
 
-                {/* Pie Chart */}
-                <div className="px-6 py-6">
-                    <div className="h-64">
-                        {dataWithColors.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={dataWithColors}
-                                        cx="50%"
-                                        cy="50%"
-                                        labelLine={false}
-                                        label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
-                                        outerRadius={90}
-                                        fill="#8884d8"
-                                        dataKey="value"
-                                    >
-                                        {dataWithColors.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                        ))}
-                                    </Pie>
-                                    <RechartsTooltip
-                                        formatter={(value) => formatCurrency(value as number)}
-                                        contentStyle={{
-                                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                                            border: '1px solid #e5e7eb',
-                                            borderRadius: '8px'
-                                        }}
-                                    />
-                                    <Legend />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-                                No data available
-                            </div>
-                        )}
-                    </div>
-                </div>
+
 
                 {/* Categories List */}
                 <div className="px-6 pb-6">

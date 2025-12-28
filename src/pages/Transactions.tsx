@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Search, Filter, Camera, Edit3, Trash2, FileSpreadsheet, Tag, Type, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown, ArrowLeftRight } from 'lucide-react';
+import { Plus, Search, Filter, Camera, Edit3, Trash2, FileSpreadsheet, Tag, Type, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown } from 'lucide-react';
 import { Transaction, BankAccount } from '../types';
 import SIPRuleService from '../services/sipRuleService';
 import { useData } from '../contexts/DataContext';
@@ -13,9 +13,12 @@ import DuplicateConfirmationDialog from '../components/common/DuplicateConfirmat
 import Modal from '../components/common/Modal';
 
 import BankAccountForm from '../components/forms/BankAccountForm';
-import SimpleTransactionForm from '../components/forms/SimpleTransactionForm';
+import SimpleTransactionForm, { SimpleTransactionFormHandle } from '../components/forms/SimpleTransactionForm';
 import SimpleTransactionModal from '../components/transactions/SimpleTransactionModal';
 import TransactionTable from '../components/transactions/TransactionTable';
+import SidePanel from '../components/common/SidePanel';
+import Button from '../components/common/Button';
+import InlineCategoryEditor from '../components/transactions/InlineCategoryEditor';
 import TransactionListModal from '../components/transactions/TransactionListModal';
 import AutoCategorizationService from '../services/autoCategorization';
 import CategoryMigrationService from '../services/categoryMigration';
@@ -49,6 +52,8 @@ const Transactions: React.FC = () => {
     addTransaction,
     addTransactionsBulk
   } = useData();
+
+  const formRef = useRef<SimpleTransactionFormHandle>(null);
 
 
   // const navigate = useNavigate(); // Remove unused navigate
@@ -151,7 +156,7 @@ const Transactions: React.FC = () => {
   const [showBreakdownOverlay, setShowBreakdownOverlay] = useState(false);
   const [breakdownData, setBreakdownData] = useState<{ name: string; value: number }[]>([]);
   const [breakdownTitle, setBreakdownTitle] = useState('');
-  const [breakdownType, setBreakdownType] = useState<'income' | 'expense'>('expense');
+  const [breakdownType, setBreakdownType] = useState<'income' | 'expense' | 'investment'>('expense');
   const [breakdownTotal, setBreakdownTotal] = useState(0);
   const [breakdownMonthFilter, setBreakdownMonthFilter] = useState<{ year: number; month: number } | null>(null);
 
@@ -642,7 +647,7 @@ const Transactions: React.FC = () => {
   // const [categories, setCategories] = React.useState<any[]>([]);
   // React.useEffect logic removed
 
-  const getAllCategories = () => categories;
+
 
 
 
@@ -721,12 +726,17 @@ const Transactions: React.FC = () => {
         .filter(t => t.type === 'expense' && t.category !== 'transfer')
         .reduce((sum, t) => sum + t.amount, 0);
 
+      const investments = monthTransactions
+        .filter(t => t.type === 'investment' && t.category !== 'transfer')
+        .reduce((sum, t) => sum + t.amount, 0);
+
       data.push({
         month: date.toLocaleDateString('en-US', { month: 'short' }),
         fullDate: date,
         income,
         expenses,
-        net: income - expenses
+        investments,
+        net: income - expenses - investments // Net usually means In - Out. If investment is Out, subtract it. Or just Net Cash Flow? usually Investment is outflow from bank.
       });
     }
 
@@ -761,7 +771,7 @@ const Transactions: React.FC = () => {
       .sort((a, b) => b.value - a.value);
   }, [currentMonthTransactions, pieChartType, categories]);
 
-  const handleBarClick = (monthData: any, type: 'income' | 'expense') => {
+  const handleBarClick = (monthData: any, type: 'income' | 'expense' | 'investment') => {
     const targetTransactions = transactions.filter(t => {
       const tDate = new Date(t.date);
       return tDate.getFullYear() === monthData.fullDate.getFullYear() &&
@@ -788,7 +798,7 @@ const Transactions: React.FC = () => {
     const totalAmount = targetTransactions.reduce((sum, t) => sum + t.amount, 0);
     setBreakdownData(pieData);
     setBreakdownTitle(`${monthData.month}`);
-    setBreakdownType(type);
+    setBreakdownType(type); // Cast removed
     setBreakdownTotal(totalAmount);
     setBreakdownMonthFilter({ year: monthData.fullDate.getFullYear(), month: monthData.fullDate.getMonth() });
     setShowBreakdownOverlay(true);
@@ -876,54 +886,33 @@ const Transactions: React.FC = () => {
 
   // Render Manual Add Modal
   const renderManualAddModal = () => (
-    <Modal
+    <SidePanel
       isOpen={showManualAddModal}
       onClose={() => setShowManualAddModal(false)}
       title="Add Transaction"
+      size="md"
+      headerActions={
+        <Button
+          onClick={() => formRef.current?.submit()}
+          variant="primary"
+          size="sm"
+          className="rounded-full" // Optional: User said use proper component, usually component handles rounding. But simple button was rounded-full. I'll keep it standard rounded-lg from Button component unless pill is requested. The previous button was rounded-full. I'll stick to Button component default (rounded-lg) for consistency, or add className="rounded-full". Let's use default styles for "proper" look everywhere.
+        >
+          Add
+        </Button>
+      }
     >
       <SimpleTransactionForm
+        ref={formRef}
         onSubmit={handleManualAddSubmit}
         onCancel={() => setShowManualAddModal(false)}
+        hideActions
       />
-    </Modal>
+    </SidePanel>
   );
 
-  const handleScanTransfers = async () => {
-    const { default: TransferDetectionService } = await import('../services/transferDetectionService');
-    const pairs = TransferDetectionService.detectTransfers(transactions);
 
-    if (pairs.length === 0) {
-      alert('No potential internal transfers found.');
-      return;
-    }
 
-    const confirmed = window.confirm(`Found ${pairs.length} potential internal transfers.\n\nThis will mark ${pairs.length * 2} transactions as 'Transfer' so they don't affect your income/expense reports.\n\nProceed?`);
-
-    if (confirmed) {
-      // Ensure 'transfer' category exists
-      const transferCategory = categories.find(c => c.id === 'transfer');
-      if (!transferCategory) {
-        console.warn('Transfer category not found, ensure migration ran.');
-        // If we really needed to create it, we'd use addCategory but we can't force ID 'transfer' from here easily 
-        // without updating DataContext. Assuming it exists or migration will handle it.
-      }
-
-      // Update all transactions
-      const updates = [];
-      for (const pair of pairs) {
-        updates.push(updateTransaction(pair.outflow.id, { category: 'transfer' }));
-        updates.push(updateTransaction(pair.inflow.id, { category: 'transfer' }));
-      }
-
-      try {
-        await Promise.all(updates);
-        alert(`✅ Successfully marked ${pairs.length} transfers!`);
-      } catch (error) {
-        console.error('Error updating transfers:', error);
-        alert('❌ Failed to update some transactions.');
-      }
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-700 dark:bg-gray-900">
@@ -932,38 +921,22 @@ const Transactions: React.FC = () => {
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Accounts</h1>
           <div className="flex gap-2">
-            <button
-              onClick={() => setShowImageUploader(true)}
-              className="flex items-center px-3 py-2 text-sm bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={!currentAccount || selectedAccount === 'all_accounts'}
-            >
-              <Camera className="h-4 w-4 mr-2" />
-              Screenshot
-            </button>
-            <button
+            <Button
+              variant="primary"
               onClick={() => setShowFileUploader(true)}
-              className="flex items-center px-3 py-2 text-sm bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              leftIcon={<FileSpreadsheet className="h-4 w-4" />}
               disabled={!currentAccount || selectedAccount === 'all_accounts'}
             >
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
               Import
-            </button>
-            <button
-              onClick={handleScanTransfers}
-              className="flex items-center px-3 py-2 text-sm bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-100"
-              title="Scan for internal transfers"
-            >
-              <ArrowLeftRight className="h-4 w-4 mr-2" />
-              Scan Transfers
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => setShowManualAddModal(true)}
-              className="flex items-center px-3 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              leftIcon={<Plus className="h-4 w-4" />}
               disabled={!currentAccount || selectedAccount === 'all_accounts'}
             >
-              <Plus className="h-4 w-4 mr-2" />
               Add
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -1370,17 +1343,18 @@ const Transactions: React.FC = () => {
                         <div className="flex items-end justify-between space-x-2 h-48">
                           {getSixMonthData.map((monthData, index) => {
                             const maxAmount = Math.max(
-                              ...getSixMonthData.map(d => Math.max(d.income, d.expenses))
+                              ...getSixMonthData.map(d => Math.max(d.income, d.expenses, d.investments || 0))
                             );
                             const incomeHeight = maxAmount > 0 ? (monthData.income / maxAmount) * 100 : 0;
                             const expenseHeight = maxAmount > 0 ? (monthData.expenses / maxAmount) * 100 : 0;
+                            const investmentHeight = maxAmount > 0 ? ((monthData.investments || 0) / maxAmount) * 100 : 0;
 
                             return (
                               <div key={index} className="flex-1 flex flex-col items-center space-y-2">
                                 <div className="w-full flex justify-center space-x-1 h-40">
                                   {/* Income Bar */}
                                   <div
-                                    className="flex flex-col justify-end w-6 cursor-pointer hover:opacity-80 transition-opacity"
+                                    className="flex flex-col justify-end w-4 sm:w-6 cursor-pointer hover:opacity-80 transition-opacity"
                                     onClick={() => handleBarClick(monthData, 'income')}
                                   >
                                     <div
@@ -1391,13 +1365,24 @@ const Transactions: React.FC = () => {
                                   </div>
                                   {/* Expense Bar */}
                                   <div
-                                    className="flex flex-col justify-end w-6 cursor-pointer hover:opacity-80 transition-opacity"
+                                    className="flex flex-col justify-end w-4 sm:w-6 cursor-pointer hover:opacity-80 transition-opacity"
                                     onClick={() => handleBarClick(monthData, 'expense')}
                                   >
                                     <div
                                       className="bg-red-500 rounded-t transition-all duration-500 min-h-[4px]"
                                       style={{ height: `${Math.max(expenseHeight, 2)}%` }}
                                       title={`Expenses: ${formatCurrency(monthData.expenses)}`}
+                                    ></div>
+                                  </div>
+                                  {/* Investment Bar */}
+                                  <div
+                                    className="flex flex-col justify-end w-4 sm:w-6 cursor-pointer hover:opacity-80 transition-opacity"
+                                    onClick={() => handleBarClick(monthData, 'investment')}
+                                  >
+                                    <div
+                                      className="bg-purple-500 rounded-t transition-all duration-500 min-h-[4px]"
+                                      style={{ height: `${Math.max(investmentHeight, 2)}%` }}
+                                      title={`Investments: ${formatCurrency(monthData.investments || 0)}`}
                                     ></div>
                                   </div>
                                 </div>
@@ -1420,11 +1405,15 @@ const Transactions: React.FC = () => {
                           <div className="w-3 h-3 bg-red-500 rounded"></div>
                           <span className="text-sm text-gray-600 dark:text-gray-300">Money Out</span>
                         </div>
+                        <div className="flex items-center space-x-2">
+                          <div className="w-3 h-3 bg-purple-500 rounded"></div>
+                          <span className="text-sm text-gray-600 dark:text-gray-300">Investments</span>
+                        </div>
                       </div>
 
                       {/* Current Month Summary */}
                       <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
-                        <div className="grid grid-cols-3 gap-4 text-center">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                           <div>
                             <p className="text-sm text-gray-600 dark:text-gray-300">This Month In</p>
                             <p className="text-lg font-bold text-green-600 dark:text-green-400">{formatCurrency(monthlyIncome)}</p>
@@ -1432,6 +1421,10 @@ const Transactions: React.FC = () => {
                           <div>
                             <p className="text-sm text-gray-600 dark:text-gray-300">This Month Out</p>
                             <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(monthlyExpenses)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">Investments</p>
+                            <p className="text-lg font-bold text-purple-600 dark:text-purple-400">{formatCurrency(monthlyInvestments)}</p>
                           </div>
                           <div>
                             <p className="text-sm text-gray-600 dark:text-gray-300">Net Flow</p>
@@ -1609,78 +1602,74 @@ const Transactions: React.FC = () => {
                   )}
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
+            )
+            }
+          </div >
+        </div >
+      </div >
 
       {/* Bulk Action Modal */}
-      {showBulkActions && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 border border-gray-200 dark:border-gray-600 dark:border-gray-600">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white mb-4">
-              {bulkActionType === 'category' ? 'Change Category' : 'Change Type'} for {selectedTransactions.size} transactions
-            </h3>
+      {
+        showBulkActions && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 border border-gray-200 dark:border-gray-600 dark:border-gray-600">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white mb-4">
+                {bulkActionType === 'category' ? 'Change Category' : 'Change Type'} for {selectedTransactions.size} transactions
+              </h3>
 
-            {bulkActionType === 'category' && (
-              <div className="space-y-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Select New Category</label>
-                <select
-                  value={bulkCategory}
-                  onChange={(e) => setBulkCategory(e.target.value)}
-                  className="theme-input"
+              {bulkActionType === 'category' && (
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Select New Category</label>
+                  <div className="p-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50 flex justify-center">
+                    <InlineCategoryEditor
+                      currentCategory={bulkCategory}
+                      onSave={(id) => setBulkCategory(id)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {bulkActionType === 'type' && (
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Select New Type</label>
+                  <select
+                    value={bulkType}
+                    onChange={(e) => setBulkType(e.target.value as 'income' | 'expense' | 'investment' | 'insurance' | '')}
+                    className="theme-input"
+                  >
+                    <option value="">Select a type...</option>
+                    <option value="income">Income</option>
+                    <option value="expense">Expense</option>
+                    <option value="investment">Investment</option>
+                    <option value="insurance">Insurance</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowBulkActions(false);
+                    setBulkActionType(null);
+                    setBulkCategory('');
+                    setBulkType('');
+                  }}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-lg"
                 >
-                  <option value="">Select a category...</option>
-                  {getAllCategories()
-                    .map(category => (
-                      <option key={category.id} value={category.id}>
-                        {category.icon} {category.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            )}
-
-            {bulkActionType === 'type' && (
-              <div className="space-y-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Select New Type</label>
-                <select
-                  value={bulkType}
-                  onChange={(e) => setBulkType(e.target.value as 'income' | 'expense' | 'investment' | 'insurance' | '')}
-                  className="theme-input"
+                  Cancel
+                </button>
+                <button
+                  onClick={bulkActionType === 'category' ? handleBulkCategoryChange : handleBulkTypeChange}
+                  disabled={bulkActionType === 'category' ? !bulkCategory : !bulkType}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <option value="">Select a type...</option>
-                  <option value="income">Income</option>
-                  <option value="expense">Expense</option>
-                  <option value="investment">Investment</option>
-                  <option value="insurance">Insurance</option>
-                </select>
+                  Apply Changes
+                </button>
               </div>
-            )}
-
-            <div className="flex justify-end space-x-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowBulkActions(false);
-                  setBulkActionType(null);
-                  setBulkCategory('');
-                  setBulkType('');
-                }}
-                className="px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={bulkActionType === 'category' ? handleBulkCategoryChange : handleBulkTypeChange}
-                disabled={bulkActionType === 'category' ? !bulkCategory : !bulkType}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Apply Changes
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Modals */}
       {/* Image Uploader Modal */}
@@ -1743,57 +1732,63 @@ const Transactions: React.FC = () => {
       />
 
       {/* Duplicate Confirmation Dialog */}
-      {duplicateSummary && (
-        <DuplicateConfirmationDialog
-          isOpen={showDuplicateDialog}
-          onClose={() => setShowDuplicateDialog(false)}
-          onConfirm={handleDuplicateConfirm}
-          summary={duplicateSummary}
-          fileName={(pendingImportData as any)?.fileInfo?.name}
-        />
-      )}
+      {
+        duplicateSummary && (
+          <DuplicateConfirmationDialog
+            isOpen={showDuplicateDialog}
+            onClose={() => setShowDuplicateDialog(false)}
+            onConfirm={handleDuplicateConfirm}
+            summary={duplicateSummary}
+            fileName={(pendingImportData as any)?.fileInfo?.name}
+          />
+        )
+      }
 
       {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              Confirm Deletion
-            </h3>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">
-              {deleteTarget?.type === 'transaction'
-                ? 'Are you sure you want to delete this transaction?'
-                : deleteTarget?.type === 'account'
-                  ? 'Are you sure you want to delete this bank account? This action cannot be undone.'
-                  : `Are you sure you want to delete ${deleteTarget?.count} transactions?`}
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmDelete}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-              >
-                Delete
-              </button>
+      {
+        showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 shadow-xl">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                Confirm Deletion
+              </h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-6">
+                {deleteTarget?.type === 'transaction'
+                  ? 'Are you sure you want to delete this transaction?'
+                  : deleteTarget?.type === 'account'
+                    ? 'Are you sure you want to delete this bank account? This action cannot be undone.'
+                    : `Are you sure you want to delete ${deleteTarget?.count} transactions?`}
+              </p>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Transaction Detail Modal */}
-      {selectedTransactionForDetail && (
-        <SimpleTransactionModal
-          transaction={selectedTransactionForDetail}
-          isOpen={showDetailModal}
-          onClose={handleDetailModalClose}
-          onTransactionClick={(t) => setSelectedTransactionForDetail(t)}
-        />
-      )}
+      {
+        selectedTransactionForDetail && (
+          <SimpleTransactionModal
+            transaction={selectedTransactionForDetail}
+            isOpen={showDetailModal}
+            onClose={handleDetailModalClose}
+            onTransactionClick={(t) => setSelectedTransactionForDetail(t)}
+          />
+        )
+      }
 
       {/* Transaction List Modal */}
       <TransactionListModal
@@ -1861,60 +1856,64 @@ const Transactions: React.FC = () => {
       />
 
       {/* Rule Creation Flow */}
-      {rulePromptData && (
-        <>
-          <RulePrompt
-            isOpen={showRulePrompt}
-            transactionName={rulePromptData.transaction.description}
-            onCreateRule={() => {
-              setShowRulePrompt(false);
-              setShowRuleDialog(true);
-            }}
-            onDismiss={() => {
-              setShowRulePrompt(false);
-              setRulePromptData(null);
-            }}
-          />
+      {
+        rulePromptData && (
+          <>
+            <RulePrompt
+              isOpen={showRulePrompt}
+              transactionName={rulePromptData.transaction.description}
+              onCreateRule={() => {
+                setShowRulePrompt(false);
+                setShowRuleDialog(true);
+              }}
+              onDismiss={() => {
+                setShowRulePrompt(false);
+                setRulePromptData(null);
+              }}
+            />
 
-          <RuleCreationDialog
-            isOpen={showRuleDialog}
-            onClose={() => {
-              setShowRuleDialog(false);
-              setRulePromptData(null);
+            <RuleCreationDialog
+              isOpen={showRuleDialog}
+              onClose={() => {
+                setShowRuleDialog(false);
+                setRulePromptData(null);
+              }}
+              transaction={rulePromptData.transaction}
+              newCategoryId={rulePromptData.newCategoryId}
+              newType={rulePromptData.newType}
+              transactions={transactions}
+              categories={categories}
+              onCreateRule={(rule) => {
+                addCategoryRule(rule);
+                setShowRuleDialog(false);
+                setRulePromptData(null);
+              }}
+            />
+          </>
+        )
+      }
+      {
+        contextMenu && (
+          <TransactionContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            transaction={contextMenu.transaction}
+            onClose={() => setContextMenu(null)}
+            onEdit={(t) => {
+              setSelectedTransactionForDetail(t);
+              setShowDetailModal(true);
             }}
-            transaction={rulePromptData.transaction}
-            newCategoryId={rulePromptData.newCategoryId}
-            newType={rulePromptData.newType}
-            transactions={transactions}
-            categories={categories}
-            onCreateRule={(rule) => {
-              addCategoryRule(rule);
-              setShowRuleDialog(false);
-              setRulePromptData(null);
-            }}
+            onDelete={(id) => handleDeleteTransaction(id)}
+            onMakeRecurring={handleMakeRecurring}
+            onChangeCategory={(t) => handleOpenSingleBulkAction(t, 'category')}
+            onChangeType={(t) => handleOpenSingleBulkAction(t, 'type')}
           />
-        </>
-      )}
-      {contextMenu && (
-        <TransactionContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          transaction={contextMenu.transaction}
-          onClose={() => setContextMenu(null)}
-          onEdit={(t) => {
-            setSelectedTransactionForDetail(t);
-            setShowDetailModal(true);
-          }}
-          onDelete={(id) => handleDeleteTransaction(id)}
-          onMakeRecurring={handleMakeRecurring}
-          onChangeCategory={(t) => handleOpenSingleBulkAction(t, 'category')}
-          onChangeType={(t) => handleOpenSingleBulkAction(t, 'type')}
-        />
-      )}
+        )
+      }
       {/* Modals */}
       {renderManualAddModal()}
       {/* ... other modals ... */}
-    </div>
+    </div >
   );
 };
 

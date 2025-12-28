@@ -20,11 +20,12 @@ export function isInvalidCategoryId(categoryId: string, validCategoryIds: string
         return false;
     }
 
-    // Check if it looks like a timestamp (all digits, length > 10)
-    const isTimestamp = /^\d{10,}$/.test(categoryId);
-
     // Check if it's empty or just whitespace
-    const isEmpty = !categoryId || categoryId.trim() === '';
+    const isEmpty = !categoryId || (typeof categoryId === 'string' && categoryId.trim() === '');
+
+    // Check if it looks like a timestamp (all digits, length > 10)
+    // Only test regex if it's a non-empty string
+    const isTimestamp = !isEmpty && typeof categoryId === 'string' && /^\d{10,}$/.test(categoryId);
 
     return isTimestamp || isEmpty;
 }

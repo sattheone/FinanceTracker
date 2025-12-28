@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { cn } from '../../hooks/useThemeClasses';
 import { Category } from '../../constants/categories';
@@ -16,11 +16,32 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
     onSave,
     onCancel
 }) => {
+    // Find default parent for new categories (first system parent)
+    const defaultParentId = useMemo(() => {
+        if (initialData?.parentId) return initialData.parentId;
+        if (initialData) return ''; // Editing a root category, keep it root
+
+        // For new categories, pick first valid parent (usually Bills or first in list)
+        const firstParent = categories
+            .filter(c => !c.parentId && c.id !== 'uncategorized')
+            .sort((a, b) => (a.order || 0) - (b.order || 0))[0];
+        return firstParent?.id || '';
+    }, [categories, initialData]);
 
     const [name, setName] = useState(initialData?.name || '');
     const [color, setColor] = useState(initialData?.color || '#3B82F6');
     const [icon, setIcon] = useState(initialData?.icon || '📁');
-    const [parentId, setParentId] = useState(initialData?.parentId || '');
+    const [parentId, setParentId] = useState(defaultParentId);
+
+    // Auto-inherit parent color
+    React.useEffect(() => {
+        if (parentId) {
+            const parent = categories.find(c => c.id === parentId);
+            if (parent && parent.color) {
+                setColor(parent.color);
+            }
+        }
+    }, [parentId, categories]);
 
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [showIconPicker, setShowIconPicker] = useState(false);
@@ -139,23 +160,31 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
 
                     {/* Color Selection */}
                     <div className="relative">
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">
-                            Color Theme
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 flex justify-between">
+                            <span>Color Theme</span>
+                            {!!parentId && <span className="text-[10px] text-gray-400 italic">Inherited from parent</span>}
                         </label>
                         <button
-                            onClick={() => setShowColorPicker(!showColorPicker)}
-                            className="w-full flex items-center justify-between p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg hover:border-gray-300 dark:hover:border-gray-500 transition-colors"
+                            onClick={() => !parentId && setShowColorPicker(!showColorPicker)}
+                            disabled={!!parentId}
+                            className={cn(
+                                "w-full flex items-center justify-between p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors",
+                                !parentId ? "hover:border-gray-300 dark:hover:border-gray-500" : "opacity-75 cursor-not-allowed bg-gray-50 dark:bg-gray-900"
+                            )}
                         >
                             <div className="flex items-center space-x-3">
                                 <div
                                     className="w-10 h-10 rounded-lg border-2 border-white dark:border-gray-700 shadow-sm"
                                     style={{ backgroundColor: color }}
                                 />
-                                <span className="text-sm text-gray-600 dark:text-gray-300">
+                                <span className={cn(
+                                    "text-sm",
+                                    !parentId ? "text-gray-600 dark:text-gray-300" : "text-gray-400"
+                                )}>
                                     {color}
                                 </span>
                             </div>
-                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                            {!parentId ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <div className="w-4 h-4 text-gray-400">🔒</div>}
                         </button>
 
                         {/* Dropdown Color Picker */}
@@ -193,20 +222,29 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
                 {/* Parent Category Selection */}
                 <div>
                     <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">
-                        Group Under (Optional)
+                        Group Under {initialData ? '(Optional)' : '(Required)'}
                     </label>
                     <select
                         value={parentId}
                         onChange={(e) => setParentId(e.target.value)}
                         className="input-field theme-input"
                     >
-                        <option value="">No Parent Group</option>
+                        {/* Only allow root category creation if editing an existing one (legacy support) */}
+                        {initialData ? (
+                            <option value="">No Parent Group</option>
+                        ) : null}
+
                         {parentOptions.map(parent => (
                             <option key={parent.id} value={parent.id}>
                                 {parent.icon} {parent.name}
                             </option>
                         ))}
                     </select>
+                    {!initialData && (
+                        <p className="text-xs text-gray-500 mt-1">
+                            New categories must belong to a system group.
+                        </p>
+                    )}
                 </div>
             </div>
 
