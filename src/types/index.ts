@@ -169,8 +169,11 @@ export interface MonthlyBudget {
   categoryBudgets?: Record<string, number>;
 }
 
+export type AccountType = 'bank' | 'cash' | 'credit_card';
+
 export interface BankAccount {
   id: string;
+  accountType: AccountType;
   bank: string;
   number: string;
   balance: number;

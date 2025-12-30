@@ -1,7 +1,5 @@
 import { Transaction } from '../types';
 import { ParsedTransaction } from './excelParser';
-// @ts-ignore - Vite specific import for worker
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 export interface BankStatementData {
   accountNumber: string;
@@ -314,12 +312,11 @@ class BankStatementParser {
       // Dynamically import pdfjs-dist
       const pdfjsLib = await import('pdfjs-dist');
 
-      // Set worker source using Vite's ?url import to get the correct path to the worker file
-      // This ensures the worker is bundled/served correctly by Vite
-      // Set worker source
-      // We use the statically imported URL which Vite handles correctly
+      // Configure worker using CDN - this is the most reliable approach for bundled environments
+      // Version 5.x uses ES modules, use the CDN worker that matches
       if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+        // Use unpkg CDN which hosts the exact version we need
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
       }
 
       // Convert base64 to Uint8Array

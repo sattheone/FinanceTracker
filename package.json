@@ -1,5 +1,8 @@
+
+
 {
   "name": "personal-finance-tracker",
+  "type": "module",
   "version": "1.0.0",
   "description": "Comprehensive Personal Finance Tracking App for Satheesh & Family",
   "main": "index.js",

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, DollarSign, Repeat } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
-import { Transaction, RecurringTransaction, Bill } from '../../types';
+import { Transaction, RecurringTransaction, Bill, Category } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
 
 interface CalendarEvent {
@@ -21,11 +21,13 @@ interface CalendarProps {
   transactions?: Transaction[];
   recurringTransactions?: RecurringTransaction[];
   bills?: Bill[];
+  categories?: Category[];
   onEventClick?: (event: CalendarEvent) => void;
   onDateClick?: (date: Date) => void;
   showTransactions?: boolean;
   showRecurring?: boolean;
   showBills?: boolean;
+  viewMode?: 'chip' | 'icon';
   title?: string;
 }
 
@@ -33,11 +35,13 @@ const Calendar: React.FC<CalendarProps> = ({
   transactions = [],
   recurringTransactions = [],
   bills = [],
+  categories = [],
   onEventClick,
   onDateClick,
   showTransactions = true,
   showRecurring = true,
   showBills = true,
+  viewMode = 'chip',
   title = 'Calendar'
 }) => {
   const theme = useThemeClasses();
@@ -181,6 +185,13 @@ const Calendar: React.FC<CalendarProps> = ({
     }
   };
 
+  // Get category icon for icon view
+  const getCategoryIcon = (categoryId?: string) => {
+    if (!categoryId) return '📋';
+    const category = categories.find(c => c.id === categoryId);
+    return category?.icon || '📋';
+  };
+
   // Generate calendar days
   const calendarDays = [];
 
@@ -202,46 +213,177 @@ const Calendar: React.FC<CalendarProps> = ({
         key={day}
         className={cn(
           'h-24 border border-gray-200 dark:border-gray-600 p-1 cursor-pointer transition-colors',
-          'hover:bg-gray-50 dark:hover:bg-gray-700',
-          isToday && 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700',
-          isSelected && 'bg-blue-100 dark:bg-blue-900/40 border-blue-400 dark:border-blue-600'
+          'hover:bg-gray-50 dark:hover:bg-gray-700'
         )}
         onClick={() => handleDateClick(day)}
       >
         <div className={cn(
-          'text-sm font-medium mb-1',
-          isToday ? 'text-blue-600 dark:text-blue-400' : theme.textPrimary
+          'text-sm font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full',
+          isToday 
+            ? 'bg-blue-500 text-white' 
+            : isSelected
+              ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900'
+              : theme.textPrimary
         )}>
           {day}
         </div>
-        <div className="space-y-1 overflow-hidden">
-          {dayEvents.slice(0, 2).map(event => (
-            <div
-              key={event.id}
-              className={cn(
-                'text-xs px-1 py-0.5 rounded truncate cursor-pointer',
-                getEventTypeColor(event.type, event.isCompleted, event.isOverdue)
-              )}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onEventClick) {
-                  onEventClick(event);
+        
+        {/* Icon View - Show category icons in a grid */}
+        {viewMode === 'icon' ? (
+          <div className="flex flex-wrap gap-0.5 overflow-hidden">
+            {(() => {
+              // Group events by category icon to show unique icons only
+              const iconGroups = new Map();
+              dayEvents.forEach(event => {
+                const icon = getCategoryIcon(event.category);
+                if (!iconGroups.has(icon)) {
+                  iconGroups.set(icon, {
+                    icon,
+                    events: [],
+                    firstEvent: event,
+                    category: categories.find(c => c.id === event.category)
+                  });
                 }
-              }}
-              title={`${event.title} - ${formatCurrency(event.amount)}`}
-            >
-              <div className="flex items-center space-x-1">
-                {getEventTypeIcon(event.type)}
+                iconGroups.get(icon).events.push(event);
+              });
+              
+              const uniqueIcons = Array.from(iconGroups.values()).slice(0, 6);
+              
+              return (
+                <>
+                  {uniqueIcons.map((group, index) => {
+                    // Get category color for background
+                    let categoryColor = '#9CA3AF'; // default gray
+                    
+                    // Try multiple ways to get the category
+                    const eventCategory = group.firstEvent.category;
+                    const foundCategory = categories.find(c => c.id === eventCategory);
+                    
+                    if (foundCategory && foundCategory.color) {
+                      categoryColor = foundCategory.color;
+                    } else {
+                      // Force very distinct, bright colors for testing
+                      const testColors = ['#FF0000', '#00FF00', '#0000FF', '#FF00FF', '#FFFF00', '#FF8000'];
+                      categoryColor = testColors[index % testColors.length];
+                    }
+                    
+                    // Check if any events in this group are recurring
+                    const hasRecurring = group.events.some(event => event.type === 'recurring');
+                    
+                    // Convert hex color to RGB for opacity
+                    const hexToRgb = (hex: string) => {
+                      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                      return result ? {
+                        r: parseInt(result[1], 16),
+                        g: parseInt(result[2], 16),
+                        b: parseInt(result[3], 16)
+                      } : null;
+                    };
+                    
+                    const rgb = hexToRgb(categoryColor);
+                    // Always use category color for background, with slight adjustments for status
+                    const backgroundColor = rgb 
+                      ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.25)` 
+                      : 'rgba(156, 163, 175, 0.25)';
+                    
+                    const borderColor = group.firstEvent.isOverdue 
+                      ? 'rgba(239, 68, 68, 0.8)' // Red border for overdue
+                      : rgb 
+                        ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.6)` 
+                        : 'rgba(156, 163, 175, 0.6)';
+                    
+                    return (
+                      <div
+                        key={`${group.icon}-${index}`}
+                        style={{ 
+                          position: 'relative',
+                          cursor: 'pointer',
+                          width: '34px',
+                          height: '34px'
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onEventClick) {
+                            onEventClick(group.firstEvent);
+                          }
+                        }}
+                        title={`${group.events.length} ${group.events.length === 1 ? 'transaction' : 'transactions'}: ${group.events.map(e => `${e.title} - ${formatCurrency(e.amount)}`).join(', ')}`}
+                      >
+                        <div
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '0.375rem',
+                            fontSize: '1rem',
+                            lineHeight: '1.5rem',
+                            backgroundColor: backgroundColor
+                          }}
+                        >
+                          {group.icon}
+                        </div>
+                        {/* Recurring badge */}
+                        {hasRecurring && (
+                          <div 
+                            style={{
+                              position: 'absolute',
+                              top: '2px',
+                              right: '2px',
+                              width: '13px',
+                              height: '13px',
+                              backgroundColor: '#A855F7',
+                              borderRadius: '50%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.1)'
+                            }}
+                          >
+                            <Repeat style={{ width: '8px', height: '8px', color: 'white' }} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {iconGroups.size > 6 && (
+                    <div className="w-8 h-8 flex items-center justify-center text-xs text-gray-500 dark:text-gray-400 font-medium">
+                      +{iconGroups.size - 6}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        ) : (
+          /* Chip View - Original view with text */
+          <div className="space-y-1 overflow-hidden">
+            {dayEvents.slice(0, 2).map(event => (
+              <div
+                key={event.id}
+                className={cn(
+                  'text-xs px-1 py-0.5 rounded truncate cursor-pointer',
+                  getEventTypeColor(event.type, event.isCompleted, event.isOverdue)
+                )}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onEventClick) {
+                    onEventClick(event);
+                  }
+                }}
+                title={`${event.title} - ${formatCurrency(event.amount)}`}
+              >
                 <span className="truncate">{event.title}</span>
               </div>
-            </div>
-          ))}
-          {dayEvents.length > 2 && (
-            <div className="text-xs text-gray-500 dark:text-gray-400 px-1">
-              +{dayEvents.length - 2} more
-            </div>
-          )}
-        </div>
+            ))}
+            {dayEvents.length > 2 && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 px-1">
+                +{dayEvents.length - 2} more
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -257,7 +399,11 @@ const Calendar: React.FC<CalendarProps> = ({
     <div className="space-y-4">
       {/* Calendar Header */}
       <div className="flex items-center justify-between">
-        <h2 className={cn(theme.textPrimary, 'text-xl font-semibold')}>{title}</h2>
+        <div className="flex items-center space-x-2">
+          <span className={cn(theme.textPrimary, 'font-medium text-lg')}>
+            {monthNames[month]} {year}
+          </span>
+        </div>
         <div className="flex items-center space-x-4">
           {/* Legend */}
           <div className="flex items-center space-x-2 text-xs">
@@ -269,32 +415,23 @@ const Calendar: React.FC<CalendarProps> = ({
               <div className="w-3 h-3 bg-purple-100 dark:bg-purple-900/50 rounded"></div>
               <span className={theme.textMuted}>Recurring</span>
             </div>
-            <div className="flex items-center space-x-1">
-              <div className="w-3 h-3 bg-orange-100 dark:bg-orange-900/50 rounded"></div>
-              <span className={theme.textMuted}>Bills</span>
-            </div>
           </div>
 
           {/* Navigation */}
           <div className="flex items-center space-x-2">
+            <button
+              onClick={goToToday}
+              className={cn(theme.btnSecondary, 'text-sm px-3 py-1')}
+            >
+              Today
+            </button>
+            
             <button
               onClick={goToPreviousMonth}
               className={cn(theme.btnSecondary, 'p-2')}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-
-            <div className="flex items-center space-x-2">
-              <span className={cn(theme.textPrimary, 'font-medium text-lg')}>
-                {monthNames[month]} {year}
-              </span>
-              <button
-                onClick={goToToday}
-                className={cn(theme.btnSecondary, 'text-sm px-3 py-1')}
-              >
-                Today
-              </button>
-            </div>
 
             <button
               onClick={goToNextMonth}

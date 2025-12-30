@@ -18,8 +18,7 @@ import {
   Phone,
   Calendar,
   DollarSign,
-  Settings as SettingsIcon,
-  Target
+  Settings as SettingsIcon
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useData } from '../contexts/DataContext';
@@ -28,7 +27,6 @@ import { useTheme } from '../contexts/ThemeContext';
 import SimpleCategoryManager from '../components/categories/SimpleCategoryManager';
 import CategoryMigration from '../components/settings/CategoryMigration';
 import CategoryRules from '../components/settings/CategoryRules';
-import SIPRules from '../components/settings/SIPRules';
 import SimpleEmailSettings from '../components/settings/SimpleEmailSettings';
 import EmailDiagnostics from '../components/settings/EmailDiagnostics';
 import GmailImportSettings from '../components/settings/GmailImportSettings';
@@ -108,7 +106,6 @@ const Settings: React.FC = () => {
     { id: 'financial', label: 'Financial Preferences', icon: DollarSign },
     { id: 'categories', label: 'Categories', icon: SettingsIcon },
     { id: 'category-rules', label: 'Category Rules', icon: SettingsIcon },
-    { id: 'sip-rules', label: 'SIP Rules', icon: Target },
     { id: 'accounts', label: 'Bank Accounts', icon: CreditCard },
     { id: 'gmail-import', label: 'Gmail Import', icon: Mail },
     { id: 'duplicates', label: 'Duplicate Detection', icon: Shield },
@@ -362,13 +359,26 @@ Type "DELETE" to confirm:`;
             <div className="flex items-center space-x-3">
               <span className="text-2xl">{account.logo}</span>
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-white">{account.bank}</h4>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{account.number}</p>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-medium text-gray-900 dark:text-white">{account.bank}</h4>
+                  {account.accountType && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      account.accountType === 'credit_card' 
+                        ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
+                        : account.accountType === 'cash'
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                    }`}>
+                      {account.accountType === 'credit_card' ? 'Credit Card' : account.accountType === 'cash' ? 'Cash' : 'Bank'}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{account.number || 'No account number'}</p>
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                ₹{account.balance.toLocaleString()}
+              <span className={`text-lg font-semibold ${account.accountType === 'credit_card' ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
+                {account.accountType === 'credit_card' ? '-' : ''}₹{account.balance.toLocaleString()}
               </span>
               <button className="p-2 text-gray-400 hover:text-blue-600 dark:text-blue-400">
                 <SettingsIcon className="w-4 h-4" />
@@ -567,7 +577,6 @@ Type "DELETE" to confirm:`;
       case 'financial': return renderFinancialSettings();
       case 'categories': return <CategoriesWithMigration />;
       case 'category-rules': return <CategoryRules />;
-      case 'sip-rules': return <SIPRules />;
       case 'accounts': return renderBankAccountSettings();
       case 'gmail-import': return <GmailImportSettings />;
       case 'duplicates': return <DuplicateDetectionSettings />;
@@ -581,29 +590,30 @@ Type "DELETE" to confirm:`;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-700 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white dark:text-white">Settings</h1>
-          <p className="text-gray-600 dark:text-gray-300 dark:text-gray-400 mt-2">Manage your account preferences and settings</p>
+      <div className="max-w-7xl mx-auto px-4 py-4 sm:py-8">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white dark:text-white">Settings</h1>
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 dark:text-gray-400 mt-2">Manage your account preferences and settings</p>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar */}
-          <div className="lg:w-64">
-            <nav className="space-y-1">
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+          {/* Sidebar - Horizontal scroll on mobile, vertical on desktop */}
+          <div className="lg:w-64 -mx-4 px-4 lg:mx-0 lg:px-0">
+            <nav className="flex lg:flex-col space-x-2 lg:space-x-0 lg:space-y-1 overflow-x-auto scrollbar-hide pb-2 lg:pb-0">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${activeTab === tab.id
+                    className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap flex-shrink-0 lg:w-full ${activeTab === tab.id
                       ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
                       : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
                       }`}
                   >
-                    <Icon className="w-5 h-5 mr-3" />
-                    {tab.label}
+                    <Icon className="w-5 h-5 mr-2 lg:mr-3" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                    <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
                   </button>
                 );
               })}
@@ -611,9 +621,9 @@ Type "DELETE" to confirm:`;
           </div>
 
           {/* Content */}
-          <div className="flex-1">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white dark:text-white mb-6">
+          <div className="flex-1 min-w-0">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sm:p-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white dark:text-white mb-4 sm:mb-6">
                 {tabs.find(tab => tab.id === activeTab)?.label}
               </h2>
               {renderTabContent()}

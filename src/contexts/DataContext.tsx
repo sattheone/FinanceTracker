@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction, CategoryRule, SIPRule } from '../types';
 import { Category } from '../constants/categories';
 import { UserProfile } from '../types/user';
@@ -6,6 +6,7 @@ import { useAuth } from './AuthContext';
 import FirebaseService from '../services/firebaseService';
 import GoalMigrationService from '../services/goalMigration';
 import CategoryRuleService from '../services/categoryRuleService';
+import SIPAutoUpdateService from '../services/sipAutoUpdateService';
 
 
 // Utility function to calculate next due date
@@ -189,6 +190,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [categoryRules, setCategoryRules] = useState<CategoryRule[]>([]);
   const [sipRules, setSipRules] = useState<SIPRule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  
+  // Track if SIP auto-update has run this session
+  const sipAutoUpdateRan = useRef(false);
 
   // Update localStorage for notification scheduler whenever data changes
   useEffect(() => {
@@ -198,6 +202,37 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       localStorage.setItem('transactions', JSON.stringify(transactions));
     }
   }, [bills, recurringTransactions, transactions, isDataLoaded]);
+
+  // Auto-update SIP investments when data is loaded (runs once per session)
+  useEffect(() => {
+    if (!isDataLoaded || sipAutoUpdateRan.current || !user) return;
+    
+    const processAutoSIP = async () => {
+      sipAutoUpdateRan.current = true;
+      
+      try {
+        const { updates, results } = await SIPAutoUpdateService.processAllDueSIPs(assets, true);
+        
+        if (results.length > 0) {
+          console.log(`📊 SIP Auto-Update: Processing ${results.length} SIP(s)`);
+          
+          // Apply updates to each asset
+          for (const [assetId, update] of updates) {
+            await FirebaseService.updateAsset(assetId, update);
+            setAssets(prev => prev.map(a => a.id === assetId ? { ...a, ...update } : a));
+          }
+          
+          // Log summary
+          const totalAdded = results.reduce((sum, r) => sum + r.addedAmount, 0);
+          console.log(`✅ SIP Auto-Update complete: Added ₹${totalAdded.toLocaleString()} across ${results.length} SIP(s)`);
+        }
+      } catch (error) {
+        console.error('SIP Auto-Update failed:', error);
+      }
+    };
+    
+    processAutoSIP();
+  }, [isDataLoaded, user, assets]);
 
   // Load user data when user changes
   useEffect(() => {

@@ -4,7 +4,7 @@ import { useData } from '../../contexts/DataContext';
 import AutoCategorizationService from '../../services/autoCategorization';
 import InlineCategoryEditor from '../transactions/InlineCategoryEditor';
 import InlineAccountPicker from '../transactions/InlineAccountPicker';
-import { ChevronDown, Calendar, Tag, FileText } from 'lucide-react';
+import { ChevronDown, Calendar, FileText } from 'lucide-react';
 
 
 export interface SimpleTransactionFormHandle {
@@ -291,9 +291,9 @@ const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTran
                     } hover:bg-gray-200 dark:hover:bg-gray-700 ${errors.bankAccountId ? 'ring-1 ring-red-500' : ''}`}
                 >
                   <span className="text-lg">{selectedAccount?.logo || '🏦'}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{selectedAccount?.bank || 'Select Account'}</div>
-                    {selectedAccount && <div className="text-xs opacity-70 truncate">...{selectedAccount.number.slice(-4)}</div>}
+                  <div className="flex-1 min-w-0 flex items-center justify-between">
+                    <span className="font-medium truncate">{selectedAccount?.bank || 'Select Account'}</span>
+                    {selectedAccount && <span className="text-xs opacity-70 ml-2">...{selectedAccount.number.slice(-4)}</span>}
                   </div>
                 </button>
               );
@@ -317,17 +317,7 @@ const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTran
           />
         </div>
 
-        <div>
-          <div className="flex items-center text-gray-500 mb-2">
-            <Tag className="w-4 h-4 mr-2" />
-            <h4 className="text-xs font-medium uppercase tracking-wide">Tags</h4>
-          </div>
-          <div className="flex items-center">
-            <button type="button" className="text-sm text-blue-600 font-medium hover:underline flex items-center">
-              <span className="mr-1">+</span> Add tag
-            </button>
-          </div>
-        </div>
+
       </div>
 
       {/* Actions */}

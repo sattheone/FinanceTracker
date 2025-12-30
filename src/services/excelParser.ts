@@ -389,27 +389,11 @@ export class ExcelParser {
     }
   }
 
-  private categorizeTransaction(description: string, type: 'income' | 'expense'): string {
-    const lowerDesc = description.toLowerCase();
-
-    if (type === 'income') {
-      if (lowerDesc.includes('salary')) return 'Salary';
-      if (lowerDesc.includes('interest')) return 'Interest';
-      if (lowerDesc.includes('dividend')) return 'Dividend';
-      if (lowerDesc.includes('refund')) return 'Refund';
-      return 'Other Income';
-    } else {
-      if (lowerDesc.includes('atm') || lowerDesc.includes('cash')) return 'Cash Withdrawal';
-      if (lowerDesc.includes('grocery') || lowerDesc.includes('supermarket')) return 'Food';
-      if (lowerDesc.includes('fuel') || lowerDesc.includes('petrol')) return 'Transportation';
-      if (lowerDesc.includes('electricity') || lowerDesc.includes('water') || lowerDesc.includes('gas')) return 'Utilities';
-      if (lowerDesc.includes('medical') || lowerDesc.includes('hospital')) return 'Healthcare';
-      if (lowerDesc.includes('school') || lowerDesc.includes('education')) return 'Education';
-      if (lowerDesc.includes('insurance')) return 'Insurance';
-      if (lowerDesc.includes('sip') || lowerDesc.includes('mutual fund')) return 'Investment';
-      if (lowerDesc.includes('emi') || lowerDesc.includes('loan')) return 'Loan';
-      return 'Other Expense';
-    }
+  private categorizeTransaction(_description: string, _type: 'income' | 'expense'): string {
+    // Return empty string so that user's custom category rules 
+    // can be applied in handleFileTransactionsParsed (Transactions.tsx)
+    // The AutoCategorizationService will handle categorization with user rules
+    return '';
   }
 }
 

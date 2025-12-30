@@ -4,10 +4,10 @@ import { Asset } from '../../types';
 interface AssetFormProps {
   asset?: Asset;
   onSubmit: (asset: Omit<Asset, 'id'>) => void;
-  onCancel: () => void;
+  onCancel?: () => void;
 }
 
-const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
+const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
   const [formData, setFormData] = useState({
     name: '',
     category: 'stocks' as Asset['category'],
@@ -231,6 +231,25 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
                       : 'Day of the month when SIP is deducted'}
                   </p>
                 </div>
+
+                {formData.category === 'mutual_funds' && (
+                  <div className="md:col-span-2">
+                    <label className="form-label">
+                      Scheme Code (Optional - for live NAV)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.schemeCode}
+                      onChange={(e) => handleChange('schemeCode', e.target.value)}
+                      className="input-field theme-input"
+                      placeholder="e.g., 120503 for SBI Blue Chip Fund"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Enter the AMFI scheme code to automatically fetch live NAV and update your investment value.
+                      Find codes at <a href="https://www.amfiindia.com/spages/NAVAll.txt" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">AMFI website</a>
+                    </p>
+                  </div>
+                )}
               </>
             )}
           </>
@@ -297,22 +316,6 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit, onCancel }) => {
           </div>
         </div>
       )}
-
-      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-600">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="btn-secondary"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="btn-primary"
-        >
-          {asset ? 'Update Asset' : 'Add Asset'}
-        </button>
-      </div>
     </form>
   );
 };

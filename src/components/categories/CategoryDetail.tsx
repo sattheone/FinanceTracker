@@ -15,6 +15,8 @@ import { cn } from '../../hooks/useThemeClasses';
 import { formatCurrency } from '../../utils/formatters';
 import TransactionTable from '../transactions/TransactionTable';
 import SimpleTransactionModal from '../transactions/SimpleTransactionModal';
+import RulePrompt from '../transactions/RulePrompt';
+import RuleCreationDialog from '../transactions/RuleCreationDialog';
 import { useData } from '../../contexts/DataContext';
 
 interface CategoryDetailProps {
@@ -30,8 +32,78 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     monthlyBudget,
     currentMonth
 }) => {
-    const { updateTransaction } = useData();
+    const { updateTransaction, categories, addCategoryRule } = useData();
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+    
+    // Rule creation state
+    const [showRulePrompt, setShowRulePrompt] = useState(false);
+    const [rulePromptData, setRulePromptData] = useState<{
+        transaction: Transaction;
+        newCategoryId?: string;
+        newCategoryName?: string;
+        newType?: Transaction['type'];
+        newTypeName?: string;
+    } | null>(null);
+    const [showRuleDialog, setShowRuleDialog] = useState(false);
+
+    // Handler for category changes with rule prompt
+    const handleCategoryChangeWithRulePrompt = (transaction: Transaction, newCategoryId: string) => {
+        const oldCategoryId = transaction.category;
+
+        // Update the transaction
+        updateTransaction(transaction.id, { category: newCategoryId });
+
+        // Show rule prompt if category actually changed
+        if (oldCategoryId !== newCategoryId) {
+            const cat = categories.find(c => c.id === newCategoryId);
+            if (cat) {
+                setRulePromptData({
+                    transaction,
+                    newCategoryId,
+                    newCategoryName: cat.name
+                });
+                setShowRulePrompt(true);
+            }
+        }
+    };
+
+    const handleTypeChangeWithRulePrompt = (transaction: Transaction, newType: Transaction['type']) => {
+        // Update the transaction
+        updateTransaction(transaction.id, { type: newType });
+
+        // Show rule prompt if type actually changed
+        if (transaction.type !== newType) {
+            setRulePromptData({
+                transaction,
+                newType,
+                newTypeName: newType.charAt(0).toUpperCase() + newType.slice(1)
+            });
+            setShowRulePrompt(true);
+        }
+    };
+
+    // Handler for transaction updates from TransactionTable
+    const handleUpdateTransaction = (transactionId: string, updates: Partial<Transaction>) => {
+        const transaction = transactions.find(t => t.id === transactionId);
+        if (!transaction) return;
+
+        // Handle specific fields with rule prompts
+        if (updates.category && updates.category !== transaction.category) {
+            handleCategoryChangeWithRulePrompt(transaction, updates.category);
+        }
+        if (updates.type && updates.type !== transaction.type) {
+            handleTypeChangeWithRulePrompt(transaction, updates.type);
+        }
+
+        // Apply generic updates ignoring already handled fields
+        const otherUpdates = { ...updates };
+        delete otherUpdates.category;
+        delete otherUpdates.type;
+
+        if (Object.keys(otherUpdates).length > 0) {
+            updateTransaction(transactionId, { ...transaction, ...otherUpdates });
+        }
+    };
 
     // --- Calculations ---
 
@@ -45,7 +117,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
 
         transactions.forEach(t => {
             const tDate = new Date(t.date);
-            if (isSameMonth(tDate, currentMonth) && t.type === 'expense') {
+            if (isSameMonth(tDate, currentMonth) && (t.type === 'expense' || t.type === 'investment')) {
                 stats.spent += t.amount;
                 stats.count += 1;
             }
@@ -53,17 +125,29 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
         return stats;
     }, [transactions, monthlyBudget, category.id, currentMonth]);
 
-    // 2. Chart Data (Last 6 Months)
+    // 2. Chart Data (Full History)
     const chartData = useMemo(() => {
+        if (transactions.length === 0) return [];
+
+        // Find earliest transaction date
+        const dates = transactions.map(t => new Date(t.date));
+        const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+
+        // Calculate months difference
+        const now = new Date();
+        const monthsDiff = (now.getFullYear() - minDate.getFullYear()) * 12 + (now.getMonth() - minDate.getMonth());
+        // Add a buffer or minimum of 6 months
+        const range = Math.max(monthsDiff, 5);
+
         const data = [];
-        for (let i = 5; i >= 0; i--) {
-            const date = subMonths(currentMonth, i);
-            const label = format(date, 'MMM');
+        for (let i = range; i >= 0; i--) {
+            const date = subMonths(now, i);
+            const label = format(date, 'MMM yy'); // Added Year for context in long history
 
             let amount = 0;
             transactions.forEach(t => {
                 const tDate = new Date(t.date);
-                if (isSameMonth(tDate, date) && t.type === 'expense') {
+                if (isSameMonth(tDate, date) && (t.type === 'expense' || t.type === 'investment')) {
                     amount += t.amount;
                 }
             });
@@ -71,12 +155,12 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
             data.push({
                 name: label,
                 amount,
-                date: date, // keep full date for reference
-                isCurrent: i === 0
+                date: date,
+                isCurrent: isSameMonth(date, now)
             });
         }
         return data;
-    }, [transactions, currentMonth]);
+    }, [transactions]);
 
     // --- Helper for Over/Under ---
     const getBudgetStatus = () => {
@@ -94,10 +178,10 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     const budgetStatus = getBudgetStatus();
 
     return (
-        <div className="min-h-full flex flex-col bg-white dark:bg-gray-800">
+        <div className="h-fit flex flex-col bg-white dark:bg-gray-800">
 
             {/* Header Section */}
-            <div className="p-6 border-b border-gray-100 dark:border-gray-700">
+            <div className="p-4 border-b border-gray-100 dark:border-gray-700">
                 <div className="flex justify-between items-start mb-6">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
@@ -164,10 +248,10 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                                 }}
                             />
                             <Bar dataKey="amount" radius={[4, 4, 0, 0]} barSize={32}>
-                                {chartData.map((entry, index) => (
+                                {chartData.map((_, index) => (
                                     <Cell
                                         key={`cell-${index}`}
-                                        fill={entry.isCurrent ? (category.color || '#3B82F6') : '#E5E7EB'}
+                                        fill={category.color || '#3B82F6'}
                                         className="transition-all duration-300 hover:opacity-80"
                                     />
                                 ))}
@@ -178,11 +262,11 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
             </div>
 
             {/* Transaction List */}
-            <div className="bg-white dark:bg-gray-900 p-6">
+            <div className="bg-white dark:bg-gray-900 p-4 flex-1">
                 <TransactionTable
                     transactions={transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
                     onTransactionClick={(t) => setSelectedTransaction(t)}
-                    onUpdateTransaction={updateTransaction}
+                    onUpdateTransaction={handleUpdateTransaction}
                 // Only passing update, delete handled via overlay or could be passed here
                 />
             </div>
@@ -195,6 +279,42 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                     onClose={() => setSelectedTransaction(null)}
                     onTransactionClick={(t) => setSelectedTransaction(t)}
                 />
+            )}
+
+            {/* Rule Creation Flow */}
+            {rulePromptData && (
+                <>
+                    <RulePrompt
+                        isOpen={showRulePrompt}
+                        transactionName={rulePromptData.transaction.description}
+                        onCreateRule={() => {
+                            setShowRulePrompt(false);
+                            setShowRuleDialog(true);
+                        }}
+                        onDismiss={() => {
+                            setShowRulePrompt(false);
+                            setRulePromptData(null);
+                        }}
+                    />
+
+                    <RuleCreationDialog
+                        isOpen={showRuleDialog}
+                        onClose={() => {
+                            setShowRuleDialog(false);
+                            setRulePromptData(null);
+                        }}
+                        transaction={rulePromptData.transaction}
+                        newCategoryId={rulePromptData.newCategoryId}
+                        newType={rulePromptData.newType}
+                        transactions={transactions}
+                        categories={categories}
+                        onCreateRule={(rule) => {
+                            addCategoryRule(rule);
+                            setShowRuleDialog(false);
+                            setRulePromptData(null);
+                        }}
+                    />
+                </>
             )}
         </div>
     );

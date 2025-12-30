@@ -52,11 +52,23 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Mobile touch optimization */
+  @media (max-width: 768px) {
+    button, a, select, input[type="checkbox"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    
+    input, select, textarea {
+      font-size: 16px; /* Prevent zoom on iOS */
+    }
+  }
 }
 
 @layer components {
   .card {
-    @apply bg-card text-card-foreground rounded-lg border border-border p-6 shadow-sm;
+    @apply bg-card text-card-foreground rounded-lg border border-border p-4 sm:p-6 shadow-sm;
   }
   
   .btn-primary {
@@ -86,5 +98,21 @@
   
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Mobile responsive table wrapper */
+  .table-responsive {
+    @apply overflow-x-auto -mx-4 sm:mx-0;
+  }
+  
+  .table-responsive table {
+    @apply min-w-full;
+  }
+
+  /* Mobile-friendly modals */
+  @media (max-width: 640px) {
+    .modal-content {
+      @apply max-h-[90vh] overflow-y-auto;
+    }
   }
 }

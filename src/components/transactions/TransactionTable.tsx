@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Edit3, Trash2, CheckSquare, Square, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Edit3, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { Transaction } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
 import { cn, useThemeClasses } from '../../hooks/useThemeClasses';
@@ -131,16 +131,12 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                     <tr>
                         {onSelectAll && (
                             <th className={cn(theme.tableHeader, '!py-2 !px-3 text-xs w-10')}>
-                                <button
-                                    onClick={handleSelectAllClick}
-                                    className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center"
-                                >
-                                    {selectedTransactions.size > 0 && selectedTransactions.size === transactions.length ? (
-                                        <CheckSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                    ) : (
-                                        <Square className="w-4 h-4" />
-                                    )}
-                                </button>
+                                <input
+                                    type="checkbox"
+                                    checked={selectedTransactions.size > 0 && selectedTransactions.size === transactions.length}
+                                    onChange={handleSelectAllClick}
+                                    className="cursor-pointer"
+                                />
                             </th>
                         )}
                         <HeaderCell column="date" label="Date" />
@@ -183,16 +179,13 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                             >
                                 {onSelectTransaction && (
                                     <td className={cn(theme.tableCell, '!py-2 !px-3 w-10')}>
-                                        <button
-                                            onClick={(e) => handleSelectTransaction(transaction.id, e)}
-                                            className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-1"
-                                        >
-                                            {selectedTransactions.has(transaction.id) ? (
-                                                <CheckSquare className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                                            ) : (
-                                                <Square className="w-3 h-3" />
-                                            )}
-                                        </button>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedTransactions.has(transaction.id)}
+                                            onChange={(e) => handleSelectTransaction(transaction.id, e)}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="cursor-pointer"
+                                        />
                                     </td>
                                 )}
                                 <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap text-xs')}>

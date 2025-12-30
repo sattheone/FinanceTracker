@@ -1,9 +1,10 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileSpreadsheet, X, Loader2, AlertCircle, CheckCircle, Lock, Eye, EyeOff, FileText } from 'lucide-react';
+import { Upload, FileSpreadsheet, X, Loader2, AlertCircle, CheckCircle, Lock, Eye, EyeOff, FileText, Image } from 'lucide-react';
 import { excelParser, ParsedTransaction, HeaderDetectionError } from '../../services/excelParser';
 import bankStatementParser from '../../services/bankStatementParser';
 import { backupImporter } from '../../services/backupImporter';
+import { aiService } from '../../services/aiService';
 import ColumnMappingDialog from './ColumnMappingDialog';
 
 interface FileUploaderProps {
@@ -34,6 +35,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isAIParsing, setIsAIParsing] = useState(false);
 
   const processFile = async (file: File, filePassword?: string) => {
     setError(null);
@@ -128,8 +130,47 @@ const FileUploader: React.FC<FileUploaderProps> = ({
           }
           throw err;
         }
+      } else if (file.type.startsWith('image/') || file.name.toLowerCase().match(/\.(jpg|jpeg|png|webp|gif)$/)) {
+        // Handle image files with AI parsing
+        setIsAIParsing(true);
+        try {
+          console.log('🖼️ Processing image file with AI:', file.name);
+          const extractedTransactions = await aiService.extractTransactionsFromImage(file);
+          
+          if (extractedTransactions.length === 0) {
+            throw new Error('No transactions could be extracted from the image. Please ensure the image clearly shows transaction details.');
+          }
+          
+          // Convert extracted transactions to ParsedTransaction format
+          transactions = extractedTransactions.map(t => {
+            // Map AI extracted types to ParsedTransaction types
+            let type: 'income' | 'expense' = 'expense';
+            if (t.type === 'income') {
+              type = 'income';
+            } else {
+              // Map 'expense', 'investment', 'insurance', 'transfer' all to 'expense'
+              type = 'expense';
+            }
+            
+            return {
+              date: t.date,
+              description: t.description,
+              category: t.category,
+              type: type,
+              amount: t.amount,
+              confidence: t.confidence
+            };
+          });
+          
+          console.log('✅ AI extracted', transactions.length, 'transactions from image');
+        } catch (err: any) {
+          console.error('Image AI parsing error:', err);
+          throw new Error(err.message || 'Failed to extract transactions from image. Please try with a clearer image.');
+        } finally {
+          setIsAIParsing(false);
+        }
       } else {
-        throw new Error('Unsupported file format. Please upload Excel (.xlsx, .xls), CSV, or PDF files.');
+        throw new Error('Unsupported file format. Please upload Excel (.xlsx, .xls), CSV, PDF, or image files (JPG, PNG, WebP).');
       }
 
       if (transactions.length === 0) {
@@ -238,7 +279,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       'application/vnd.ms-excel': ['.xls'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'text/csv': ['.csv'],
-      'application/pdf': ['.pdf']
+      'application/pdf': ['.pdf'],
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/png': ['.png'],
+      'image/webp': ['.webp']
     },
     maxFiles: 1,
     maxSize: 10 * 1024 * 1024, // 10MB
@@ -255,10 +299,13 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   };
 
   const getFileIcon = (fileName: string) => {
-    if (fileName.toLowerCase().endsWith('.csv')) {
+    const lowerName = fileName.toLowerCase();
+    if (lowerName.endsWith('.csv')) {
       return <FileSpreadsheet className="w-8 h-8 text-green-600 dark:text-green-400" />;
-    } else if (fileName.toLowerCase().endsWith('.pdf')) {
+    } else if (lowerName.endsWith('.pdf')) {
       return <FileText className="w-8 h-8 text-red-600 dark:text-red-400" />;
+    } else if (lowerName.match(/\.(jpg|jpeg|png|webp|gif)$/)) {
+      return <Image className="w-8 h-8 text-purple-600 dark:text-purple-400" />;
     }
     return <FileSpreadsheet className="w-8 h-8 text-blue-600 dark:text-blue-400" />;
   };
@@ -285,10 +332,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({
           ) : (
             <div>
               <p className="text-gray-600 dark:text-gray-300 font-medium mb-2">
-                Drag & drop a bank statement file here, or click to select
+                Drag & drop a file here, or click to select
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Supports PDF, Excel (.xlsx, .xls) and CSV files (max 10MB)
+                Supports PDF, Excel (.xlsx, .xls), CSV, and images (JPG, PNG) - max 10MB
               </p>
             </div>
           )}
@@ -360,7 +407,9 @@ const FileUploader: React.FC<FileUploaderProps> = ({
           {isParsing && !isPasswordProtected && (
             <div className="flex items-center justify-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
               <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin mr-3" />
-              <span className="text-blue-700 dark:text-blue-300">Parsing bank statement...</span>
+              <span className="text-blue-700 dark:text-blue-300">
+                {isAIParsing ? 'Using AI to extract transactions from image...' : 'Parsing bank statement...'}
+              </span>
             </div>
           )}
 
@@ -389,10 +438,11 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       )}
 
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-        <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">📄 Supported Bank Statement Formats:</h4>
+        <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">📄 Supported Formats:</h4>
         <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-          <li>• <strong>HDFC Bank:</strong> PDF statements (password protected supported)</li>
+          <li>• <strong>PDF:</strong> Bank statements (password protected supported)</li>
           <li>• <strong>Excel/CSV:</strong> Standard bank statement formats</li>
+          <li>• <strong>Images:</strong> Screenshots of transactions (AI-powered extraction)</li>
         </ul>
       </div>
 

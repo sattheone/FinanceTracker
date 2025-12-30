@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Check, X, AlertTriangle, DollarSign, Calendar, Tag } from 'lucide-react';
+import { Check, X, AlertTriangle, DollarSign, Calendar, Tag, ChevronDown } from 'lucide-react';
 
 import { Category } from '../../constants/categories';
+import InlineCategoryEditor from '../transactions/InlineCategoryEditor';
 
 interface DataConfirmationDialogProps {
   isOpen: boolean;
@@ -299,37 +300,25 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                 </select>
               </td>
               <td className="px-3 py-2">
-                <select
-                  value={item.category}
-                  onChange={(e) => handleFieldChange(index, 'category', e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-colors"
-                >
-                  {/* Default Option if value is missing */}
-                  {!item.category && <option value="">Select Category</option>}
-
-                  {/* Show Uncategorized if selected, or if we want to allow seeing it */}
-                  {(item.category === 'uncategorized' || categories.find(c => c.id === 'uncategorized')) && (
-                    <option value="uncategorized">❓ Uncategorized</option>
-                  )}
-
-                  {/* Dynamic Options - Filter out uncategorized to hide it from manual selection list if desired, 
-                      but kept if it's the current one (handled above) 
-                  */}
-                  {categories.length > 0 ? (
-                    categories
-                      .filter(c => c.id !== 'uncategorized')
-                      .map(cat => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.icon} {cat.name}
-                        </option>
-                      ))
-                  ) : (
-                    // Fallback Hardcoded Options (Legacy)
-                    getCategoryOptions(item.type).map(category => (
-                      <option key={category} value={category}>{category}</option>
-                    ))
-                  )}
-                </select>
+                <InlineCategoryEditor
+                  currentCategory={item.category || 'uncategorized'}
+                  onSave={(categoryId) => handleFieldChange(index, 'category', categoryId)}
+                  renderTrigger={(onClick) => {
+                    const category = categories.find(c => c.id === item.category);
+                    return (
+                      <button
+                        type="button"
+                        onClick={onClick}
+                        className="w-full flex items-center justify-between px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-colors"
+                      >
+                        <span className="flex items-center truncate">
+                          {category?.icon || '❓'} <span className="ml-1 truncate">{category?.name || 'Uncategorized'}</span>
+                        </span>
+                        <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-1" />
+                      </button>
+                    );
+                  }}
+                />
               </td>
               <td className="px-3 py-2 text-center">
                 <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${item.confidence >= 0.8 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' :

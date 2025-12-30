@@ -1,8 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Search, Filter, Camera, Edit3, Trash2, FileSpreadsheet, Tag, Type, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown } from 'lucide-react';
+import { Plus, Search, Filter, Camera, Edit3, Trash2, FileSpreadsheet, Tag, Type, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown, MoreVertical, Table } from 'lucide-react';
 import { Transaction, BankAccount } from '../types';
-import SIPRuleService from '../services/sipRuleService';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency } from '../utils/formatters';
 
@@ -19,7 +18,6 @@ import TransactionTable from '../components/transactions/TransactionTable';
 import SidePanel from '../components/common/SidePanel';
 import Button from '../components/common/Button';
 import InlineCategoryEditor from '../components/transactions/InlineCategoryEditor';
-import TransactionListModal from '../components/transactions/TransactionListModal';
 import AutoCategorizationService from '../services/autoCategorization';
 import CategoryMigrationService from '../services/categoryMigration';
 import { ParsedTransaction } from '../services/excelParser';
@@ -31,6 +29,7 @@ import TransactionListOverlay from '../components/transactions/TransactionListOv
 import RulePrompt from '../components/transactions/RulePrompt';
 import RuleCreationDialog from '../components/transactions/RuleCreationDialog';
 import TransactionContextMenu from '../components/transactions/TransactionContextMenu';
+import BulkAddTransactionsModal from '../components/transactions/BulkAddTransactionsModal';
 import { RecurringTransaction } from '../types';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#84CC16'];
@@ -46,7 +45,6 @@ const Transactions: React.FC = () => {
     deleteBankAccount,
     addCategoryRule,
     categories,
-    sipRules,
     categoryRules,
     addRecurringTransaction,
     addTransaction,
@@ -129,6 +127,7 @@ const Transactions: React.FC = () => {
   // Delete confirmation modal state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'transaction' | 'account' | 'bulk', id?: string, count?: number } | null>(null);
+  const [showBulkAddModal, setShowBulkAddModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState(() => {
     if (bankAccounts.length > 1) {
       return 'all_accounts';
@@ -146,12 +145,6 @@ const Transactions: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'summary' | 'transactions'>('summary');
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedTransactionForDetail, setSelectedTransactionForDetail] = useState<Transaction | null>(null);
-  const [showTransactionListModal, setShowTransactionListModal] = useState(false);
-  const [transactionListModalData, setTransactionListModalData] = useState<{
-    transactions: Transaction[];
-    title: string;
-    subtitle?: string;
-  }>({ transactions: [], title: '' });
 
   const [showBreakdownOverlay, setShowBreakdownOverlay] = useState(false);
   const [breakdownData, setBreakdownData] = useState<{ name: string; value: number }[]>([]);
@@ -265,20 +258,17 @@ const Transactions: React.FC = () => {
 
   // Use a ref to access the latest category rules inside callbacks without dependency issues
   const categoryRulesRef = useRef(categoryRules);
-  const sipRulesRef = useRef(sipRules); // New ref for SIP rules
 
   useEffect(() => {
     categoryRulesRef.current = categoryRules;
-    sipRulesRef.current = sipRules; // Keep SIP rules updated
     // console.log('🔄 Updated categoryRulesRef', categoryRules.length);
-  }, [categoryRules, sipRules]);
+  }, [categoryRules]);
 
   const handleImageAnalyzed = (data: any[]) => {
     // Pre-process data to apply categorization rules immediately
     // This ensures the confirmation dialog shows the correct categories
     // and logs are visible to the user before they confirm
     const currentRules = categoryRulesRef.current;
-    const currentSipRules = sipRulesRef.current;
 
     const categorizedData = data.map(transaction => {
       // Debug log - Unconditional
@@ -286,7 +276,7 @@ const Transactions: React.FC = () => {
 
       let category = transaction.category;
 
-      // 1. Auto-categorize with custom rules if not already categorized
+      // Auto-categorize with custom rules if not already categorized
       if (!category) {
         // console.log(`🔍 Auto-categorizing "${transaction.description}" with ${currentRules.length} rules (from Ref)`);
         category = AutoCategorizationService.suggestCategoryForTransaction(
@@ -295,16 +285,6 @@ const Transactions: React.FC = () => {
           transaction.type,
           currentRules
         );
-      }
-
-      // 2. Check SIP Rules (Override if match found)
-      // Create temp tx for matching
-      const tempTx = { ...transaction, category: category || 'other', id: 'temp', date: transaction.date || new Date().toISOString() };
-      const sipMatch = SIPRuleService.findBestMatch(tempTx as any, currentSipRules);
-
-      if (sipMatch) {
-        console.log(`🎯 SIP Rule Match (Image): ${transaction.description} -> ${sipMatch.sipId}`);
-        category = 'investment';
       }
 
       return { ...transaction, category };
@@ -374,10 +354,9 @@ const Transactions: React.FC = () => {
    */
   const handleFileTransactionsParsed = (transactions: ParsedTransaction[]) => {
     const currentRules = categoryRulesRef.current;
-    const currentSipRules = sipRulesRef.current;
 
     // Debug log
-    console.log(`📂 Processing ${transactions.length} file transactions with ${currentRules.length} cat rules and ${currentSipRules.length} SIP rules`);
+    console.log(`📂 Processing ${transactions.length} file transactions with ${currentRules.length} category rules`);
 
     const categorizedData = transactions.map(transaction => {
       let category = transaction.category;
@@ -392,21 +371,6 @@ const Transactions: React.FC = () => {
           currentRules
         );
         category = result.categoryId;
-      }
-
-      // Check SIP Rules
-      const tempTx = {
-        ...transaction,
-        category: category || 'other',
-        id: 'temp',
-        date: (transaction.date as any) instanceof Date ? (transaction.date as any).toISOString() : transaction.date
-      };
-
-      const sipMatch = SIPRuleService.findBestMatch(tempTx as any, currentSipRules);
-
-      if (sipMatch) {
-        console.log(`🎯 SIP Rule Match (File): ${transaction.description} -> ${sipMatch.sipId}`);
-        category = 'investment';
       }
 
       return { ...transaction, category };
@@ -486,8 +450,11 @@ const Transactions: React.FC = () => {
   };
 
   const handleShowTransactionList = (transactions: Transaction[], title: string, subtitle?: string) => {
-    setTransactionListModalData({ transactions, title, subtitle });
-    setShowTransactionListModal(true);
+    setTransactionListData(transactions);
+    setTransactionListTitle(title);
+    setTransactionListSubtitle(subtitle || '');
+    setViewingContextId(null); // No strict category context for these views
+    setShowTransactionListOverlay(true);
   };
 
   // One-time migration for existing transactions with wrong categories
@@ -654,6 +621,7 @@ const Transactions: React.FC = () => {
   const currentAccount = selectedAccount === 'all_accounts'
     ? {
       id: 'all_accounts',
+      accountType: 'bank',
       bank: 'All Accounts',
       number: `${bankAccounts.length} Accounts`,
       balance: bankAccounts.reduce((sum, acc) => sum + acc.balance, 0),
@@ -662,6 +630,8 @@ const Transactions: React.FC = () => {
       userId: 'current_user'
     } as BankAccount
     : bankAccounts.find(acc => acc.id === selectedAccount) || bankAccounts[0] || null;
+
+  const accountLast4 = currentAccount?.number ? currentAccount.number.slice(-4) : '';
 
   // Calculate account-specific balance based on transactions
   const accountTransactions = transactions.filter(t =>
@@ -914,119 +884,198 @@ const Transactions: React.FC = () => {
 
 
 
+  // State for more menu
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close more menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // State for account dropdown
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+  const accountDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close account dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (accountDropdownRef.current && !accountDropdownRef.current.contains(event.target as Node)) {
+        setShowAccountDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Get selected account display text
+  const getSelectedAccountText = () => {
+    if (selectedAccount === 'all_accounts') {
+      return 'All Accounts';
+    }
+    const account = bankAccounts.find(a => a.id === selectedAccount);
+    return account ? `${account.bank} (...${account.number.slice(-4)})` : 'Select Account';
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-700 dark:bg-gray-900">
-      {/* Top Bank Account Selector */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 px-6 py-4">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Accounts</h1>
-          <div className="flex gap-2">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-700 dark:bg-gray-900 -m-4 lg:-m-6">
+      {/* Top Header with Account Dropdown */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 px-4 sm:px-6 py-3">
+        <div className="flex items-center justify-between">
+          {/* Custom Account Dropdown */}
+          <div className="relative" ref={accountDropdownRef}>
+            <button
+              onClick={() => setShowAccountDropdown(!showAccountDropdown)}
+              className="flex items-center gap-1 text-lg sm:text-xl font-bold text-gray-900 dark:text-white cursor-pointer focus:outline-none"
+            >
+              <span>{getSelectedAccountText()}</span>
+              <ChevronDown className={`h-5 w-5 text-gray-500 transition-transform ${showAccountDropdown ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showAccountDropdown && (
+              <div className="absolute left-0 mt-2 min-w-[200px] bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+                {bankAccounts.length > 1 && (
+                  <button
+                    onClick={() => {
+                      setSelectedAccount('all_accounts');
+                      setShowAccountDropdown(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                      selectedAccount === 'all_accounts' 
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium' 
+                        : 'text-gray-700 dark:text-gray-200'
+                    }`}
+                  >
+                    All Accounts
+                  </button>
+                )}
+                {bankAccounts.map((account) => (
+                  <button
+                    key={account.id}
+                    onClick={() => {
+                      setSelectedAccount(account.id);
+                      setShowAccountDropdown(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                      selectedAccount === account.id 
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium' 
+                        : 'text-gray-700 dark:text-gray-200'
+                    }`}
+                  >
+                    {account.bank} (...{account.number.slice(-4)})
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right side buttons */}
+          <div className="flex items-center gap-2">
             <Button
               variant="primary"
+              size="sm"
               onClick={() => setShowFileUploader(true)}
               leftIcon={<FileSpreadsheet className="h-4 w-4" />}
               disabled={!currentAccount || selectedAccount === 'all_accounts'}
             >
-              Import
+              <span className="hidden sm:inline">Import</span>
+              <span className="sm:hidden">Import</span>
             </Button>
             <Button
               variant="secondary"
+              size="sm"
               onClick={() => setShowManualAddModal(true)}
               leftIcon={<Plus className="h-4 w-4" />}
               disabled={!currentAccount || selectedAccount === 'all_accounts'}
             >
-              Add
+              <span className="hidden sm:inline">Add</span>
+              <span className="sm:hidden">Add</span>
             </Button>
-          </div>
-        </div>
 
-        {/* Horizontal Scrollable Account Pills */}
-        <div className="flex items-center space-x-3 overflow-x-auto pb-2 scrollbar-hide">
-          {bankAccounts.length > 1 && (
-            <div
-              className={`relative group flex items-center rounded-xl border-2 transition-all whitespace-nowrap min-w-fit pr-2 ${selectedAccount === 'all_accounts'
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                : 'border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                }`}
-            >
+            {/* More Menu */}
+            <div className="relative" ref={moreMenuRef}>
               <button
-                onClick={() => setSelectedAccount('all_accounts')}
-                className="flex items-center space-x-3 px-4 py-3 flex-grow"
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
-                <span className="text-2xl">🏦</span>
-                <div className="text-left">
-                  <div className="font-medium text-gray-900 dark:text-white text-sm">All Accounts</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">{bankAccounts.length} Accounts</div>
-                </div>
-              </button>
-            </div>
-          )}
-          {bankAccounts.map((account) => (
-            <div
-              key={account.id}
-              className={`relative group flex items-center rounded-xl border-2 transition-all whitespace-nowrap min-w-fit pr-2 ${selectedAccount === account.id
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                : 'border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                }`}
-            >
-              <button
-                onClick={() => setSelectedAccount(account.id)}
-                className="flex items-center space-x-3 px-4 py-3 flex-grow"
-              >
-                <span className="text-2xl">{account.logo}</span>
-                <div className="text-left">
-                  <div className="font-medium text-gray-900 dark:text-white text-sm">{account.bank}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">{account.number}</div>
-                </div>
+                <MoreVertical className="h-5 w-5" />
               </button>
 
-              {/* Edit/Delete buttons - integrated */}
-              <div className="flex items-center space-x-1 border-l border-gray-200 dark:border-gray-700 pl-2 ml-1">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleEditBankAccount(account);
-                  }}
-                  className="p-1.5 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
-                  title="Edit Account"
-                >
-                  <Edit3 className="w-4 h-4" />
-                </button>
-                {bankAccounts.length > 1 && (
+              {showMoreMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteBankAccount(account.id);
+                    onClick={() => {
+                      handleAddBankAccount();
+                      setShowMoreMenu(false);
                     }}
-                    className="p-1.5 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition-colors"
-                    title="Delete Account"
+                    className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Plus className="h-4 w-4 mr-3 text-gray-500" />
+                    Add Bank Account
                   </button>
-                )}
-              </div>
+                  <button
+                    onClick={() => {
+                      setShowBulkAddModal(true);
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Table className="h-4 w-4 mr-3 text-green-500 flex-shrink-0" />
+                    <span className="whitespace-nowrap">Bulk Add Transactions</span>
+                  </button>
+                  {currentAccount && selectedAccount !== 'all_accounts' && (
+                    <>
+                      <button
+                        onClick={() => {
+                          handleEditBankAccount(currentAccount);
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        <Edit3 className="h-4 w-4 mr-3 text-blue-500" />
+                        Edit Account
+                      </button>
+                      {bankAccounts.length > 1 && (
+                        <button
+                          onClick={() => {
+                            handleDeleteBankAccount(currentAccount.id);
+                            setShowMoreMenu(false);
+                          }}
+                          className="w-full flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          <Trash2 className="h-4 w-4 mr-3" />
+                          Delete Account
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-          ))}
-          <button
-            onClick={handleAddBankAccount}
-            className="flex items-center justify-center w-12 h-12 border-2 border-dashed border-gray-300 dark:border-gray-500 rounded-xl hover:border-gray-400 transition-colors min-w-fit"
-            title="Add Bank Account"
-          >
-            <Plus className="h-5 w-5 text-gray-400" />
-          </button>
+          </div>
         </div>
       </div>
 
-      <div className="px-6 py-6 space-y-6">
+      <div>
         {/* Dark Account Balance Card */}
         {currentAccount && (
-          <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-6 text-white">
+          <div className="bg-gradient-to-r from-gray-900 to-gray-800 p-4 sm:p-6 text-white">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
-                <span className="text-3xl">{currentAccount.logo}</span>
+                <span className="text-2xl sm:text-3xl">{currentAccount.logo}</span>
                 <div>
-                  <h2 className="text-lg font-semibold">{currentAccount.bank}</h2>
-                  <p className="text-gray-300 text-sm">{currentAccount.number}</p>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-base sm:text-lg font-semibold">{currentAccount.bank}</h2>
+                    {accountLast4 && (
+                      <span className="text-gray-300 text-xs sm:text-sm font-medium ml-auto whitespace-nowrap">...{accountLast4}</span>
+                    )}
+                  </div>
                 </div>
               </div>
               <CreditCard className="h-8 w-8 text-gray-300" />
@@ -1044,41 +1093,41 @@ const Transactions: React.FC = () => {
 
 
         {/* Tab Section */}
-        <div className="card">
-          <div className="border-b border-gray-200 dark:border-gray-600 dark:border-gray-600">
-            <nav className="flex">
+        <div className="bg-white dark:bg-gray-800">
+          <div className="border-b border-gray-200 dark:border-gray-600 overflow-x-auto scrollbar-hide">
+            <nav className="flex min-w-max">
               <button
                 onClick={() => setActiveTab('summary')}
-                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'summary'
+                className={`px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'summary'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}
               >
-                Account Summary
+                Summary
               </button>
               <button
                 onClick={() => setActiveTab('transactions')}
-                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'transactions'
+                className={`px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'transactions'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}
               >
-                All Transactions
+                Transactions
               </button>
             </nav>
           </div>
 
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {activeTab === 'summary' ? (
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 {/* Month/Year Dropdown */}
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Monthly Overview</h3>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Monthly Overview</h3>
                   <div className="relative">
                     <select
                       value={selectedMonth}
                       onChange={(e) => setSelectedMonth(e.target.value)}
-                      className="px-4 py-2 pr-10 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 appearance-none"
+                      className="w-full sm:w-auto px-4 py-2 pr-10 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 appearance-none"
                     >
                       {monthOptions.map(option => (
                         <option key={option.value} value={option.value}>
@@ -1091,10 +1140,10 @@ const Transactions: React.FC = () => {
                 </div>
 
                 {/* Transactions and Expense Analytics Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
                   {/* Money In Card */}
                   <button
-                    className="card text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full"
+                    className="card !p-3 sm:!p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full"
                     onClick={() => {
                       const incomeTransactions = currentMonthTransactions.filter(t => t.type === 'income');
                       const monthName = monthOptions.find(m => m.value === selectedMonth)?.label || 'Selected Month';
@@ -1105,21 +1154,21 @@ const Transactions: React.FC = () => {
                       );
                     }}
                   >
-                    <div className="flex items-center space-x-3 mb-4">
-                      <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                        <TrendingUp className="h-6 w-6 text-green-600 dark:text-green-400" />
+                    <div className="flex items-center space-x-2 sm:space-x-3 mb-2 sm:mb-4">
+                      <div className="p-1.5 sm:p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                        <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 text-green-600 dark:text-green-400" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-gray-900 dark:text-white">Money In</h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">{incomeCount} transactions</p>
+                        <h4 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">Money In</h4>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">{incomeCount} txns</p>
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-green-600 dark:text-green-400">{formatCurrency(monthlyIncome)}</p>
+                    <p className="text-xl sm:text-3xl font-bold text-green-600 dark:text-green-400">{formatCurrency(monthlyIncome)}</p>
                   </button>
 
                   {/* Money Out Card */}
                   <button
-                    className="card text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full"
+                    className="card !p-3 sm:!p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full"
                     onClick={() => {
                       const expenseTransactions = currentMonthTransactions.filter(t => t.type === 'expense');
                       const monthName = monthOptions.find(m => m.value === selectedMonth)?.label || 'Selected Month';
@@ -1130,21 +1179,21 @@ const Transactions: React.FC = () => {
                       );
                     }}
                   >
-                    <div className="flex items-center space-x-3 mb-4">
-                      <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                        <TrendingDown className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+                    <div className="flex items-center space-x-2 sm:space-x-3 mb-2 sm:mb-4">
+                      <div className="p-1.5 sm:p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                        <TrendingDown className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600 dark:text-gray-300" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-gray-900 dark:text-white">Money Out</h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">{expenseCount} transactions</p>
+                        <h4 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">Money Out</h4>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">{expenseCount} txns</p>
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-gray-600 dark:text-gray-300">{formatCurrency(monthlyExpenses)}</p>
+                    <p className="text-xl sm:text-3xl font-bold text-gray-600 dark:text-gray-300">{formatCurrency(monthlyExpenses)}</p>
                   </button>
 
                   {/* Investments Card */}
                   <button
-                    className="card text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full"
+                    className="card !p-3 sm:!p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full"
                     onClick={() => {
                       const investmentTransactions = currentMonthTransactions.filter(t => t.type === 'investment');
                       const monthName = monthOptions.find(m => m.value === selectedMonth)?.label || 'Selected Month';
@@ -1155,30 +1204,30 @@ const Transactions: React.FC = () => {
                       );
                     }}
                   >
-                    <div className="flex items-center space-x-3 mb-4">
-                      <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                        <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                    <div className="flex items-center space-x-2 sm:space-x-3 mb-2 sm:mb-4">
+                      <div className="p-1.5 sm:p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                        <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-gray-900 dark:text-white">Investments</h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">{investmentCount} transactions</p>
+                        <h4 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">Invest</h4>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">{investmentCount} txns</p>
                       </div>
                     </div>
-                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(monthlyInvestments)}</p>
+                    <p className="text-xl sm:text-3xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(monthlyInvestments)}</p>
                   </button>
                 </div>
 
                 {/* Monthly Asset Allocation Pie Chart */}
                 <div className="card">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                     <div className="flex items-center space-x-2">
-                      <PieChartIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Category Breakdown</h3>
+                      <PieChartIcon className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600 dark:text-gray-300" />
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Category Breakdown</h3>
                     </div>
                     <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                       <button
                         onClick={() => setPieChartType('income')}
-                        className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${pieChartType === 'income'
+                        className={`px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium rounded-md transition-colors ${pieChartType === 'income'
                           ? 'bg-white dark:bg-gray-600 text-green-600 dark:text-green-400 shadow-sm'
                           : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                           }`}
@@ -1187,7 +1236,7 @@ const Transactions: React.FC = () => {
                       </button>
                       <button
                         onClick={() => setPieChartType('expense')}
-                        className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${pieChartType === 'expense'
+                        className={`px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium rounded-md transition-colors ${pieChartType === 'expense'
                           ? 'bg-white dark:bg-gray-600 text-red-600 dark:text-red-400 shadow-sm'
                           : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                           }`}
@@ -1198,8 +1247,8 @@ const Transactions: React.FC = () => {
                   </div>
 
                   {currentMonthPieData.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                      <div className="h-64">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-center">
+                      <div className="h-48 sm:h-64">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             <Pie
@@ -1261,26 +1310,26 @@ const Transactions: React.FC = () => {
                 </div>
 
                 {/* Account Overview */}
-                <div className="card">
-                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-600">
-                    <h3 className="font-semibold text-gray-900 dark:text-white">Account Overview</h3>
+                <div className="card !p-0">
+                  <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-600">
+                    <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">Account Overview</h3>
                   </div>
                   {accountTransactions.length === 0 ? (
-                    <div className="p-6 text-center">
+                    <div className="p-4 sm:p-6 text-center">
                       <div className="text-gray-400 mb-4">
-                        <CreditCard className="h-16 w-16 mx-auto" />
+                        <CreditCard className="h-12 w-12 sm:h-16 sm:w-16 mx-auto" />
                       </div>
-                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No transactions yet</h3>
-                      <p className="text-gray-500 dark:text-gray-400 mb-6">
-                        Start tracking your finances by adding your first transaction to this account
+                      <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white mb-2">No transactions yet</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 sm:mb-6">
+                        Start tracking your finances by adding your first transaction
                       </p>
-                      <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                        <p className="text-gray-600 dark:text-gray-400 text-sm">
-                          Import transactions from your bank or upload a screenshot to get started
+                      <div className="flex flex-col gap-3 justify-center">
+                        <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">
+                          Import transactions or upload a screenshot to get started
                         </p>
                         <button
                           onClick={() => setShowImageUploader(true)}
-                          className="flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                          className="flex items-center justify-center px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
                         >
                           <Camera className="h-4 w-4 mr-2" />
                           Import from Screenshot
@@ -1288,23 +1337,23 @@ const Transactions: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="p-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                          <p className="text-3xl font-bold text-green-600 dark:text-green-400">{formatCurrency(totalIncome)}</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">Total Income</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{accountTransactions.filter(t => t.type === 'income').length} transactions</p>
+                    <div className="p-4 sm:p-6">
+                      <div className="grid grid-cols-2 gap-3 sm:gap-6">
+                        <div className="text-center p-3 sm:p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                          <p className="text-lg sm:text-3xl font-bold text-green-600 dark:text-green-400">{formatCurrency(totalIncome)}</p>
+                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mt-1">Total Income</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">{accountTransactions.filter(t => t.type === 'income').length} transactions</p>
                         </div>
-                        <div className="text-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                          <p className="text-3xl font-bold text-red-600 dark:text-red-400">{formatCurrency(totalExpenses)}</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">Total Expenses</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{accountTransactions.filter(t => t.type === 'expense').length} transactions</p>
+                        <div className="text-center p-3 sm:p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                          <p className="text-lg sm:text-3xl font-bold text-red-600 dark:text-red-400">{formatCurrency(totalExpenses)}</p>
+                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mt-1">Total Expenses</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">{accountTransactions.filter(t => t.type === 'expense').length} transactions</p>
                         </div>
                       </div>
-                      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                      <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-600">
                         <div className="text-center">
-                          <p className="text-sm text-gray-600 dark:text-gray-300">Net Flow</p>
-                          <p className={`text-2xl font-bold ${totalIncome - totalExpenses >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">Net Flow</p>
+                          <p className={`text-lg sm:text-2xl font-bold ${totalIncome - totalExpenses >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {totalIncome - totalExpenses >= 0 ? '+' : ''}{formatCurrency(totalIncome - totalExpenses)}
                           </p>
                         </div>
@@ -1315,11 +1364,11 @@ const Transactions: React.FC = () => {
 
                 {/* 6-Month Comparison Chart */}
                 <div className="card">
-                  <div className="flex items-center space-x-2 mb-6">
-                    <BarChart3 className="h-5 w-5 text-gray-600 dark:text-gray-300 dark:text-gray-400" />
-                    <h4 className="font-semibold text-gray-900 dark:text-white">6-Month Money Flow Comparison</h4>
+                  <div className="flex flex-wrap items-center gap-2 mb-4 sm:mb-6">
+                    <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600 dark:text-gray-300 dark:text-gray-400" />
+                    <h4 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">6-Month Flow</h4>
                     {currentAccount && (
-                      <span className="text-sm text-gray-500 dark:text-gray-400">({currentAccount.bank})</span>
+                      <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">({currentAccount.bank})</span>
                     )}
                   </div>
 
@@ -1396,39 +1445,39 @@ const Transactions: React.FC = () => {
                       </div>
 
                       {/* Legend */}
-                      <div className="flex items-center justify-center space-x-6">
-                        <div className="flex items-center space-x-2">
-                          <div className="w-3 h-3 bg-green-500 rounded"></div>
-                          <span className="text-sm text-gray-600 dark:text-gray-300">Money In</span>
+                      <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6">
+                        <div className="flex items-center space-x-1 sm:space-x-2">
+                          <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded"></div>
+                          <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">In</span>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <div className="w-3 h-3 bg-red-500 rounded"></div>
-                          <span className="text-sm text-gray-600 dark:text-gray-300">Money Out</span>
+                        <div className="flex items-center space-x-1 sm:space-x-2">
+                          <div className="w-2 h-2 sm:w-3 sm:h-3 bg-red-500 rounded"></div>
+                          <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">Out</span>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <div className="w-3 h-3 bg-purple-500 rounded"></div>
-                          <span className="text-sm text-gray-600 dark:text-gray-300">Investments</span>
+                        <div className="flex items-center space-x-1 sm:space-x-2">
+                          <div className="w-2 h-2 sm:w-3 sm:h-3 bg-purple-500 rounded"></div>
+                          <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">Invest</span>
                         </div>
                       </div>
 
                       {/* Current Month Summary */}
-                      <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                      <div className="pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-600">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-center">
                           <div>
-                            <p className="text-sm text-gray-600 dark:text-gray-300">This Month In</p>
-                            <p className="text-lg font-bold text-green-600 dark:text-green-400">{formatCurrency(monthlyIncome)}</p>
+                            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">In</p>
+                            <p className="text-sm sm:text-lg font-bold text-green-600 dark:text-green-400">{formatCurrency(monthlyIncome)}</p>
                           </div>
                           <div>
-                            <p className="text-sm text-gray-600 dark:text-gray-300">This Month Out</p>
-                            <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(monthlyExpenses)}</p>
+                            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">Out</p>
+                            <p className="text-sm sm:text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(monthlyExpenses)}</p>
                           </div>
                           <div>
-                            <p className="text-sm text-gray-600 dark:text-gray-300">Investments</p>
-                            <p className="text-lg font-bold text-purple-600 dark:text-purple-400">{formatCurrency(monthlyInvestments)}</p>
+                            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">Invest</p>
+                            <p className="text-sm sm:text-lg font-bold text-purple-600 dark:text-purple-400">{formatCurrency(monthlyInvestments)}</p>
                           </div>
                           <div>
-                            <p className="text-sm text-gray-600 dark:text-gray-300">Net Flow</p>
-                            <p className={`text-lg font-bold ${monthlyIncome - monthlyExpenses >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">Net</p>
+                            <p className={`text-sm sm:text-lg font-bold ${monthlyIncome - monthlyExpenses >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {formatCurrency(monthlyIncome - monthlyExpenses)}
                             </p>
                           </div>
@@ -1440,15 +1489,61 @@ const Transactions: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-6">
-                {/* Month Filter and Search */}
-                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Month:</span>
+                {/* Header with Title and Controls */}
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Transactions</h2>
+                  
+                  <div className="flex items-center gap-3">
+                    {/* Bulk Actions (shown when items selected) */}
+                    {selectedTransactions.size > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 border-r border-gray-300 dark:border-gray-600 pr-3">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            {selectedTransactions.size} selected
+                          </span>
+                          <button
+                            onClick={() => {
+                              setBulkActionType('category');
+                              setShowBulkActions(true);
+                            }}
+                            className="btn-secondary flex items-center text-sm whitespace-nowrap px-4 py-2"
+                          >
+                            <Tag className="w-4 h-4 mr-1" />
+                            Category
+                          </button>
+                          <button
+                            onClick={() => {
+                              setBulkActionType('type');
+                              setShowBulkActions(true);
+                            }}
+                            className="btn-secondary flex items-center text-sm whitespace-nowrap px-4 py-2"
+                          >
+                            <Type className="w-4 h-4 mr-1" />
+                            Type
+                          </button>
+                          <button
+                            onClick={handleBulkDelete}
+                            className="flex items-center px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 whitespace-nowrap"
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Delete
+                          </button>
+                          <button
+                            onClick={() => setSelectedTransactions(new Set())}
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 text-sm"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </>
+                    )}
+                    
+                    {/* Month Dropdown */}
                     <div className="relative">
                       <select
                         value={selectedTransactionMonth}
                         onChange={(e) => setSelectedTransactionMonth(e.target.value)}
-                        className="input-field theme-input pr-8 text-sm appearance-none"
+                        className="w-full sm:w-auto px-4 py-2 pr-10 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 appearance-none"
                       >
                         {monthOptions.map(option => (
                           <option key={option.value} value={option.value}>
@@ -1456,7 +1551,7 @@ const Transactions: React.FC = () => {
                           </option>
                         ))}
                       </select>
-                      <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400 pointer-events-none" />
+                      <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                     </div>
                   </div>
                 </div>
@@ -1491,58 +1586,37 @@ const Transactions: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Bulk Actions Bar */}
-                {selectedTransactions.size > 0 && (
-                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <span className="text-sm font-medium text-blue-900">
-                          {selectedTransactions.size} transaction{selectedTransactions.size > 1 ? 's' : ''} selected
-                        </span>
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => {
-                              setBulkActionType('category');
-                              setShowBulkActions(true);
-                            }}
-                            className="btn-secondary flex items-center"
-                          >
-                            <Tag className="w-4 h-4 mr-1" />
-                            Change Category
-                          </button>
-                          <button
-                            onClick={() => {
-                              setBulkActionType('type');
-                              setShowBulkActions(true);
-                            }}
-                            className="btn-secondary flex items-center"
-                          >
-                            <Type className="w-4 h-4 mr-1" />
-                            Change Type
-                          </button>
-                          <button
-                            onClick={handleBulkDelete}
-                            className="flex items-center px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-                          >
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            Delete Selected
-                          </button>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setSelectedTransactions(new Set())}
-                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-200 text-sm"
-                      >
-                        Clear Selection
-                      </button>
-                    </div>
-                  </div>
-                )}
-
                 {/* Transaction Count */}
                 <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600 dark:text-gray-300">
-                    Showing {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''} for {monthOptions.find(m => m.value === selectedTransactionMonth)?.label}
+                  <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
+                    {(() => {
+                      const totalIncome = filteredTransactions
+                        .filter(t => t.type === 'income' && t.category !== 'transfer')
+                        .reduce((sum, t) => sum + t.amount, 0);
+                      
+                      const totalExpenses = filteredTransactions
+                        .filter(t => t.type === 'expense' && t.category !== 'transfer')
+                        .reduce((sum, t) => sum + t.amount, 0);
+                      
+                      const monthLabel = monthOptions.find(m => m.value === selectedTransactionMonth)?.label;
+                      
+                      let summary = `${filteredTransactions.length} txn${filteredTransactions.length !== 1 ? 's' : ''} • ${monthLabel}`;
+                      
+                      if (totalIncome > 0 || totalExpenses > 0) {
+                        summary += ' • ';
+                        if (totalIncome > 0) {
+                          summary += `Income: ${formatCurrency(totalIncome)}`;
+                        }
+                        if (totalIncome > 0 && totalExpenses > 0) {
+                          summary += ' • ';
+                        }
+                        if (totalExpenses > 0) {
+                          summary += `Spent: ${formatCurrency(totalExpenses)}`;
+                        }
+                      }
+                      
+                      return summary;
+                    })()}
                   </div>
                 </div>
 
@@ -1790,15 +1864,6 @@ const Transactions: React.FC = () => {
         )
       }
 
-      {/* Transaction List Modal */}
-      <TransactionListModal
-        transactions={transactionListModalData.transactions}
-        isOpen={showTransactionListModal}
-        onClose={() => setShowTransactionListModal(false)}
-        title={transactionListModalData.title}
-        subtitle={transactionListModalData.subtitle}
-      />
-
       {/* Category Breakdown Overlay */}
       <CategoryBreakdownOverlay
         isOpen={showBreakdownOverlay}
@@ -1912,6 +1977,13 @@ const Transactions: React.FC = () => {
       }
       {/* Modals */}
       {renderManualAddModal()}
+      
+      <BulkAddTransactionsModal
+        isOpen={showBulkAddModal}
+        onClose={() => setShowBulkAddModal(false)}
+        selectedAccount={selectedAccount === 'all_accounts' ? (bankAccounts[0]?.id || '') : selectedAccount}
+      />
+      
       {/* ... other modals ... */}
     </div >
   );

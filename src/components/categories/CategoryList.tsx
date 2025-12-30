@@ -10,6 +10,7 @@ interface CategoryListProps {
     selectedCategoryId: string | null;
     onSelectCategory: (categoryId: string) => void;
     spendingByCategory: Record<string, number>;
+    investmentSpending?: Record<string, number>;
     monthlyBudget: MonthlyBudget | null;
 }
 
@@ -18,6 +19,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
     selectedCategoryId,
     onSelectCategory,
     spendingByCategory,
+    investmentSpending = {},
     monthlyBudget
 }) => {
     const theme = useThemeClasses();
@@ -25,18 +27,35 @@ const CategoryList: React.FC<CategoryListProps> = ({
     // Group categories
     const groupedCategories = useMemo(() => {
         const active: Category[] = [];
+        const investments: Category[] = [];
         const hidden: Category[] = [];
         const system: Category[] = [];
 
         categories.forEach(cat => {
-            if (cat.id === 'transfer' || cat.id === 'adjustment') {
+            const hasExpense = (spendingByCategory[cat.id] || 0) > 0;
+            const hasInvestment = (investmentSpending[cat.id] || 0) > 0;
+            const isSystem = cat.id === 'transfer' || cat.id === 'adjustment';
+
+            if (isSystem) {
                 system.push(cat);
-            } else if (cat.isSystem) {
+            } else if (hasInvestment) {
+                investments.push(cat);
+            } else if (hasExpense || cat.isSystem) { // Keep existing logic for active
                 active.push(cat);
             } else {
+                // If 0 spend, fallback to original logic or put in active if not hidden?
+                // Original logic: if (cat.isSystem) active else...
+                // Actually original logic pushed ALL non-system to active.
+                // Let's preserve that: if not investment, put in active (which handles 0 spend items).
                 active.push(cat);
             }
         });
+
+        // Filter out investments from active if we pushed them there by default fallback
+        // Actually, let's look at the logic above.
+        // If hasInvestment -> investments.
+        // Else -> active.
+        // This effectively moves them.
 
         // Sort active categories by spend (high to low)
         active.sort((a, b) => {
@@ -45,13 +64,23 @@ const CategoryList: React.FC<CategoryListProps> = ({
             return spendB - spendA;
         });
 
-        return { active, hidden, system };
-    }, [categories, spendingByCategory]);
+        // Sort investments by amount
+        investments.sort((a, b) => {
+            const valA = investmentSpending[a.id] || 0;
+            const valB = investmentSpending[b.id] || 0;
+            return valB - valA;
+        });
+
+        return { active, investments, hidden, system };
+    }, [categories, spendingByCategory, investmentSpending]);
 
     // Render a single category item
-    const renderCategoryItem = (category: Category) => {
-        const spent = spendingByCategory[category.id] || 0;
-        const budgetAmount = monthlyBudget?.categoryBudgets?.[category.id] || 0;
+    const renderCategoryItem = (category: Category, isInvestment = false) => {
+        const spent = isInvestment
+            ? (investmentSpending[category.id] || 0)
+            : (spendingByCategory[category.id] || 0);
+
+        const budgetAmount = !isInvestment ? (monthlyBudget?.categoryBudgets?.[category.id] || 0) : 0;
         const isSelected = selectedCategoryId === category.id;
 
         // Progress bar calculations
@@ -71,9 +100,10 @@ const CategoryList: React.FC<CategoryListProps> = ({
             >
                 <div className="flex items-center min-w-0 flex-1">
                     <div
-                        className="w-2 h-8 rounded-full mr-3 flex-shrink-0"
+                        className="w-1.5 h-1.5 rounded-full mr-3 flex-shrink-0"
                         style={{ backgroundColor: category.color || '#9CA3AF' }}
                     />
+                    <span className="text-xl mr-2 flex-shrink-0">{category.icon}</span>
                     <div className="min-w-0 flex-1">
                         <p className={cn(
                             'text-sm font-medium truncate',
@@ -112,34 +142,74 @@ const CategoryList: React.FC<CategoryListProps> = ({
         );
     };
 
+    // Calculate total for a group
+    const getSectionTotal = (group: Category[], isInvestment: boolean) => {
+        return group.reduce((sum, cat) => {
+            const val = isInvestment
+                ? (investmentSpending[cat.id] || 0)
+                : (spendingByCategory[cat.id] || 0);
+            return sum + val;
+        }, 0);
+    };
+
     return (
-        <div className="h-full overflow-y-auto pr-2">
-            <div className="space-y-6">
-                {/* Active Categories */}
+        <div className="h-full overflow-y-auto">
+            <div className="space-y-6 py-2">
+                {/* Investment Categories */}
+                {groupedCategories.investments.length > 0 && (
+                    <section>
+                        <div className="flex items-center justify-between mb-2 px-2">
+                            <h3 className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
+                                Investments
+                            </h3>
+                            <span className="text-xs font-medium text-purple-600 dark:text-purple-400">
+                                {formatCurrency(getSectionTotal(groupedCategories.investments, true))}
+                            </span>
+                        </div>
+                        {groupedCategories.investments.map(c => renderCategoryItem(c, true))}
+                    </section>
+                )}
+
+                {/* Active Categories (Expenses) */}
                 <section>
-                    <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-2">
-                        Active
-                    </h3>
-                    {groupedCategories.active.map(renderCategoryItem)}
+                    <div className="flex items-center justify-between mb-2 px-2">
+                        <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Expenses
+                        </h3>
+                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                            {formatCurrency(getSectionTotal(groupedCategories.active, false))}
+                        </span>
+                    </div>
+                    {groupedCategories.active.map(c => renderCategoryItem(c, false))}
                 </section>
 
                 {/* System Categories (if any) */}
                 {groupedCategories.system.length > 0 && (
                     <section>
-                        <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-2 flex items-center gap-1">
-                            <Settings className="w-3 h-3" /> System
-                        </h3>
-                        {groupedCategories.system.map(renderCategoryItem)}
+                        <div className="flex items-center justify-between mb-2 px-2">
+                            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                <Settings className="w-3 h-3" /> System
+                            </h3>
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                {formatCurrency(getSectionTotal(groupedCategories.system, false))}
+                            </span>
+                        </div>
+                        {groupedCategories.system.map(c => renderCategoryItem(c, false))}
                     </section>
                 )}
 
                 {/* Hidden Categories (if any) */}
                 {groupedCategories.hidden.length > 0 && (
                     <section>
-                        <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-2 flex items-center gap-1">
-                            <EyeOff className="w-3 h-3" /> Hidden
-                        </h3>
-                        {groupedCategories.hidden.map(renderCategoryItem)}
+                        <div className="flex items-center justify-between mb-2 px-2">
+                            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                                <EyeOff className="w-3 h-3" /> Hidden
+                            </h3>
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                {formatCurrency(getSectionTotal(groupedCategories.hidden, false))}
+                            </span>
+                        </div>
+                        {groupedCategories.hidden.map(c => renderCategoryItem(c, false))}
                     </section>
                 )}
             </div>

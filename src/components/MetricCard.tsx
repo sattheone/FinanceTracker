@@ -52,19 +52,19 @@ const MetricCard: React.FC<MetricCardProps> = ({
         </div>
       )}
       <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-200 dark:text-gray-200">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-gray-100 mt-1">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-200 dark:text-gray-200 truncate">{title}</p>
+          <p className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white dark:text-gray-100 mt-1 truncate">
             {formatValue(value)}
           </p>
           {trend && (
-            <p className={`text-sm mt-1 font-medium ${trend.isPositive ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
-              {trend.isPositive ? '+' : ''}{trend.value}%
+            <p className={`text-xs sm:text-sm mt-1 font-medium ${trend.isPositive ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+              {trend.isPositive ? '+' : ''}{trend.value.toFixed(1)}%
             </p>
           )}
         </div>
-        <div className={`p-3 rounded-full ${colorClasses[color]}`}>
-          <Icon className="h-6 w-6" aria-hidden="true" />
+        <div className={`p-2 sm:p-3 rounded-full flex-shrink-0 ml-2 ${colorClasses[color]}`}>
+          <Icon className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
         </div>
       </div>
     </div>

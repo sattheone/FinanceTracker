@@ -261,23 +261,64 @@ export class AIService {
       }
 
       const imageData = await this.fileToGenerativePart(imageFile);
-      const result = await this.model.generateContent([
-        'Extract transaction information from this image and return as JSON array with fields: date, description, category, type, amount, confidence',
-        imageData
-      ]);
+      
+      const prompt = `
+You are a financial data extraction expert. Analyze this screenshot/image of bank transactions or financial records and extract all visible transactions.
+
+Look for:
+- Transaction dates (in any format)
+- Transaction descriptions/narrations
+- Amounts (credits/debits)
+- Transaction types (UPI, NEFT, IMPS, ATM, POS, etc.)
+
+CRITICAL: Return ONLY a valid JSON array. No explanations, no markdown, just JSON:
+
+[
+  {
+    "date": "YYYY-MM-DD",
+    "description": "Transaction description as shown",
+    "category": "best_guess_category",
+    "type": "income|expense|transfer",
+    "amount": number_without_currency_symbols,
+    "confidence": decimal_0_to_1
+  }
+]
+
+Rules:
+- Convert dates to YYYY-MM-DD format
+- Remove currency symbols (₹, $, etc.) and commas from amounts
+- type: "income" for credits/deposits, "expense" for debits/withdrawals, "transfer" for transfers
+- category: guess based on description (Food, Shopping, Salary, Bills, Entertainment, Transport, etc.)
+- confidence: 0.9+ for clear data, 0.7+ for readable, 0.5+ for unclear
+- Return [] if no transactions visible
+- Extract ALL visible transactions, up to 50
+`;
+
+      const result = await this.model.generateContent([prompt, imageData]);
 
       const response = await result.response;
       const text = response.text();
       
+      console.log('📥 AI transaction extraction response:', text.substring(0, 500));
+      
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]);
+        // Validate and clean the data
+        return parsed.filter((t: any) => t && t.date && t.amount).map((t: any) => ({
+          date: t.date,
+          description: t.description || 'Unknown transaction',
+          category: t.category || 'Other',
+          type: t.type || 'expense',
+          amount: Math.abs(typeof t.amount === 'string' ? parseFloat(t.amount.replace(/[,₹$]/g, '')) : t.amount),
+          confidence: t.confidence || 0.7
+        }));
       }
       
       return [];
     } catch (error) {
       console.error('Error extracting transactions:', error);
-      return [];
+      throw error; // Re-throw to let caller handle it
     }
   }
 

@@ -271,7 +271,7 @@ const Dashboard: React.FC = () => {
               <Wallet className="h-12 w-12 text-blue-600 dark:text-blue-400 dark:text-blue-300" aria-hidden="true" />
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="p-4 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-700">
                 <div className="flex items-center justify-between">
                   <div>

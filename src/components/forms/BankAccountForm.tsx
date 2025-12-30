@@ -1,12 +1,19 @@
 import React, { useState } from 'react';
-import { BankAccount } from '../../types';
+import { BankAccount, AccountType } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
+import { Building2, Wallet, CreditCard } from 'lucide-react';
 
 interface BankAccountFormProps {
   account?: BankAccount;
   onSubmit: (accountData: Omit<BankAccount, 'id'>) => void;
   onCancel: () => void;
 }
+
+const accountTypes: { type: AccountType; name: string; icon: any; description: string }[] = [
+  { type: 'bank', name: 'Bank Account', icon: Building2, description: 'Savings or checking account' },
+  { type: 'cash', name: 'Cash', icon: Wallet, description: 'Physical cash or wallet' },
+  { type: 'credit_card', name: 'Credit Card', icon: CreditCard, description: 'Credit card account' },
+];
 
 const bankLogos = [
   { name: 'HDFC Bank', logo: '🏦' },
@@ -28,6 +35,9 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
 }) => {
   const { user } = useAuth();
 
+  // Account type state
+  const [accountType, setAccountType] = useState<AccountType>(account?.accountType || 'bank');
+
   // Determine if initial bank is custom (not in the predefined list, ignoring 'Other')
   const isInitiallyCustom = account?.bank && !bankLogos.some(b => b.name === account.bank && b.name !== 'Other');
   const [isCustomBank, setIsCustomBank] = useState(isInitiallyCustom || false);
@@ -45,13 +55,18 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
     const newErrors: Record<string, string> = {};
 
     if (!formData.bank.trim()) {
-      newErrors.bank = 'Bank name is required';
+      newErrors.bank = accountType === 'bank' ? 'Bank name is required' : 
+                       accountType === 'credit_card' ? 'Card name is required' : 
+                       'Account name is required';
     }
 
-    if (!formData.accountNumber.trim()) {
-      newErrors.accountNumber = 'Account number is required';
-    } else if (formData.accountNumber.length < 4) {
-      newErrors.accountNumber = 'Account number must be at least 4 characters';
+    // Account number not required for cash
+    if (accountType !== 'cash') {
+      if (!formData.accountNumber.trim()) {
+        newErrors.accountNumber = accountType === 'credit_card' ? 'Card number is required' : 'Account number is required';
+      } else if (formData.accountNumber.length < 4) {
+        newErrors.accountNumber = 'Must be at least 4 characters';
+      }
     }
 
     setErrors(newErrors);
@@ -66,9 +81,10 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
     }
 
     // Mask account number for display (show last 4 digits)
-    const maskedNumber = `xx${formData.accountNumber.slice(-4)}`;
+    const maskedNumber = accountType === 'cash' ? '' : `xx${formData.accountNumber.slice(-4)}`;
 
     onSubmit({
+      accountType,
       bank: formData.bank,
       number: maskedNumber,
       balance: formData.balance,
@@ -88,38 +104,95 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
     }));
   };
 
+  const handleAccountTypeChange = (type: AccountType) => {
+    setAccountType(type);
+    setIsCustomBank(false);
+    
+    // Set default values based on account type
+    if (type === 'cash') {
+      setFormData(prev => ({
+        ...prev,
+        bank: 'Cash Wallet',
+        logo: '💵',
+        accountNumber: '',
+      }));
+    } else if (type === 'credit_card') {
+      setFormData(prev => ({
+        ...prev,
+        bank: '',
+        logo: '💳',
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        bank: '',
+        logo: '🏦',
+      }));
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Bank Selection */}
+      {/* Account Type Selection */}
       <div>
         <label className="form-label">
-          Select Bank
+          Account Type
         </label>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {bankLogos.map((bank) => (
-            <button
-              key={bank.name}
-              type="button"
-              onClick={() => handleBankSelect(bank.name, bank.logo)}
-              className={`flex items-center space-x-2 p-3 border-2 rounded-lg transition-all ${(!isCustomBank && formData.bank === bank.name) || (isCustomBank && bank.name === 'Other')
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                : 'border-gray-200 hover:border-gray-300'
+        <div className="grid grid-cols-3 gap-3">
+          {accountTypes.map((type) => {
+            const Icon = type.icon;
+            return (
+              <button
+                key={type.type}
+                type="button"
+                onClick={() => handleAccountTypeChange(type.type)}
+                className={`flex flex-col items-center p-4 border-2 rounded-lg transition-all ${
+                  accountType === type.type
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
                 }`}
-            >
-              <span className="text-xl">{bank.logo}</span>
-              <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                {bank.name}
-              </span>
-            </button>
-          ))}
+              >
+                <Icon className={`w-6 h-6 mb-2 ${accountType === type.type ? 'text-blue-600' : 'text-gray-500'}`} />
+                <span className="text-sm font-medium text-gray-900 dark:text-white">{type.name}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-center">{type.description}</span>
+              </button>
+            );
+          })}
         </div>
-        {errors.bank && (
-          <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.bank}</p>
-        )}
       </div>
 
+      {/* Bank Selection - Only for Bank accounts */}
+      {accountType === 'bank' && (
+        <div>
+          <label className="form-label">
+            Select Bank
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {bankLogos.map((option) => (
+              <button
+                key={option.name}
+                type="button"
+                onClick={() => handleBankSelect(option.name, option.logo)}
+                className={`flex items-center space-x-2 p-3 border-2 rounded-lg transition-all ${(!isCustomBank && formData.bank === option.name) || (isCustomBank && option.name === 'Other')
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                  : 'border-gray-200 hover:border-gray-300'
+                  }`}
+              >
+                <span className="text-xl">{option.logo}</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                  {option.name}
+                </span>
+              </button>
+            ))}
+          </div>
+          {errors.bank && (
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.bank}</p>
+          )}
+        </div>
+      )}
+
       {/* Custom Bank Name (if Other is selected) */}
-      {isCustomBank && (
+      {accountType === 'bank' && isCustomBank && (
         <div>
           <label className="form-label">
             Bank Name
@@ -135,30 +208,70 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
         </div>
       )}
 
-      {/* Account Number */}
-      <div>
-        <label className="form-label">
-          Account Number
-        </label>
-        <input
-          type="text"
-          value={formData.accountNumber}
-          onChange={(e) => setFormData(prev => ({ ...prev, accountNumber: e.target.value }))}
-          className="input-field theme-input"
-          placeholder="Enter account number"
-        />
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Only the last 4 digits will be displayed for security
-        </p>
-        {errors.accountNumber && (
-          <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.accountNumber}</p>
-        )}
-      </div>
+      {/* Credit Card Name */}
+      {accountType === 'credit_card' && (
+        <div>
+          <label className="form-label">
+            Card Name
+          </label>
+          <input
+            type="text"
+            value={formData.bank}
+            onChange={(e) => setFormData(prev => ({ ...prev, bank: e.target.value }))}
+            className="input-field theme-input"
+            placeholder="e.g., HDFC Regalia, SBI SimplyCLICK"
+          />
+          {errors.bank && (
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.bank}</p>
+          )}
+        </div>
+      )}
+
+      {/* Cash Account Name */}
+      {accountType === 'cash' && (
+        <div>
+          <label className="form-label">
+            Wallet Name
+          </label>
+          <input
+            type="text"
+            value={formData.bank}
+            onChange={(e) => setFormData(prev => ({ ...prev, bank: e.target.value }))}
+            className="input-field theme-input"
+            placeholder="e.g., Cash Wallet, Petty Cash"
+          />
+          {errors.bank && (
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.bank}</p>
+          )}
+        </div>
+      )}
+
+      {/* Account/Card Number - Not shown for Cash */}
+      {accountType !== 'cash' && (
+        <div>
+          <label className="form-label">
+            {accountType === 'credit_card' ? 'Card Number (Last 4 digits)' : 'Account Number'}
+          </label>
+          <input
+            type="text"
+            value={formData.accountNumber}
+            onChange={(e) => setFormData(prev => ({ ...prev, accountNumber: e.target.value }))}
+            className="input-field theme-input"
+            placeholder={accountType === 'credit_card' ? 'Enter last 4 digits' : 'Enter account number'}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Only the last 4 digits will be displayed for security
+          </p>
+          {errors.accountNumber && (
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.accountNumber}</p>
+          )}
+        </div>
+      )}
 
       {/* Current Balance */}
       <div>
         <label className="form-label">
-          Current Balance
+          {accountType === 'credit_card' ? 'Outstanding Balance' : 'Current Balance'}
         </label>
         <input
           type="number"
@@ -169,7 +282,11 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
           placeholder="0.00"
         />
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Enter your current account balance. You can update this anytime.
+          {accountType === 'credit_card' 
+            ? 'Enter your current outstanding balance (amount you owe).' 
+            : accountType === 'cash'
+            ? 'Enter the amount of cash you currently have.'
+            : 'Enter your current account balance. You can update this anytime.'}
         </p>
       </div>
 

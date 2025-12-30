@@ -5,8 +5,8 @@ import { useData } from '../../contexts/DataContext';
 import { Transaction } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import SidePanel from '../common/SidePanel';
-import Button from '../common/Button';
 import SimpleTransactionForm, { SimpleTransactionFormHandle } from '../forms/SimpleTransactionForm';
+import InlineCategoryEditor from './InlineCategoryEditor';
 
 interface SimpleTransactionModalProps {
   transaction: Transaction;
@@ -33,7 +33,6 @@ const normalizeMerchant = (text: string) => {
     .replace(/\s+/g, ' ')
     .trim();
 };
-
 const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
   transaction: passedTransaction,
   isOpen,
@@ -48,6 +47,44 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
   const transaction = allTransactions.find(t => t.id === passedTransaction.id) || passedTransaction;
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Clear selection when opening a new transaction
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [passedTransaction.id]);
+
+  // Handle Bulk Update
+  const handleBulkUpdate = async (categoryId: string) => {
+    const idsToUpdate = Array.from(selectedIds);
+    setSaveStatus('saving');
+
+    try {
+      await Promise.all(idsToUpdate.map(id => {
+        const txn = allTransactions.find(t => t.id === id);
+        if (txn) {
+          return updateTransaction(id, { ...txn, category: categoryId });
+        }
+        return Promise.resolve();
+      }));
+      setSaveStatus('saved');
+      setSelectedIds(new Set()); // Clear selection after update
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (error) {
+      console.error("Bulk update failed", error);
+      setSaveStatus('error');
+    }
+  };
+
+  const toggleSelection = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
 
   // Normalize Merchant Logic
   const normalizedCurrentMerchant = useMemo(() =>
@@ -103,11 +140,12 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
     <SidePanel
       isOpen={isOpen}
       onClose={onClose}
-      title="Transaction Details"
+      title={selectedIds.size > 0 ? `${selectedIds.size} Selected` : "Transaction Details"}
       size="md"
-      footer={<></>} // Remove default footer
+      footer={<></>}
       headerActions={
         <div className="flex items-center space-x-2 mr-2">
+          {/* Save Status Indicator */}
           {saveStatus === 'saving' && (
             <span className="text-xs text-gray-500 animate-pulse flex items-center">
               <Loader2 className="w-3 h-3 mr-1 animate-spin" /> Saving...
@@ -136,49 +174,99 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
           onSaveStatusChange={setSaveStatus}
         />
 
-        <div className="border-t border-gray-200 dark:border-gray-700 my-6" />
-
-        {/* History List (Keep existing logic) */}
+        {/* History List */}
         <div className="mt-4">
-          <h3 className="text-sm font-medium text-gray-500 mb-3">Similar transactions</h3>
-          {/* ... render list from existing code ... */}
+          <div className="flex items-center justify-between mb-3 h-5">
+            <h3 className="text-sm font-medium text-gray-500 leading-5">Similar transactions</h3>
+            <div className="flex items-center gap-2 h-5">
+              {selectedIds.size > 0 && (
+                <>
+                  <InlineCategoryEditor
+                    currentCategory=""
+                    onSave={handleBulkUpdate}
+                    renderTrigger={(onClick) => (
+                      <button
+                        onClick={onClick}
+                        className="text-xs font-medium text-blue-600 hover:text-blue-700 whitespace-nowrap leading-5 relative -top-[2px]"
+                      >
+                        Change Category
+                      </button>
+                    )}
+                  />
+                  <span className="text-gray-300 leading-5 relative -top-[2px]">|</span>
+                </>
+              )}
+              {matchedTransactions.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (selectedIds.size === matchedTransactions.length) {
+                      setSelectedIds(new Set());
+                    } else {
+                      setSelectedIds(new Set(matchedTransactions.map(t => t.id)));
+                    }
+                  }}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 whitespace-nowrap leading-5"
+                >
+                  {selectedIds.size === matchedTransactions.length ? 'Deselect All' : 'Select All'}
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="space-y-1">
             {visibleTransactions.map(t => {
-              // ... (existing mapping logic) ...
               const isCurrent = t.id === transaction.id;
-              // Need helper to get category or just simpler one
+              const isSelected = selectedIds.has(t.id);
               const tCategory = contextCategories?.find(c => c.id === t.category) || { icon: '📋', name: 'Other' };
 
               return (
                 <div
                   key={t.id}
-                  onClick={() => !isCurrent && onTransactionClick && onTransactionClick(t)}
                   className={cn(
-                    "flex items-center p-3 rounded-lg transition-colors",
-                    isCurrent
+                    "flex items-center p-3 rounded-lg transition-colors group relative",
+                    (isCurrent || isSelected)
                       ? "bg-blue-50 dark:bg-blue-900/30 ring-1 ring-blue-500/50"
-                      : "hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                      : "hover:bg-gray-50 dark:hover:bg-gray-800"
                   )}
                 >
-                  <div className="w-24 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                    {formatDate(t.date)}
+                  {/* Selection Checkbox */}
+                  <div className="mr-3 flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(e) => {
+                        e.stopPropagation(); // Prevent row click
+                        toggleSelection(t.id);
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
                   </div>
-                  <div className="flex-1 min-w-0 px-3">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm">{tCategory.icon}</span>
-                      <span className={cn(
-                        "text-sm font-medium truncate",
-                        isCurrent ? "text-blue-700 dark:text-blue-300" : theme.textPrimary
-                      )}>
-                        {t.description}
-                      </span>
+
+                  {/* Existing Row Content (Clickable) */}
+                  <div
+                    className="flex-1 flex items-center min-w-0 cursor-pointer"
+                    onClick={() => !isCurrent && onTransactionClick && onTransactionClick(t)}
+                  >
+                    <div className="w-24 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                      {formatDate(t.date)}
                     </div>
-                  </div>
-                  <div className={cn(
-                    "text-right text-sm font-medium flex-shrink-0 w-24",
-                    t.type === 'expense' ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
-                  )}>
-                    {t.type === 'expense' ? '-' : '+'}{formatCurrency(t.amount)}
+                    <div className="flex-1 min-w-0 px-3">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm">{tCategory.icon}</span>
+                        <span className={cn(
+                          "text-sm font-medium truncate",
+                          isCurrent ? "text-blue-700 dark:text-blue-300" : theme.textPrimary
+                        )}>
+                          {t.description}
+                        </span>
+                      </div>
+                    </div>
+                    <div className={cn(
+                      "text-right text-sm font-medium flex-shrink-0 w-24",
+                      t.type === 'expense' ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
+                    )}>
+                      {t.type === 'expense' ? '-' : '+'}{formatCurrency(t.amount)}
+                    </div>
                   </div>
                 </div>
               );
