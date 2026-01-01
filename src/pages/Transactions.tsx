@@ -1757,27 +1757,30 @@ const Transactions: React.FC = () => {
                   )}
                 </div>
 
-                {/* Year in Review Modal */}
+                {/* Year in Review Overlay (frameless, only the card) */}
                 {showYearReview && yearReviewStats && (
-                  <Modal
-                    isOpen={showYearReview}
-                    onClose={() => setShowYearReview(false)}
-                    title={`Year in Review`}
-                    size="lg"
-                  >
-                    <YearInReviewCard
-                      stats={yearReviewStats}
-                      onViewAllCategories={() => {
-                        const year = yearReviewStats.year;
-                        const expensesForYear = transactions.filter(t => !t.isSplitParent && new Date(t.date).getFullYear() === year && t.type === 'expense');
-                        setTransactionListData(expensesForYear);
-                        setTransactionListTitle(`All Categories in ${year}`);
-                        setTransactionListSubtitle('Expense transactions by category');
-                        setShowTransactionListOverlay(true);
-                        setShowYearReview(false);
-                      }}
+                  <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4">
+                    <div
+                      className="fixed inset-0 bg-black/50"
+                      onClick={() => setShowYearReview(false)}
                     />
-                  </Modal>
+                    <div className="relative z-10">
+                      <YearInReviewCard
+                        stats={yearReviewStats}
+                        onViewAllCategories={() => {
+                          const year = yearReviewStats.year;
+                          const expensesForYear = transactions.filter(
+                            t => !t.isSplitParent && new Date(t.date).getFullYear() === year && t.type === 'expense'
+                          );
+                          setTransactionListData(expensesForYear);
+                          setTransactionListTitle(`All Categories in ${year}`);
+                          setTransactionListSubtitle('Expense transactions by category');
+                          setShowTransactionListOverlay(true);
+                          setShowYearReview(false);
+                        }}
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             )
