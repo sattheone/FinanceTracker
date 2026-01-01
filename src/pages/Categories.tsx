@@ -4,7 +4,7 @@ import CategoryList from '../components/categories/CategoryList';
 import CategoryDetail from '../components/categories/CategoryDetail';
 import CategoryOverview from '../components/categories/CategoryOverview';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
-import { X, ChevronDown, Filter, Calendar, Building2, TrendingUp, Plus, List, Layers } from 'lucide-react';
+import { X, ChevronDown, Filter, Building2, TrendingUp, Plus, List, Layers } from 'lucide-react';
 import SidePanel from '../components/common/SidePanel';
 import CategoryForm, { CategoryFormHandle } from '../components/categories/CategoryForm';
 
@@ -51,7 +51,7 @@ const Categories: React.FC = () => {
         const now = new Date();
         const currentMonthKey = `${now.getFullYear()}-${now.getMonth()}`;
         const currentYearKey = `${now.getFullYear()}`;
-        const previousYearKey = `${now.getFullYear() - 1}`;
+        const prevYearKey = `${now.getFullYear() - 1}`;
 
         filteredTransactions.forEach(t => {
             const tDate = new Date(t.date);
@@ -65,7 +65,7 @@ const Categories: React.FC = () => {
                 if (tYearKey === currentYearKey) isMatch = true;
             } else if (viewMode === 'prevYear') {
                 const tYearKey = `${tDate.getFullYear()}`;
-                if (tYearKey === previousYearKey) isMatch = true;
+                if (tYearKey === prevYearKey) isMatch = true;
             }
 
             if (isMatch) {
@@ -260,7 +260,6 @@ const Categories: React.FC = () => {
                                     : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                             )}
                         >
-                            <Calendar className="w-3.5 h-3.5" />
                             This Month
                         </button>
                         <button
@@ -272,7 +271,6 @@ const Categories: React.FC = () => {
                                     : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                             )}
                         >
-                            <Calendar className="w-3.5 h-3.5" />
                             This Year
                         </button>
                         <button
@@ -284,8 +282,7 @@ const Categories: React.FC = () => {
                                     : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                             )}
                         >
-                            <Calendar className="w-3.5 h-3.5" />
-                            Previous Year
+                            Prev Year
                         </button>
                     </div>
 
