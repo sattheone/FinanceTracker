@@ -35,7 +35,7 @@ const iconForCategory = (name: string) => {
 };
 
 const YearInReviewCard: React.FC<YearInReviewCardProps> = ({ stats, onViewAllCategories }) => {
-  const { year, totalTransactions, avgDaily, deltaPercent, topCategories } = stats;
+  const { year, totalTransactions, avgDaily, topCategories } = stats;
 
   return (
     <div className="relative w-full max-w-[600px] min-h-[700px] bg-gray-900 dark:bg-gray-900 rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-white/5 mx-auto">
@@ -66,22 +66,13 @@ const YearInReviewCard: React.FC<YearInReviewCardProps> = ({ stats, onViewAllCat
         <p className="text-gray-300 text-lg font-medium mt-2">Total Transactions</p>
       </div>
 
-      {/* Secondary strip */}
+      {/* Secondary strip - single line */}
       <div className="relative z-10 flex justify-center mb-6 px-6">
-        <div className="flex items-center gap-4 bg-gray-800/80 backdrop-blur-sm border border-white/10 px-5 py-3 rounded-full shadow-lg">
-          <div className="flex flex-col items-start">
-            <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Avg. Daily</span>
-            <span className="text-white text-lg font-bold">{avgDaily.toFixed(1)}</span>
-          </div>
-          <div className="h-8 w-px bg-white/10" />
-          {typeof deltaPercent === 'number' && (
-            <div className={cn('flex items-center gap-1', deltaPercent >= 0 ? 'text-emerald-400' : 'text-red-400')}>
-              <div className={cn('flex items-center justify-center rounded-full p-1', deltaPercent >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10')}>
-                <TrendingUp className="h-4 w-4" />
-              </div>
-              <span className="text-sm font-bold">{deltaPercent >= 0 ? '+' : ''}{deltaPercent.toFixed(1)}%</span>
-            </div>
-          )}
+        <div className="flex items-center gap-2 text-gray-300">
+          <TrendingUp className="h-4 w-4 text-emerald-400" />
+          <span className="text-sm font-semibold">Avg. Daily</span>
+          <span className="text-white text-sm font-bold">{avgDaily.toFixed(1)}</span>
+          <span className="text-gray-400 text-sm">Transactions</span>
         </div>
       </div>
 
