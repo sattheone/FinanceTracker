@@ -1559,31 +1559,31 @@ const Transactions: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-4">
+                {/* Year in Review banner (December only) */}
+                {(() => {
+                  const mo = selectedTransactionMonth.split('-')[1];
+                  return mo === '12';
+                })() && (
+                  <div className="w-full">
+                    <div className="flex items-center justify-between rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 px-3 py-2">
+                      <div className="flex-1 mr-3">
+                        <div className="text-sm font-semibold">Your {selectedTransactionMonth.split('-')[0]} Year in Review is ready!</div>
+                        <div className="text-xs text-blue-700 dark:text-blue-300">Check out your spending highlights and insights</div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const year = selectedTransactionMonth.split('-')[0];
+                          navigate(`/reports?year=${year}&review=true`);
+                        }}
+                        className="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                      >
+                        View Now
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {/* Search, Filters, Month */}
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-center">
-                  {/* Year in Review banner (December only) */}
-                  {(() => {
-                    const mo = selectedTransactionMonth.split('-')[1];
-                    return mo === '12';
-                  })() && (
-                    <div className="w-full mb-1 sm:mb-0">
-                      <div className="flex items-center justify-between rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 px-3 py-2">
-                        <div className="flex-1 mr-3">
-                          <div className="text-sm font-semibold">Your {selectedTransactionMonth.split('-')[0]} Year in Review is ready!</div>
-                          <div className="text-xs text-blue-700 dark:text-blue-300">Check out your spending highlights and insights</div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            const year = selectedTransactionMonth.split('-')[0];
-                            navigate(`/reports?year=${year}&review=true`);
-                          }}
-                          className="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                        >
-                          View Now
-                        </button>
-                      </div>
-                    </div>
-                  )}
                   <div className="flex-1 w-full">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
