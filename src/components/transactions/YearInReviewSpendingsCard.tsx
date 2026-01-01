@@ -1,5 +1,5 @@
 import React from 'react';
-import { Share2, PieChart as PieChartIcon } from 'lucide-react';
+import { Share2, CalendarDays } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 
 export interface SpendingItem {
@@ -22,15 +22,15 @@ const YearInReviewSpendingsCard: React.FC<YearInReviewSpendingsCardProps> = ({ y
       {/* Subtle gradient top */}
       <div className="absolute top-0 left-0 right-0 h-[300px] bg-gradient-to-b from-blue-500/10 via-blue-500/5 to-transparent pointer-events-none" />
 
-      {/* Header */}
+      {/* Header (consistent across all cards) */}
       <div className="relative z-10 flex items-center justify-between p-6 pb-3">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center bg-white/10 rounded-full h-10 w-10 backdrop-blur-md">
-            <PieChartIcon className="text-white h-5 w-5" />
+            <CalendarDays className="text-white h-5 w-5" />
           </div>
           <div>
-            <h3 className="text-white text-lg font-bold leading-tight">Your Spendings</h3>
-            <p className="text-gray-400 text-xs font-medium uppercase tracking-wide">Category Breakdown</p>
+            <h3 className="text-white text-lg font-bold leading-tight">{year} Review</h3>
+            <p className="text-gray-400 text-xs font-medium uppercase tracking-wide">Financial Report</p>
           </div>
         </div>
         <button className="group flex items-center justify-center h-10 w-10 rounded-full hover:bg-white/10 transition-colors" aria-label="Share">
@@ -38,7 +38,15 @@ const YearInReviewSpendingsCard: React.FC<YearInReviewSpendingsCardProps> = ({ y
         </button>
       </div>
 
-      {/* Content */}
+      {/* Content title (card-specific) */}
+      <div className="relative z-10 px-6">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-white text-xl font-bold tracking-tight">Your Spendings</h2>
+          <span className="text-gray-400 text-sm">Category Breakdown</span>
+        </div>
+      </div>
+
+      {/* Content list */}
       <div className="relative z-10 flex-1 p-6">
         <div className="space-y-3">
           {items.map((item) => (
