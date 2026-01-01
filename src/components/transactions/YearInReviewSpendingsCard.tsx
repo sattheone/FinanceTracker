@@ -46,8 +46,8 @@ const YearInReviewSpendingsCard: React.FC<YearInReviewSpendingsCardProps> = ({ y
         </div>
       </div>
 
-      {/* Content list */}
-      <div className="relative z-10 flex-1 p-6">
+      {/* Content list (scrollable) */}
+      <div className="relative z-10 flex-1 min-h-0 overflow-y-auto p-6">
         <div className="space-y-3">
           {items.map((item) => (
             <div key={item.id} className="flex items-center justify-between px-2 py-2">
