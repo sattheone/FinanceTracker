@@ -38,6 +38,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
 }) => {
     const { updateTransaction, categories, addCategoryRule, updateCategory } = useData();
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+    const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
     const [showEditPanel, setShowEditPanel] = useState(false);
     const formRef = React.useRef<CategoryFormHandle | null>(null);
     
@@ -312,6 +313,19 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
             <div className="bg-white dark:bg-gray-900 p-4 flex-1">
                 <TransactionTable
                     transactions={transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
+                    selectedTransactions={selectedTransactions}
+                    onSelectTransaction={(id) => {
+                        setSelectedTransactions(prev => {
+                            const next = new Set(prev);
+                            if (next.has(id)) next.delete(id); else next.add(id);
+                            return next;
+                        });
+                    }}
+                    onSelectAll={() => {
+                        const allIds = transactions.filter(t => !t.isSplitParent).map(t => t.id);
+                        setSelectedTransactions(new Set(allIds));
+                    }}
+                    onClearSelection={() => setSelectedTransactions(new Set())}
                     onTransactionClick={(t) => setSelectedTransaction(t)}
                     onUpdateTransaction={handleUpdateTransaction}
                     onTagClick={(t, anchor) => {
