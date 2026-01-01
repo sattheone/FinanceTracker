@@ -13,7 +13,7 @@ const Categories: React.FC = () => {
     const theme = useThemeClasses();
 
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-    const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
+    const [viewMode, setViewMode] = useState<'month' | 'year' | 'prevYear'>('month');
     const [includeInvestments, setIncludeInvestments] = useState(false);
     const [categoryDisplayMode, setCategoryDisplayMode] = useState<'flat' | 'grouped'>('flat');
     const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
@@ -51,6 +51,7 @@ const Categories: React.FC = () => {
         const now = new Date();
         const currentMonthKey = `${now.getFullYear()}-${now.getMonth()}`;
         const currentYearKey = `${now.getFullYear()}`;
+        const previousYearKey = `${now.getFullYear() - 1}`;
 
         filteredTransactions.forEach(t => {
             const tDate = new Date(t.date);
@@ -59,9 +60,12 @@ const Categories: React.FC = () => {
             if (viewMode === 'month') {
                 const tMonthKey = `${tDate.getFullYear()}-${tDate.getMonth()}`;
                 if (tMonthKey === currentMonthKey) isMatch = true;
-            } else {
+            } else if (viewMode === 'year') {
                 const tYearKey = `${tDate.getFullYear()}`;
                 if (tYearKey === currentYearKey) isMatch = true;
+            } else if (viewMode === 'prevYear') {
+                const tYearKey = `${tDate.getFullYear()}`;
+                if (tYearKey === previousYearKey) isMatch = true;
             }
 
             if (isMatch) {
@@ -270,6 +274,18 @@ const Categories: React.FC = () => {
                         >
                             <Calendar className="w-3.5 h-3.5" />
                             This Year
+                        </button>
+                        <button
+                            onClick={() => setViewMode('prevYear')}
+                            className={cn(
+                                "flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                                viewMode === 'prevYear'
+                                    ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm"
+                                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                            )}
+                        >
+                            <Calendar className="w-3.5 h-3.5" />
+                            Previous Year
                         </button>
                     </div>
 
