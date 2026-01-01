@@ -337,6 +337,7 @@ const Categories: React.FC = () => {
                         investmentSpending={includeInvestments ? investmentSpending : undefined}
                         monthlyBudget={monthlyBudget}
                         displayMode={categoryDisplayMode}
+                        viewMode={viewMode}
                     />
                 </div>
 

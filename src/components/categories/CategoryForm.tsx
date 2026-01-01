@@ -193,10 +193,10 @@ const CategoryForm = forwardRef<CategoryFormHandle, CategoryFormProps>(({
                 {/* Compact Style Controls Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-                    {/* Budget (Optional) */}
+                    {/* Monthly Budget (Optional) */}
                     <div>
                         <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">
-                            Budget (Optional)
+                            Monthly Budget (Optional)
                         </label>
                         <div className="flex items-center gap-2 input-field theme-input">
                             <span className="text-gray-500">₹</span>
@@ -210,6 +210,9 @@ const CategoryForm = forwardRef<CategoryFormHandle, CategoryFormProps>(({
                                 className="flex-1 bg-transparent border-none p-0 focus:ring-0"
                             />
                         </div>
+                        <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                            This is a per-month budget. In year view, budgets are calculated as monthly × 12.
+                        </p>
                     </div>
 
                     {/* Icon Selection removed: hero emoji opens popover */}

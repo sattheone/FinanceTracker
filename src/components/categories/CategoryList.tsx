@@ -13,6 +13,7 @@ interface CategoryListProps {
     investmentSpending?: Record<string, number>;
     monthlyBudget: MonthlyBudget | null;
     displayMode?: 'flat' | 'grouped';
+    viewMode?: 'month' | 'year' | 'prevYear';
 }
 
 const CategoryList: React.FC<CategoryListProps> = ({
@@ -22,7 +23,8 @@ const CategoryList: React.FC<CategoryListProps> = ({
     spendingByCategory,
     investmentSpending = {},
     monthlyBudget,
-    displayMode = 'flat'
+    displayMode = 'flat',
+    viewMode = 'month'
 }) => {
     const theme = useThemeClasses();
 
@@ -100,11 +102,13 @@ const CategoryList: React.FC<CategoryListProps> = ({
             ? (investmentSpending[category.id] || 0)
             : (spendingByCategory[category.id] || 0);
 
-        const budgetAmount = !isInvestment
+        const baseMonthlyBudget = !isInvestment
             ? (category.budget !== undefined
                 ? category.budget
                 : (monthlyBudget?.categoryBudgets?.[category.id] || 0))
             : 0;
+        const monthsMultiplier = viewMode === 'month' ? 1 : 12;
+        const budgetAmount = baseMonthlyBudget * monthsMultiplier;
         const isSelected = selectedCategoryId === category.id;
 
         // Progress bar calculations
@@ -136,13 +140,13 @@ const CategoryList: React.FC<CategoryListProps> = ({
                             {category.name}
                         </p>
                         {budgetAmount > 0 && (
-                            <div className="mt-1 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1 overflow-hidden">
+                            <div className="mt-1 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
                                 <div
                                     className={cn(
                                         "h-full rounded-full",
-                                        isOverBudget ? "bg-red-500" : "bg-blue-500"
+                                        isOverBudget ? "bg-red-500" : ""
                                     )}
-                                    style={{ width: `${progress}%` }}
+                                    style={{ width: `${progress}%`, backgroundColor: isOverBudget ? undefined : (category.color || '#3B82F6') }}
                                 />
                             </div>
                         )}
@@ -158,7 +162,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
                     </p>
                     {budgetAmount > 0 && (
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                            / {formatCurrency(budgetAmount)}
+                            of {formatCurrency(budgetAmount)}
                         </p>
                     )}
                 </div>
@@ -201,7 +205,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
                             Expenses
                         </h3>
                         <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                            {formatCurrency(getSectionTotal(groupedCategories.active, false))}
+                            Total: {formatCurrency(getSectionTotal(groupedCategories.active, false))}
                         </span>
                     </div>
                     {displayMode === 'grouped' ? (
