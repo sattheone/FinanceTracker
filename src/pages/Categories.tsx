@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useData } from '../contexts/DataContext';
 import CategoryList from '../components/categories/CategoryList';
 import CategoryDetail from '../components/categories/CategoryDetail';
@@ -11,6 +12,7 @@ import CategoryForm, { CategoryFormHandle } from '../components/categories/Categ
 const Categories: React.FC = () => {
     const { categories, transactions, monthlyBudget, bankAccounts } = useData();
     const theme = useThemeClasses();
+    const [searchParams] = useSearchParams();
 
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'month' | 'year' | 'prevYear'>('month');
@@ -34,6 +36,14 @@ const Categories: React.FC = () => {
         }
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showFilters]);
+
+    // Read view mode from URL
+    useEffect(() => {
+        const view = searchParams.get('view');
+        if (view === 'prevYear' || view === 'year' || view === 'month') {
+            setViewMode(view as any);
+        }
+    }, [searchParams]);
 
     // Filter transactions by account first
     const filteredTransactions = useMemo(() => {

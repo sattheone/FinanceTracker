@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Plus, Search, Edit3, Trash2, FileSpreadsheet, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown, MoreVertical, Table } from 'lucide-react';
 import { Transaction, BankAccount } from '../types';
 import { useData } from '../contexts/DataContext';
@@ -60,7 +60,7 @@ const Transactions: React.FC = () => {
 
   const formRef = useRef<SimpleTransactionFormHandle>(null);
 
-  // navigate not needed for Year in Review modal
+  const navigate = useNavigate();
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; transaction: Transaction } | null>(null);
 
   const handleContextMenu = (e: React.MouseEvent, transaction: Transaction) => {
@@ -1768,14 +1768,7 @@ const Transactions: React.FC = () => {
                       <YearInReviewCard
                         stats={yearReviewStats}
                         onViewAllCategories={() => {
-                          const year = yearReviewStats.year;
-                          const expensesForYear = transactions.filter(
-                            t => !t.isSplitParent && new Date(t.date).getFullYear() === year && t.type === 'expense'
-                          );
-                          setTransactionListData(expensesForYear);
-                          setTransactionListTitle(`All Categories in ${year}`);
-                          setTransactionListSubtitle('Expense transactions by category');
-                          setShowTransactionListOverlay(true);
+                          navigate('/categories?view=prevYear');
                           setShowYearReview(false);
                         }}
                       />
