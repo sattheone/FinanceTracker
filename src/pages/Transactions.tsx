@@ -36,6 +36,7 @@ import TransactionContextMenu from '../components/transactions/TransactionContex
 import BulkAddTransactionsModal from '../components/transactions/BulkAddTransactionsModal';
 import { RecurringTransaction } from '../types';
 import YearInReviewCard, { YearInReviewStats } from '../components/transactions/YearInReviewCard';
+import YearInReviewSpendingsCard from '../components/transactions/YearInReviewSpendingsCard';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#84CC16'];
 
@@ -170,8 +171,8 @@ const Transactions: React.FC = () => {
   // Year In Review modal
   const [showYearReview, setShowYearReview] = useState(false);
   const [yearReviewStats, setYearReviewStats] = useState<YearInReviewStats | null>(null);
-  // Placeholder for future multi-card navigation
-  const [, setYearReviewCardIndex] = useState(0);
+  const [yearReviewCardIndex, setYearReviewCardIndex] = useState(0);
+  const [yearSpendings, setYearSpendings] = useState<Array<{ id: string; name: string; icon?: React.ReactNode; color?: string; amount: number }>>([]);
 
   // Filter states
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
@@ -1597,7 +1598,15 @@ const Transactions: React.FC = () => {
                             .sort((a, b) => b.amount - a.amount)
                             .slice(0, 7);
                           setYearReviewStats({ year, totalTransactions, avgDaily, deltaPercent, topCategories });
+                          // Build full spendings list (include zeros)
+                          const expenseCategories = categories.filter(c => c.id !== 'transfer' && c.id !== 'adjustment');
+                          const spendings = expenseCategories.map(c => {
+                            const amount = categoryMap[c.id] || 0;
+                            return { id: c.id, name: c.name, icon: <span>{c.icon}</span>, color: c.color as string, amount };
+                          }).sort((a, b) => b.amount - a.amount);
+                          setYearSpendings(spendings);
                           setShowYearReview(true);
+                          setYearReviewCardIndex(0);
                         }}
                         className="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700"
                       >
@@ -1767,13 +1776,24 @@ const Transactions: React.FC = () => {
                       onClick={() => setShowYearReview(false)}
                     />
                     <div className="relative z-10">
-                      <YearInReviewCard
-                        stats={yearReviewStats}
-                        onViewAllCategories={() => {
-                          navigate('/categories?view=prevYear');
-                          setShowYearReview(false);
-                        }}
-                      />
+                      {yearReviewCardIndex === 0 ? (
+                        <YearInReviewCard
+                          stats={yearReviewStats}
+                          onViewAllCategories={() => {
+                            navigate('/categories?view=prevYear');
+                            setShowYearReview(false);
+                          }}
+                        />
+                      ) : (
+                        <YearInReviewSpendingsCard
+                          year={yearReviewStats.year}
+                          items={yearSpendings}
+                          onViewAllCategories={() => {
+                            navigate('/categories?view=prevYear');
+                            setShowYearReview(false);
+                          }}
+                        />
+                      )}
                     </div>
                     {/* Outside nav controls */}
                     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[1201]">
@@ -1781,10 +1801,7 @@ const Transactions: React.FC = () => {
                         <button
                           type="button"
                           className="text-gray-400 hover:text-gray-200"
-                          onClick={() => {
-                            // Placeholder: decrement card index when multiple cards exist
-                            setYearReviewCardIndex((i) => Math.max(0, i - 1));
-                          }}
+                          onClick={() => setYearReviewCardIndex((i) => Math.max(0, i - 1))}
                           aria-label="Previous"
                         >
                           {/* Inline SVG to avoid extra imports */}
@@ -1793,10 +1810,7 @@ const Transactions: React.FC = () => {
                         <button
                           type="button"
                           className="text-gray-200 hover:text-white"
-                          onClick={() => {
-                            // Placeholder: increment card index when multiple cards exist
-                            setYearReviewCardIndex((i) => i + 1);
-                          }}
+                          onClick={() => setYearReviewCardIndex((i) => Math.min(1, i + 1))}
                           aria-label="Next"
                         >
                           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5l7 7-7 7" /></svg>
