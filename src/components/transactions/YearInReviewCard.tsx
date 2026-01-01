@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarDays, Share2, TrendingUp, ShoppingCart, Utensils, Plane, ShoppingBag, PiggyBank, Car, ArrowLeft, ArrowRight } from 'lucide-react';
+import { CalendarDays, Share2, TrendingUp, ShoppingCart, Utensils, Plane, ShoppingBag, PiggyBank, Car } from 'lucide-react';
 import { cn } from '../../hooks/useThemeClasses';
 import { formatCurrency } from '../../utils/formatters';
 
@@ -21,8 +21,6 @@ export interface YearInReviewStats {
 interface YearInReviewCardProps {
   stats: YearInReviewStats;
   onViewAllCategories?: () => void;
-  onPrevCard?: () => void;
-  onNextCard?: () => void;
 }
 
 const iconForCategory = (name: string) => {
@@ -36,7 +34,7 @@ const iconForCategory = (name: string) => {
   return <ShoppingBag className="h-6 w-6" />;
 };
 
-const YearInReviewCard: React.FC<YearInReviewCardProps> = ({ stats, onViewAllCategories, onPrevCard, onNextCard }) => {
+const YearInReviewCard: React.FC<YearInReviewCardProps> = ({ stats, onViewAllCategories }) => {
   const { year, totalTransactions, avgDaily, topCategories } = stats;
 
   return (
@@ -68,27 +66,7 @@ const YearInReviewCard: React.FC<YearInReviewCardProps> = ({ stats, onViewAllCat
         <p className="text-gray-300 text-lg font-medium mt-2">Total Transactions</p>
       </div>
 
-      {/* Bottom navigation arrows */}
-      <div className="relative z-10 flex justify-center pb-6">
-        <div className="flex items-center justify-between w-40 px-4 py-2 bg-gray-800/70 rounded-xl">
-          <button
-            type="button"
-            className="text-gray-500 hover:text-gray-300"
-            onClick={onPrevCard}
-            aria-label="Previous"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            className="text-gray-300 hover:text-white"
-            onClick={onNextCard}
-            aria-label="Next"
-          >
-            <ArrowRight className="h-5 w-5" />
-          </button>
-        </div>
-      </div>
+      {/* Navigation arrows are rendered outside the card by the overlay container */}
 
       {/* Secondary strip - single line */}
       <div className="relative z-10 flex justify-center mb-6 px-6">

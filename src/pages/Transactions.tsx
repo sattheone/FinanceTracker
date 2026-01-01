@@ -170,6 +170,8 @@ const Transactions: React.FC = () => {
   // Year In Review modal
   const [showYearReview, setShowYearReview] = useState(false);
   const [yearReviewStats, setYearReviewStats] = useState<YearInReviewStats | null>(null);
+  // Placeholder for future multi-card navigation
+  const [, setYearReviewCardIndex] = useState(0);
 
   // Filter states
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
@@ -1772,6 +1774,34 @@ const Transactions: React.FC = () => {
                           setShowYearReview(false);
                         }}
                       />
+                    </div>
+                    {/* Outside nav controls */}
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[1201]">
+                      <div className="flex items-center justify-between w-40 px-4 py-2 bg-gray-800/80 border border-white/10 rounded-xl shadow-lg">
+                        <button
+                          type="button"
+                          className="text-gray-400 hover:text-gray-200"
+                          onClick={() => {
+                            // Placeholder: decrement card index when multiple cards exist
+                            setYearReviewCardIndex((i) => Math.max(0, i - 1));
+                          }}
+                          aria-label="Previous"
+                        >
+                          {/* Inline SVG to avoid extra imports */}
+                          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5" /><path d="M12 19l-7-7 7-7" /></svg>
+                        </button>
+                        <button
+                          type="button"
+                          className="text-gray-200 hover:text-white"
+                          onClick={() => {
+                            // Placeholder: increment card index when multiple cards exist
+                            setYearReviewCardIndex((i) => i + 1);
+                          }}
+                          aria-label="Next"
+                        >
+                          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5l7 7-7 7" /></svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
