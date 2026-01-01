@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Modal from '../common/Modal';
 
 const DEFAULT_COLORS = [
@@ -23,6 +23,14 @@ const TagCreationModal: React.FC<TagCreationModalProps> = ({
 }) => {
   const [tagName, setTagName] = useState(initialName);
   const [selectedColor, setSelectedColor] = useState(DEFAULT_COLORS[5]); // Default purple
+
+  // Keep local state in sync with provided initial name whenever
+  // the modal opens or the prop changes.
+  useEffect(() => {
+    if (isOpen) {
+      setTagName(initialName || '');
+    }
+  }, [isOpen, initialName]);
 
   const handleCreate = () => {
     if (tagName.trim()) {
