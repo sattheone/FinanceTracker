@@ -38,7 +38,7 @@ const YearInReviewCard: React.FC<YearInReviewCardProps> = ({ stats, onViewAllCat
   const { year, totalTransactions, avgDaily, topCategories } = stats;
 
   return (
-    <div className="relative w-full max-w-[600px] min-h-[700px] bg-gray-900 dark:bg-gray-900 rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-white/5 mx-auto">
+    <div className="relative w-[600px] h-[700px] bg-gray-900 dark:bg-gray-900 rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-white/5 mx-auto">
       {/* Subtle gradient top */}
       <div className="absolute top-0 left-0 right-0 h-[300px] bg-gradient-to-b from-blue-500/10 via-blue-500/5 to-transparent pointer-events-none" />
 
