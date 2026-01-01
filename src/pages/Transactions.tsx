@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Plus, Search, Edit3, Trash2, FileSpreadsheet, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown, MoreVertical, Table } from 'lucide-react';
 import { Transaction, BankAccount } from '../types';
 import { useData } from '../contexts/DataContext';
@@ -35,6 +35,7 @@ import RuleCreationDialog from '../components/transactions/RuleCreationDialog';
 import TransactionContextMenu from '../components/transactions/TransactionContextMenu';
 import BulkAddTransactionsModal from '../components/transactions/BulkAddTransactionsModal';
 import { RecurringTransaction } from '../types';
+import YearInReviewCard, { YearInReviewStats } from '../components/transactions/YearInReviewCard';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#84CC16'];
 
@@ -59,7 +60,7 @@ const Transactions: React.FC = () => {
 
   const formRef = useRef<SimpleTransactionFormHandle>(null);
 
-  const navigate = useNavigate();
+  // navigate not needed for Year in Review modal
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; transaction: Transaction } | null>(null);
 
   const handleContextMenu = (e: React.MouseEvent, transaction: Transaction) => {
@@ -165,6 +166,10 @@ const Transactions: React.FC = () => {
   const [transactionListSubtitle, setTransactionListSubtitle] = useState('');
   const [viewingContextId, setViewingContextId] = useState<string | null>(null);
   const [pieChartType, setPieChartType] = useState<'income' | 'expense'>('expense');
+
+  // Year In Review modal
+  const [showYearReview, setShowYearReview] = useState(false);
+  const [yearReviewStats, setYearReviewStats] = useState<YearInReviewStats | null>(null);
 
   // Filter states
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
@@ -1572,8 +1577,25 @@ const Transactions: React.FC = () => {
                       </div>
                       <button
                         onClick={() => {
-                          const year = selectedTransactionMonth.split('-')[0];
-                          navigate(`/reports?year=${year}&review=true`);
+                          const year = parseInt(selectedTransactionMonth.split('-')[0], 10);
+                          // Compute basic year stats
+                          const yearTxns = transactions.filter(t => !t.isSplitParent && new Date(t.date).getFullYear() === year);
+                          const totalTransactions = yearTxns.length;
+                          const avgDaily = totalTransactions / 365;
+                          const prevYearTxns = transactions.filter(t => !t.isSplitParent && new Date(t.date).getFullYear() === (year - 1));
+                          const deltaPercent = prevYearTxns.length > 0 ? ((totalTransactions - prevYearTxns.length) / prevYearTxns.length) * 100 : undefined;
+                          // Top categories by expense amount
+                          const categoryMap: Record<string, number> = {};
+                          yearTxns.filter(t => t.type === 'expense' && t.category !== 'transfer').forEach(t => {
+                            const key = String(t.category);
+                            categoryMap[key] = (categoryMap[key] || 0) + t.amount;
+                          });
+                          const topCategories = Object.entries(categoryMap)
+                            .map(([id, amount]) => ({ id, name: categories.find(c => c.id === id)?.name || id, amount }))
+                            .sort((a, b) => b.amount - a.amount)
+                            .slice(0, 7);
+                          setYearReviewStats({ year, totalTransactions, avgDaily, deltaPercent, topCategories });
+                          setShowYearReview(true);
                         }}
                         className="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700"
                       >
@@ -1734,6 +1756,29 @@ const Transactions: React.FC = () => {
                     />
                   )}
                 </div>
+
+                {/* Year in Review Modal */}
+                {showYearReview && yearReviewStats && (
+                  <Modal
+                    isOpen={showYearReview}
+                    onClose={() => setShowYearReview(false)}
+                    title={`Year in Review`}
+                    size="lg"
+                  >
+                    <YearInReviewCard
+                      stats={yearReviewStats}
+                      onViewAllCategories={() => {
+                        const year = yearReviewStats.year;
+                        const expensesForYear = transactions.filter(t => !t.isSplitParent && new Date(t.date).getFullYear() === year && t.type === 'expense');
+                        setTransactionListData(expensesForYear);
+                        setTransactionListTitle(`All Categories in ${year}`);
+                        setTransactionListSubtitle('Expense transactions by category');
+                        setShowTransactionListOverlay(true);
+                        setShowYearReview(false);
+                      }}
+                    />
+                  </Modal>
+                )}
               </div>
             )
             }
