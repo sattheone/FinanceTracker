@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, Edit3, Trash2, Calendar, ExternalLink, Link as LinkIcon, Plus } from 'lucide-react';
+import { X, Edit3, Calendar, ExternalLink, Link as LinkIcon, Plus } from 'lucide-react';
 import { Asset, Transaction } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { cn, useThemeClasses } from '../../hooks/useThemeClasses';
+import TransactionTable from '../transactions/TransactionTable';
 
 interface SIPDetailOverlayProps {
     isOpen: boolean;
@@ -164,41 +165,13 @@ const SIPDetailOverlay: React.FC<SIPDetailOverlayProps> = ({
 
                         <div className="flex-1 overflow-auto">
                             {displayTransactions.length > 0 ? (
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 sticky top-0">
-                                        <tr>
-                                            <th className="px-4 py-3 font-medium">Date</th>
-                                            <th className="px-4 py-3 font-medium">Description</th>
-                                            <th className="px-4 py-3 font-medium text-right">Amount</th>
-                                            <th className="px-4 py-3 font-medium text-right">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                        {displayTransactions.map(t => (
-                                            <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 group">
-                                                <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                                                    {formatDate(t.date)}
-                                                </td>
-                                                <td className="px-4 py-3 text-gray-900 dark:text-white font-medium truncate max-w-[200px]" title={t.description}>
-                                                    {t.description}
-                                                    <div className="text-xs text-gray-400 font-normal">{t.category}</div>
-                                                </td>
-                                                <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white">
-                                                    {formatCurrency(t.amount)}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    <button
-                                                        onClick={() => onUnlinkTransaction(t)}
-                                                        className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                                                        title="Unlink Transaction"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                <TransactionTable
+                                    transactions={displayTransactions}
+                                    onDeleteTransaction={(id) => {
+                                        const tx = displayTransactions.find(t => t.id === id);
+                                        if (tx) onUnlinkTransaction(tx);
+                                    }}
+                                />
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-gray-400">
                                     <LinkIcon className="w-12 h-12 mb-2 opacity-20" />

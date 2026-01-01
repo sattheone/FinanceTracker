@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction, CategoryRule, SIPRule } from '../types';
+import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction, CategoryRule, SIPRule, Tag } from '../types';
 import { Category } from '../constants/categories';
 import { UserProfile } from '../types/user';
 import { useAuth } from './AuthContext';
@@ -55,6 +55,7 @@ interface DataContextType {
   categoryRules: CategoryRule[];
   sipRules: SIPRule[];
   categories: Category[];
+  tags: Tag[];
 
   // CRUD Operations
   addAsset: (asset: Omit<Asset, 'id'>) => void;
@@ -111,6 +112,11 @@ interface DataContextType {
   addCategory: (category: Omit<Category, 'id'>) => Promise<string | undefined>;
   updateCategory: (id: string, category: Partial<Category>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
+
+  // Tag Operations
+  addTag: (tag: Omit<Tag, 'id'>) => Promise<Tag | undefined>;
+  updateTag: (id: string, tag: Partial<Tag>) => Promise<void>;
+  deleteTag: (id: string) => Promise<void>;
 
   updateMonthlyBudget: (budget: Partial<MonthlyBudget>) => void;
 
@@ -190,6 +196,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [categoryRules, setCategoryRules] = useState<CategoryRule[]>([]);
   const [sipRules, setSipRules] = useState<SIPRule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   
   // Track if SIP auto-update has run this session
   const sipAutoUpdateRan = useRef(false);
@@ -322,6 +329,17 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         categoriesData = [];
       }
 
+      // Load tags
+      console.log('[DataContext] Loading tags for user:', userId);
+      let tagsData: Tag[];
+      try {
+        tagsData = await FirebaseService.getTags(userId);
+        console.log('[DataContext] Loaded tags from Firestore:', tagsData.length, 'tags');
+      } catch (error) {
+        console.error('[DataContext] Error loading tags:', error);
+        tagsData = [];
+      }
+
       // Category migration: If Firestore is empty OR missing system categories, sync defaults
       const { defaultCategories } = await import('../constants/categories');
 
@@ -374,6 +392,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
       console.log('[DataContext] Setting categories to state:', categoriesData.length, 'categories');
       setCategories(categoriesData);
+      setTags(tagsData);
       setIsDataLoaded(true);
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -1240,6 +1259,49 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
+  // Tag Operations
+  const addTag = async (tag: Omit<Tag, 'id'>) => {
+    if (!user) return;
+
+    try {
+      const id = await FirebaseService.addTag(user.id, tag);
+      const newTag: Tag = { ...tag, id };
+      setTags(prev => [...prev, newTag]);
+      return newTag;
+    } catch (error) {
+      console.error('Error adding tag:', error);
+    }
+  };
+
+  const updateTag = async (id: string, tag: Partial<Tag>) => {
+    if (!user) return;
+
+    try {
+      await FirebaseService.updateTag(user.id, id, tag);
+      setTags(prev => prev.map(t => t.id === id ? { ...t, ...tag } : t));
+    } catch (error) {
+      console.error('Error updating tag:', error);
+    }
+  };
+
+  const deleteTag = async (id: string) => {
+    if (!user) return;
+
+    try {
+      await FirebaseService.deleteTag(user.id, id);
+      setTags(prev => prev.filter(t => t.id !== id));
+      
+      // Remove tag from all transactions
+      const transactionsWithTag = transactions.filter(t => t.tags?.includes(id));
+      for (const transaction of transactionsWithTag) {
+        const updatedTags = transaction.tags?.filter(tagId => tagId !== id) || [];
+        updateTransaction(transaction.id, { tags: updatedTags });
+      }
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+    }
+  };
+
   // Utility functions
   const processRecurringTransactions = async () => {
     const today = new Date();
@@ -1439,6 +1501,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     addCategory,
     updateCategory,
     deleteCategory,
+
+    // Tags
+    tags,
+    addTag,
+    updateTag,
+    deleteTag,
 
     updateMonthlyBudget,
 

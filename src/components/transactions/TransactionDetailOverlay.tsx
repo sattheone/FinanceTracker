@@ -1,10 +1,12 @@
-import React from 'react';
-import { X, Calendar, Tag, Hash, Type } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Calendar, Tag, Hash, Type, Scissors, Repeat, Trash2 } from 'lucide-react';
 import { Transaction } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { cn } from '../../hooks/useThemeClasses';
 import { useData } from '../../contexts/DataContext';
 import AutoCategorizationService from '../../services/autoCategorization';
+import SplitTransactionModal from './SplitTransactionModal';
+import RecurringSetupModal from './RecurringSetupModal';
 
 interface TransactionDetailOverlayProps {
     isOpen: boolean;
@@ -22,6 +24,8 @@ const TransactionDetailOverlay: React.FC<TransactionDetailOverlayProps> = ({
     onUpdate
 }) => {
     const { categories, categoryRules } = useData();
+    const [showSplitModal, setShowSplitModal] = useState(false);
+    const [showRecurringModal, setShowRecurringModal] = useState(false);
 
     // Lazy Repair: Check if we can retroactive apply a rule when viewing
     React.useEffect(() => {
@@ -88,6 +92,31 @@ const TransactionDetailOverlay: React.FC<TransactionDetailOverlayProps> = ({
                         className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500"
                     >
                         <X className="w-5 h-5" />
+                    </button>
+                </div>
+
+                {/* Top Bar Actions */}
+                <div className="px-6 py-3 flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800">
+                    <button
+                        onClick={() => setShowSplitModal(true)}
+                        className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 flex items-center gap-2"
+                    >
+                        <Scissors className="w-4 h-4" />
+                        <span className="text-sm font-medium">Split</span>
+                    </button>
+                    <button
+                        onClick={() => setShowRecurringModal(true)}
+                        className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 flex items-center gap-2"
+                    >
+                        <Repeat className="w-4 h-4" />
+                        <span className="text-sm font-medium">Recurring</span>
+                    </button>
+                    <button
+                        onClick={handleDelete}
+                        className="ml-auto px-3 py-2 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center gap-2"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        <span className="text-sm font-medium">Delete</span>
                     </button>
                 </div>
 
@@ -166,19 +195,27 @@ const TransactionDetailOverlay: React.FC<TransactionDetailOverlayProps> = ({
 
                     </div>
 
-                    {/* Actions */}
-                    <div className="pt-6 flex gap-4">
-                        <button
-                            onClick={handleDelete}
-                            className="flex-1 py-3 px-4 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 dark:text-red-400 rounded-lg font-medium transition-colors"
-                        >
-                            Delete Transaction
-                        </button>
-                        {/* Edit could be implemented here or inline */}
-                    </div>
+                    {/* Actions placeholder */}
 
                 </div>
             </div>
+
+            {/* Modals */}
+            {showSplitModal && transaction && (
+                <SplitTransactionModal
+                    isOpen={showSplitModal}
+                    onClose={() => setShowSplitModal(false)}
+                    transaction={transaction}
+                />
+            )}
+            {showRecurringModal && transaction && (
+                <RecurringSetupModal
+                    isOpen={showRecurringModal}
+                    onClose={() => setShowRecurringModal(false)}
+                    transaction={transaction}
+                    onSave={() => setShowRecurringModal(false)}
+                />
+            )}
         </>
     );
 };

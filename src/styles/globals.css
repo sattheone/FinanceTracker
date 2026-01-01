@@ -207,3 +207,14 @@
   @apply sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 
          bg-blue-600 text-white px-4 py-2 rounded-md z-50;
 }
+
+/* Hide spin buttons for numeric inputs with the `no-spin` class */
+input.no-spin::-webkit-outer-spin-button,
+input.no-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input.no-spin {
+  -moz-appearance: textfield; /* Firefox */
+}

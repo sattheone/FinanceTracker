@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { Transaction } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
 import { cn } from '../../hooks/useThemeClasses';
 import TransactionTable from './TransactionTable';
+import TagPopover from './TagPopover';
+import TagSettingsOverlay from './TagSettingsOverlay';
+import { useData } from '../../contexts/DataContext';
 
 interface TransactionListOverlayProps {
     isOpen: boolean;
@@ -26,11 +29,39 @@ const TransactionListOverlay: React.FC<TransactionListOverlayProps> = ({
     onDeleteTransaction,
     onUpdateTransaction
 }) => {
+    const { updateTransaction } = useData();
     const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
+    const [showTagPopover, setShowTagPopover] = useState(false);
+    const [tagPopoverTransaction, setTagPopoverTransaction] = useState<Transaction | null>(null);
+    const [tagPopoverAnchor, setTagPopoverAnchor] = useState<HTMLElement | null>(null);
+    const [showTagSettings, setShowTagSettings] = useState(false);
+    const [showBulkTagPopover, setShowBulkTagPopover] = useState(false);
+    const [bulkTagPopoverAnchor, setBulkTagPopoverAnchor] = useState<HTMLElement | null>(null);
+
+    const selectedTxns = useMemo(() => transactions.filter(t => selectedTransactions.has(t.id)), [transactions, selectedTransactions]);
+    const bulkCommonTagIds = useMemo(() => {
+        if (selectedTxns.length === 0) return [] as string[];
+        const initial = (selectedTxns[0].tags || []).slice();
+        return selectedTxns.reduce((acc, t) => acc.filter(id => (t.tags || []).includes(id)), initial);
+    }, [selectedTxns]);
+
+    const handleBulkToggleTag = async (tagId: string) => {
+        const isCommon = bulkCommonTagIds.includes(tagId);
+        for (const t of selectedTxns) {
+            const current = new Set(t.tags || []);
+            if (isCommon) {
+                current.delete(tagId);
+            } else {
+                current.add(tagId);
+            }
+            await updateTransaction(t.id, { tags: Array.from(current) });
+        }
+    };
 
     if (!isOpen) return null;
 
-    const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
+    const displayTransactions = useMemo(() => transactions.filter(t => !t.isSplitParent), [transactions]);
+    const totalAmount = displayTransactions.reduce((sum, t) => sum + t.amount, 0);
 
     const handleSelectTransaction = (id: string) => {
         const newSelected = new Set(selectedTransactions);
@@ -88,7 +119,7 @@ const TransactionListOverlay: React.FC<TransactionListOverlayProps> = ({
                                 {title}
                             </h2>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                                {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
+                                {displayTransactions.length} transaction{displayTransactions.length !== 1 ? 's' : ''}
                                 {selectedTransactions.size > 0 && ` • ${selectedTransactions.size} selected`}
                             </p>
                         </div>
@@ -110,16 +141,63 @@ const TransactionListOverlay: React.FC<TransactionListOverlayProps> = ({
                 {/* Transactions Table - Scrollable */}
                 <div className="flex-1 overflow-y-auto">
                     <TransactionTable
-                        transactions={transactions}
+                        transactions={displayTransactions}
                         selectedTransactions={selectedTransactions}
                         onSelectTransaction={handleSelectTransaction}
                         onSelectAll={handleSelectAll}
+                        onClearSelection={() => setSelectedTransactions(new Set())}
                         onTransactionClick={onTransactionClick}
                         onDeleteTransaction={onDeleteTransaction}
                         onUpdateTransaction={onUpdateTransaction}
+                        onTagClick={(t, anchor) => {
+                            setTagPopoverTransaction(t);
+                            setTagPopoverAnchor(anchor);
+                            setShowTagPopover(true);
+                        }}
+                        onBulkTagClick={(anchor) => {
+                            setBulkTagPopoverAnchor(anchor as HTMLElement);
+                            setShowBulkTagPopover(true);
+                        }}
                     />
                 </div>
             </div>
+
+            {/* Tag Popover */}
+            {tagPopoverTransaction && (
+                <TagPopover
+                    isOpen={showTagPopover}
+                    onClose={() => {
+                        setShowTagPopover(false);
+                        setTagPopoverTransaction(null);
+                        setTagPopoverAnchor(null);
+                    }}
+                    transaction={tagPopoverTransaction}
+                    onUpdateTransaction={updateTransaction}
+                    anchorElement={tagPopoverAnchor}
+                    onOpenTagSettings={() => setShowTagSettings(true)}
+                />
+            )}
+
+            {/* Tag Settings Overlay */}
+            <TagSettingsOverlay
+                isOpen={showTagSettings}
+                onClose={() => setShowTagSettings(false)}
+            />
+
+            {/* Bulk Tag Popover */}
+            {showBulkTagPopover && (
+                <TagPopover
+                    isOpen={showBulkTagPopover}
+                    onClose={() => {
+                        setShowBulkTagPopover(false);
+                        setBulkTagPopoverAnchor(null);
+                    }}
+                    anchorElement={bulkTagPopoverAnchor}
+                    bulkCommonTagIds={bulkCommonTagIds}
+                    onBulkToggleTag={handleBulkToggleTag}
+                    onOpenTagSettings={() => setShowTagSettings(true)}
+                />
+            )}
         </>
     );
 };

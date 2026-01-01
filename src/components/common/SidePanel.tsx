@@ -57,7 +57,9 @@ const SidePanel: React.FC<SidePanelProps> = ({
                     "fixed inset-0 bg-black transition-opacity duration-300 z-[60]",
                     isOpen ? "bg-opacity-50" : "bg-opacity-0 pointer-events-none"
                 )}
-                onClick={onClose}
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
+                aria-hidden="true"
             />
 
             {/* Panel */}
@@ -68,6 +70,8 @@ const SidePanel: React.FC<SidePanelProps> = ({
                     sizeClasses[size],
                     isOpen ? "translate-x-0" : "translate-x-full"
                 )}
+                onMouseDown={(e) => { e.stopPropagation(); }}
+                onClick={(e) => { e.stopPropagation(); }}
             >
                 {/* Header */}
                 <div className="flex-shrink-0 h-14 px-6 flex items-center justify-between border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">

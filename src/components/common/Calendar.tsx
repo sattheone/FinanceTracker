@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, DollarSign, Repeat } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
-import { Transaction, RecurringTransaction, Bill, Category } from '../../types';
+import { Transaction, RecurringTransaction, Bill } from '../../types';
+import { Category } from '../../constants/categories';
 import { formatCurrency } from '../../utils/formatters';
 
 interface CalendarEvent {
@@ -28,7 +29,6 @@ interface CalendarProps {
   showRecurring?: boolean;
   showBills?: boolean;
   viewMode?: 'chip' | 'icon';
-  title?: string;
 }
 
 const Calendar: React.FC<CalendarProps> = ({
@@ -41,8 +41,7 @@ const Calendar: React.FC<CalendarProps> = ({
   showTransactions = true,
   showRecurring = true,
   showBills = true,
-  viewMode = 'chip',
-  title = 'Calendar'
+  viewMode = 'chip'
 }) => {
   const theme = useThemeClasses();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -219,23 +218,23 @@ const Calendar: React.FC<CalendarProps> = ({
       >
         <div className={cn(
           'text-sm font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full',
-          isToday 
-            ? 'bg-blue-500 text-white' 
+          isToday
+            ? 'bg-blue-500 text-white'
             : isSelected
               ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900'
               : theme.textPrimary
         )}>
           {day}
         </div>
-        
+
         {/* Icon View - Show category icons in a grid */}
         {viewMode === 'icon' ? (
           <div className="flex flex-wrap gap-0.5 overflow-hidden">
             {(() => {
               // Group events by category icon to show unique icons only
-              const iconGroups = new Map();
+              const iconGroups = new Map<string, { icon: string; events: CalendarEvent[]; firstEvent: CalendarEvent; category?: Category }>();
               dayEvents.forEach(event => {
-                const icon = getCategoryIcon(event.category);
+                const icon = getCategoryIcon(event.category as string);
                 if (!iconGroups.has(icon)) {
                   iconGroups.set(icon, {
                     icon,
@@ -244,21 +243,24 @@ const Calendar: React.FC<CalendarProps> = ({
                     category: categories.find(c => c.id === event.category)
                   });
                 }
-                iconGroups.get(icon).events.push(event);
+                const group = iconGroups.get(icon);
+                if (group) {
+                  group.events.push(event);
+                }
               });
-              
+
               const uniqueIcons = Array.from(iconGroups.values()).slice(0, 6);
-              
+
               return (
                 <>
                   {uniqueIcons.map((group, index) => {
                     // Get category color for background
                     let categoryColor = '#9CA3AF'; // default gray
-                    
+
                     // Try multiple ways to get the category
                     const eventCategory = group.firstEvent.category;
                     const foundCategory = categories.find(c => c.id === eventCategory);
-                    
+
                     if (foundCategory && foundCategory.color) {
                       categoryColor = foundCategory.color;
                     } else {
@@ -266,10 +268,10 @@ const Calendar: React.FC<CalendarProps> = ({
                       const testColors = ['#FF0000', '#00FF00', '#0000FF', '#FF00FF', '#FFFF00', '#FF8000'];
                       categoryColor = testColors[index % testColors.length];
                     }
-                    
+
                     // Check if any events in this group are recurring
                     const hasRecurring = group.events.some(event => event.type === 'recurring');
-                    
+
                     // Convert hex color to RGB for opacity
                     const hexToRgb = (hex: string) => {
                       const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -279,29 +281,23 @@ const Calendar: React.FC<CalendarProps> = ({
                         b: parseInt(result[3], 16)
                       } : null;
                     };
-                    
+
                     const rgb = hexToRgb(categoryColor);
                     // Always use category color for background, with slight adjustments for status
-                    const backgroundColor = rgb 
-                      ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.25)` 
+                    const backgroundColor = rgb
+                      ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.25)`
                       : 'rgba(156, 163, 175, 0.25)';
-                    
-                    const borderColor = group.firstEvent.isOverdue 
-                      ? 'rgba(239, 68, 68, 0.8)' // Red border for overdue
-                      : rgb 
-                        ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.6)` 
-                        : 'rgba(156, 163, 175, 0.6)';
-                    
+
                     return (
                       <div
                         key={`${group.icon}-${index}`}
-                        style={{ 
+                        style={{
                           position: 'relative',
                           cursor: 'pointer',
                           width: '34px',
                           height: '34px'
                         }}
-                        onClick={(e) => {
+                        onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
                           if (onEventClick) {
                             onEventClick(group.firstEvent);
@@ -326,7 +322,7 @@ const Calendar: React.FC<CalendarProps> = ({
                         </div>
                         {/* Recurring badge */}
                         {hasRecurring && (
-                          <div 
+                          <div
                             style={{
                               position: 'absolute',
                               top: '2px',
@@ -425,7 +421,7 @@ const Calendar: React.FC<CalendarProps> = ({
             >
               Today
             </button>
-            
+
             <button
               onClick={goToPreviousMonth}
               className={cn(theme.btnSecondary, 'p-2')}

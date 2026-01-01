@@ -5,7 +5,7 @@ import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { useData } from '../../contexts/DataContext';
 import SidePanel from '../common/SidePanel';
 import { Category } from '../../constants/categories';
-import CategoryForm from '../categories/CategoryForm';
+import CategoryForm, { CategoryFormHandle } from '../categories/CategoryForm';
 
 interface InlineCategoryEditorProps {
   currentCategory: string;
@@ -36,6 +36,7 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<CategoryFormHandle | null>(null);
 
   // Calculate position when opening
   useEffect(() => {
@@ -73,6 +74,9 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
 
       if (!isInsideTrigger && !isInsidePopover && !isInsideModal) {
         if (!showNewCategoryModal) {
+          // Prevent underlying elements from receiving this click
+          event.preventDefault();
+          event.stopPropagation();
           setIsOpen(false);
           if (onCancel) onCancel();
         }
@@ -189,10 +193,7 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
   const flatList = useMemo(() => {
     const flat: Array<{ id: string; name: string; isParent: boolean }> = [];
     displayGroups.forEach(group => {
-      // Only make parent selectable (and keyboard navigable) if it has no children (standalone category)
-      if (group.children.length === 0) {
-        flat.push({ id: group.parent.id, name: group.parent.name, isParent: true });
-      }
+      // Parent groups are not assignable to transactions; only include children
       group.children.forEach(child => {
         flat.push({ id: child.id, name: child.name, isParent: false });
       });
@@ -245,26 +246,37 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
         </button>
       )}
 
-      {/* Popover Menu - Rendered via Portal */}
+      {/* Popover Menu + Backdrop - Rendered via Portal */}
       {isOpen && popoverPosition && createPortal(
-        <div
-          ref={popoverRef}
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            top: popoverPosition.top,
-            bottom: popoverPosition.bottom,
-            left: popoverPosition.left,
-            width: popoverPosition.width,
-            maxHeight: popoverPosition.maxHeight || 300
-          }}
-          className={cn(
-            "fixed rounded-lg shadow-xl border z-[9999] flex flex-col transform transition-all",
-            // Adjust position if it goes off screen (basic check needed? usually browser handles basic layout, but fixed needs care)
-            // For now rely on basic calc.
-            theme.bgElevated,
-            theme.border
-          )}
-        >
+        <>
+          {/* Backdrop to intercept clicks */}
+          <div
+            className="fixed inset-0 z-[9998] cursor-default"
+            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsOpen(false);
+              if (onCancel) onCancel();
+            }}
+          />
+
+          <div
+            ref={popoverRef}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              top: popoverPosition.top,
+              bottom: popoverPosition.bottom,
+              left: popoverPosition.left,
+              width: popoverPosition.width,
+              maxHeight: popoverPosition.maxHeight || 300
+            }}
+            className={cn(
+              "fixed rounded-lg shadow-xl border z-[9999] flex flex-col transform transition-all",
+              theme.bgElevated,
+              theme.border
+            )}
+          >
           {/* Search Header */}
           <div className="p-2 border-b border-gray-100 dark:border-gray-700">
             <div className="relative">
@@ -312,31 +324,10 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
             {displayGroups.map(({ parent, children }) => (
               <div key={parent.id} className="mb-1">
                 {/* Parent - Header if has children, Button if standalone */}
-                {children.length > 0 ? (
-                  <div className="px-2 py-1.5 mt-2 first:mt-0 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50 rounded flex items-center gap-1">
-                    <span>{parent.icon}</span> {parent.name}
-                  </div>
-                ) : (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSave(parent.id);
-                      setIsOpen(false);
-                    }}
-                    className={cn(
-                      "w-full flex items-center space-x-2 px-2 py-1 rounded-md text-left transition-colors scroll-mt-1",
-                      currentCategory === parent.id
-                        ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                        : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200",
-                      focusedIndex === flatList.findIndex(item => item.id === parent.id) && "bg-gray-100 dark:bg-gray-700 ring-1 ring-blue-500/50"
-                    )}
-                    id={`category-item-${flatList.findIndex(item => item.id === parent.id)}`}
-                  >
-                    <span className="text-sm">{parent.icon}</span>
-                    <span className="text-xs font-medium flex-1">{parent.name}</span>
-                    {currentCategory === parent.id && <Check className="w-3 h-3" />}
-                  </button>
-                )}
+                {/* Render parent as a non-selectable header always */}
+                <div className="px-2 py-1.5 mt-2 first:mt-0 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50 rounded flex items-center gap-1">
+                  <span>{parent.icon}</span> {parent.name}
+                </div>
 
                 {/* Children */}
                 {children.map(child => (
@@ -385,7 +376,8 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
               <span>New Category</span>
             </button>
           </div>
-        </div>,
+          </div>
+        </>,
         document.body
       )}
 
@@ -395,9 +387,18 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
         onClose={() => setShowNewCategoryModal(false)}
         title="Add New Category"
         footer={<></>}
+        headerActions={(
+          <button
+            onClick={() => formRef.current?.submit()}
+            className="px-4 py-1.5 bg-black text-white rounded-lg text-sm font-semibold shadow hover:bg-gray-900"
+          >
+            Add
+          </button>
+        )}
       >
         <div id="category-form-modal" onClick={(e) => e.stopPropagation()}>
           <CategoryForm
+            ref={formRef}
             categories={categories}
             onSave={handleSaveNewCategory}
             onCancel={() => setShowNewCategoryModal(false)}

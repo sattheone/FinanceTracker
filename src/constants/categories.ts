@@ -7,6 +7,7 @@ export interface Category {
     parentId?: string; // ID of the parent category
     order?: number; // Display order
     isSystem?: boolean; // If true, cannot be deleted or renamed (ID locked)
+    budget?: number; // Optional monthly budget limit for this category
 }
 
 export const defaultCategories: Category[] = [

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Edit3, Trash2, Tag, Search, ChevronRight, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { useData } from '../../contexts/DataContext';
 import { formatCurrency } from '../../utils/formatters';
 import { Category } from '../../constants/categories';
-import CategoryForm from './CategoryForm';
+import CategoryForm, { CategoryFormHandle } from './CategoryForm';
+import SidePanel from '../common/SidePanel';
 
 interface CategorySpending {
   category: string;
@@ -27,8 +28,10 @@ const SimpleCategoryManager: React.FC = () => {
   // Use categories from DataContext directly, with fallback
   const categories = contextCategories || [];
 
-  const [showAddForm, setShowAddForm] = useState(false);
+  // Side overlay controls
+  const [showAddPanel, setShowAddPanel] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+    const formRef = useRef<CategoryFormHandle | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [monthlySpending, setMonthlySpending] = useState<CategorySpending[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
@@ -115,7 +118,7 @@ const SimpleCategoryManager: React.FC = () => {
           // type: categoryData.type // Removed as it's not in Omit<Category, "id">
         });
       }
-      setShowAddForm(false);
+      setShowAddPanel(false);
     } catch (error) {
       console.error('Error saving category:', error);
       alert('Failed to save category');
@@ -180,7 +183,7 @@ const SimpleCategoryManager: React.FC = () => {
 
   const startEdit = (category: Category) => {
     setEditingCategory(category);
-    setShowAddForm(true);
+    setShowAddPanel(true);
   };
 
   const toggleExpand = (categoryId: string) => {
@@ -223,7 +226,7 @@ const SimpleCategoryManager: React.FC = () => {
           </p>
         </div>
         <button
-          onClick={() => setShowAddForm(true)}
+          onClick={() => { setEditingCategory(null); setShowAddPanel(true); }}
           className={cn(theme.btnPrimary, 'flex items-center')}
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -264,24 +267,44 @@ const SimpleCategoryManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Add/Edit Category Form */}
-      {showAddForm && (
-        <div className={cn(theme.card, 'border-blue-200 dark:border-blue-700')}>
-          <h3 className={cn(theme.heading3, 'mb-4')}>
-            {editingCategory ? 'Edit Category' : 'Add New Category'}
-          </h3>
-
+      {/* Add/Edit Category - Side Overlay */}
+      <SidePanel
+        isOpen={showAddPanel}
+        onClose={() => { setShowAddPanel(false); setEditingCategory(null); }}
+        title={editingCategory ? 'Edit Category' : 'Add New Category'}
+        headerActions={(
+          <button
+            onClick={() => formRef.current?.submit()}
+            className="px-4 py-1.5 bg-black text-white rounded-lg text-sm font-semibold shadow hover:bg-gray-900"
+          >
+            {editingCategory ? 'Save' : 'Add'}
+          </button>
+        )}
+      >
+        <div id="category-form-modal" onClick={(e) => e.stopPropagation()}>
           <CategoryForm
+            ref={formRef}
             initialData={editingCategory}
             categories={categories}
-            onSave={handleSaveCategory}
-            onCancel={() => {
-              setShowAddForm(false);
-              setEditingCategory(null);
+            onUngroupChildren={async (parentId: string) => {
+              try {
+                const children = categories.filter(c => c.parentId === parentId);
+                if (children.length === 0) return;
+                await Promise.all(children.map(child => updateCategory(child.id, { parentId: undefined })));
+                alert('All subcategories have been ungrouped.');
+              } catch (e) {
+                console.error('Failed to ungroup categories', e);
+                alert('Failed to ungroup categories');
+              }
             }}
+            onSave={async (data) => {
+              await handleSaveCategory(data);
+              setShowAddPanel(false);
+            }}
+            onCancel={() => { setShowAddPanel(false); setEditingCategory(null); }}
           />
         </div>
-      )}
+      </SidePanel>
 
       {/* Categories List */}
       <div className={theme.card}>

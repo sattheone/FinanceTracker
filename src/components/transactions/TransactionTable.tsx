@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Edit3, Trash2, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Edit3, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Tag, MoreHorizontal, Folder, TrendingUp } from 'lucide-react';
 import { Transaction } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
 import { cn, useThemeClasses } from '../../hooks/useThemeClasses';
@@ -12,10 +12,17 @@ interface TransactionTableProps {
     selectedTransactions?: Set<string>;
     onSelectTransaction?: (id: string) => void;
     onSelectAll?: () => void;
+    onClearSelection?: () => void;
     onTransactionClick?: (transaction: Transaction) => void;
     onDeleteTransaction?: (transactionId: string) => void;
     onUpdateTransaction?: (transactionId: string, updates: Partial<Transaction>) => void;
     onContextMenu?: (e: React.MouseEvent, transaction: Transaction) => void;
+    onTagClick?: (transaction: Transaction, anchorElement: HTMLElement) => void;
+    // Bulk action triggers
+    onBulkCategoryClick?: (anchorElement: HTMLElement) => void;
+    onBulkTagClick?: (anchorElement: HTMLElement) => void;
+    onBulkTypeClick?: (anchorElement: HTMLElement) => void;
+    onBulkDelete?: () => void;
 }
 
 type SortKey = 'date' | 'description' | 'category' | 'type' | 'amount';
@@ -29,14 +36,40 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     onTransactionClick,
     onDeleteTransaction,
     onUpdateTransaction,
-    onContextMenu
+    onContextMenu,
+    onTagClick,
+    onBulkCategoryClick,
+    onBulkTagClick,
+    // onBulkTypeClick,
+    onBulkDelete,
+    onClearSelection
 }) => {
     const theme = useThemeClasses();
-    const { categories } = useData();
+    const { categories, tags } = useData();
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
         key: 'date',
         direction: 'desc'
     });
+    const [hoveredTransactionId, setHoveredTransactionId] = useState<string | null>(null);
+    const [moreOpen, setMoreOpen] = useState(false);
+    const [typeOpen, setTypeOpen] = useState(false);
+    const moreContainerRef = useRef<HTMLDivElement | null>(null);
+    const typeContainerRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        if (!moreOpen && !typeOpen) return;
+        const handleOutside = (e: MouseEvent) => {
+            const target = e.target as Node;
+            const inMore = moreContainerRef.current?.contains(target);
+            const inType = typeContainerRef.current?.contains(target);
+            if (!inMore && !inType) {
+                setMoreOpen(false);
+                setTypeOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleOutside);
+        return () => document.removeEventListener('mousedown', handleOutside);
+    }, [moreOpen, typeOpen]);
 
     const handleSort = (key: SortKey) => {
         setSortConfig(current => ({
@@ -45,8 +78,9 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
         }));
     };
 
+    const tableTransactions = useMemo(() => transactions.filter(t => !t.isSplitParent), [transactions]);
     const sortedTransactions = useMemo(() => {
-        const sorted = [...transactions];
+        const sorted = [...tableTransactions];
         return sorted.sort((a, b) => {
             let aValue: any = a[sortConfig.key];
             let bValue: any = b[sortConfig.key];
@@ -66,14 +100,21 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [transactions, sortConfig, categories]);
+    }, [tableTransactions, sortConfig, categories]);
 
-    const handleSelectTransaction = (id: string, e: React.MouseEvent) => {
+    const selectedTxns = useMemo(() => tableTransactions.filter(t => selectedTransactions.has(t.id)), [tableTransactions, selectedTransactions]);
+    const bulkCommonType = useMemo(() => {
+        if (selectedTxns.length === 0) return undefined;
+        const t0 = selectedTxns[0].type;
+        return selectedTxns.every(t => t.type === t0) ? t0 : undefined;
+    }, [selectedTxns]);
+
+    const handleSelectTransaction = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
         e.stopPropagation();
         onSelectTransaction?.(id);
     };
 
-    const handleSelectAllClick = (e: React.MouseEvent) => {
+    const handleSelectAllClick = (e: React.ChangeEvent<HTMLInputElement>) => {
         e.stopPropagation();
         onSelectAll?.();
     };
@@ -100,165 +141,268 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             )}
             onClick={() => handleSort(column)}
         >
-            <div className={cn("flex items-center", align === 'right' && "justify-end")}>
+            <div className={cn("flex items-center", align === 'right' && "justify-end")}> 
                 {label}
                 <SortIcon column={column} />
             </div>
         </th>
     );
 
-    if (transactions.length === 0) {
-        return (
-            <div className="flex items-center justify-center h-full py-16">
-                <div className="text-center">
-                    <div className="text-gray-300 dark:text-gray-600 mb-3">
-                        <svg className="w-20 h-20 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
-                    </div>
-                    <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">
-                        No transactions found
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
     return (
-        <div className="overflow-x-auto">
-            <table className={theme.table}>
-                <thead className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-                    <tr>
-                        {onSelectAll && (
-                            <th className={cn(theme.tableHeader, '!py-2 !px-3 text-xs w-10')}>
-                                <input
-                                    type="checkbox"
-                                    checked={selectedTransactions.size > 0 && selectedTransactions.size === transactions.length}
-                                    onChange={handleSelectAllClick}
-                                    className="cursor-pointer"
-                                />
-                            </th>
-                        )}
-                        <HeaderCell column="date" label="Date" />
-                        <HeaderCell column="description" label="Description" />
-                        <HeaderCell column="category" label="Category" />
-                        <HeaderCell column="type" label="Type" />
-                        <HeaderCell column="amount" label="Amount" align="right" />
-                        <th className={cn(theme.tableHeader, '!py-2 !px-3 text-xs text-right')}>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {sortedTransactions.reduce((acc: React.ReactNode[], transaction, index) => {
-                        const date = new Date(transaction.date);
-                        const monthKey = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-                        const prevTransaction = sortedTransactions[index - 1];
-                        const prevMonthKey = prevTransaction
-                            ? new Date(prevTransaction.date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-                            : '';
-
-                        if (sortConfig.key === 'date' && monthKey !== prevMonthKey) {
-                            acc.push(
-                                <tr key={`header-${monthKey}`} className="bg-white dark:bg-gray-900/50">
-                                    <td colSpan={10} className={cn(theme.textPrimary, "px-3 py-2 text-sm font-bold")}>
-                                        {monthKey}
-                                    </td>
-                                </tr>
-                            );
-                        }
-
-                        acc.push(
-                            <tr
-                                key={transaction.id}
-                                onClick={() => onTransactionClick?.(transaction)}
-                                onContextMenu={(e) => onContextMenu?.(e, transaction)}
-                                className={cn(
-                                    theme.tableRow,
-                                    'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors',
-                                    selectedTransactions.has(transaction.id) && 'bg-blue-50 dark:bg-blue-900/30'
-                                )}
-                            >
-                                {onSelectTransaction && (
-                                    <td className={cn(theme.tableCell, '!py-2 !px-3 w-10')}>
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedTransactions.has(transaction.id)}
-                                            onChange={(e) => handleSelectTransaction(transaction.id, e)}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="cursor-pointer"
-                                        />
-                                    </td>
-                                )}
-                                <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap text-xs')}>
-                                    <span className={theme.textPrimary}>
-                                        {date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                                    </span>
-                                </td>
-                                <td className={cn(theme.tableCell, '!py-2 !px-3 text-xs font-medium max-w-xs truncate')} title={transaction.description}>
-                                    <span className={theme.textPrimary}>{transaction.description}</span>
-                                </td>
-                                <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap text-xs')}>
-                                    {onUpdateTransaction ? (
-                                        <InlineCategoryEditor
-                                            currentCategory={transaction.category || 'other'}
-                                            onSave={(categoryId) => onUpdateTransaction(transaction.id, { category: categoryId })}
-                                        />
-                                    ) : (
-                                        <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-[10px]">
-                                            {transaction.category}
-                                        </span>
-                                    )}
-                                </td>
-                                <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap')}>
-                                    {onUpdateTransaction ? (
-                                        <InlineTypeEditor
-                                            currentType={transaction.type}
-                                            onSave={(newType) => onUpdateTransaction(transaction.id, { type: newType })}
-                                        />
-                                    ) : (
-                                        <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-full ${getTypeColor(transaction.type)}`}>
-                                            {transaction.type}
-                                        </span>
-                                    )}
-                                </td>
-                                <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap text-xs text-right font-medium')}>
-                                    <span className={transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                                        {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                                    </span>
-                                </td>
-                                <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap text-right text-xs font-medium')}>
-                                    <div className="flex justify-end gap-1">
-                                        {onTransactionClick && (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onTransactionClick(transaction);
-                                                }}
-                                                className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-200 p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                                title="Edit Transaction"
-                                            >
-                                                <Edit3 className="w-3 h-3" />
-                                            </button>
-                                        )}
-                                        {onDeleteTransaction && (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onDeleteTransaction(transaction.id);
-                                                }}
-                                                className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-200 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
-                                                title="Delete Transaction"
-                                            >
-                                                <Trash2 className="w-3 h-3" />
-                                            </button>
-                                        )}
-                                    </div>
-                                </td>
+                <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                        <thead className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                            <tr>
+                                <th className={cn(theme.tableHeader, '!py-2 !px-3 text-xs w-10')}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedTransactions.size > 0 && selectedTransactions.size === tableTransactions.length}
+                                        onChange={handleSelectAllClick}
+                                        className="cursor-pointer"
+                                    />
+                                </th>
+                                <HeaderCell column="date" label="Date" />
+                                <HeaderCell column="description" label="Description" />
+                                <HeaderCell column="category" label="Category" />
+                                <HeaderCell column="type" label="Type" />
+                                <HeaderCell column="amount" label="Amount" align="right" />
+                                <th className={cn(theme.tableHeader, '!py-2 !px-3 text-xs w-20')}>Tags</th>
+                                <th className={cn(theme.tableHeader, '!py-2 !px-3 text-xs w-24 text-right')}>Actions</th>
                             </tr>
-                        );
-                        return acc;
-                    }, [])}
-                </tbody>
-            </table>
+                        </thead>
+                        <tbody>
+                            {sortedTransactions.map((transaction) => {
+                                const date = new Date(transaction.date);
+                                return (
+                                    <tr
+                                        key={transaction.id}
+                                        onMouseEnter={() => setHoveredTransactionId(transaction.id)}
+                                        onMouseLeave={() => setHoveredTransactionId(null)}
+                                        onContextMenu={(e) => onContextMenu?.(e, transaction)}
+                                        onClick={() => onTransactionClick?.(transaction)}
+                                        className="hover:bg-gray-50 dark:hover:bg-gray-900/40"
+                                    >
+                                        <td className={cn(theme.tableCell, '!py-2 !px-3 text-xs w-10')}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedTransactions.has(transaction.id)}
+                                                onChange={(e) => handleSelectTransaction(transaction.id, e)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="cursor-pointer"
+                                            />
+                                        </td>
+                                        <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap text-xs')}>
+                                            <span className={theme.textPrimary}>
+                                                {date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                                            </span>
+                                        </td>
+                                        <td className={cn(theme.tableCell, '!py-2 !px-3 text-xs font-medium max-w-xs')} title={transaction.description}>
+                                            <div className="flex items-center gap-2">
+                                                <span className={cn(theme.textPrimary, 'truncate')}>{transaction.description}</span>
+                                            </div>
+                                        </td>
+                                        <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap text-xs')}>
+                                            {onUpdateTransaction ? (
+                                                <InlineCategoryEditor
+                                                    currentCategory={transaction.category || 'other'}
+                                                    onSave={(categoryId) => onUpdateTransaction(transaction.id, { category: categoryId })}
+                                                />
+                                            ) : (
+                                                <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-[10px]">
+                                                    {transaction.category}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap')}>
+                                            {onUpdateTransaction ? (
+                                                <InlineTypeEditor
+                                                    currentType={transaction.type}
+                                                    onSave={(newType) => onUpdateTransaction(transaction.id, { type: newType })}
+                                                />
+                                            ) : (
+                                                <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-full ${getTypeColor(transaction.type)}`}>
+                                                    {transaction.type}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap text-xs text-right font-medium')}>
+                                            <span className={transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                                                {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                                            </span>
+                                        </td>
+                                        <td className={cn(theme.tableCell, '!py-2 !px-2 whitespace-nowrap')}>
+                                            {transaction.tags && transaction.tags.length > 0 ? (
+                                                (() => {
+                                                    const resolved = (transaction.tags || [])
+                                                        .map((id) => tags.find(t => t.id === id))
+                                                        .filter((t): t is NonNullable<typeof t> => !!t);
+                                                    const count = resolved.length;
+                                                    if (count === 0) return <div className="h-5" />;
+                                                    const visible = resolved.slice(0, Math.min(3, count));
+                                                    const label = count > 3 ? '3+' : String(count);
+                                                    return (
+                                                        <div className="inline-flex items-center rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-0.5">
+                                                            <div className="flex -space-x-1 mr-1">
+                                                                {visible.map((tag) => (
+                                                                    <span
+                                                                        key={tag.id}
+                                                                        className="w-3 h-3 rounded-full ring-1 ring-white dark:ring-gray-800"
+                                                                        style={{ backgroundColor: tag.color }}
+                                                                        title={tag.name}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                            <span className="text-[10px] text-gray-700 dark:text-gray-300 font-medium">{label}</span>
+                                                        </div>
+                                                    );
+                                                })()
+                                            ) : (
+                                                <div className="h-5" />
+                                            )}
+                                        </td>
+                                        <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap text-right text-xs font-medium')}>
+                                            <div className="flex justify-end gap-1">
+                                                {onTagClick && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onTagClick(transaction, e.currentTarget);
+                                                        }}
+                                                        className={cn(
+                                                            "text-purple-600 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-200 p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-opacity",
+                                                            hoveredTransactionId === transaction.id ? "opacity-100" : "opacity-0"
+                                                        )}
+                                                        title="Manage Tags"
+                                                    >
+                                                        <Tag className="w-3 h-3" />
+                                                    </button>
+                                                )}
+                                                {onTransactionClick && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onTransactionClick(transaction);
+                                                        }}
+                                                        className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-200 p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                                        title="Edit Transaction"
+                                                    >
+                                                        <Edit3 className="w-3 h-3" />
+                                                    </button>
+                                                )}
+                                                {onDeleteTransaction && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onDeleteTransaction(transaction.id);
+                                                        }}
+                                                        className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-200 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                        title="Delete Transaction"
+                                                    >
+                                                        <Trash2 className="w-3 h-3" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+
+                    {/* Floating bulk actions bar */}
+                    {selectedTransactions.size > 0 && (
+                        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40">
+                            <div className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl">
+                                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                    {selectedTransactions.size} selected
+                                </span>
+                                <button
+                                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+                                    onClick={(e) => onBulkCategoryClick?.(e.currentTarget)}
+                                >
+                                    <Folder className="w-4 h-4" />
+                                    Category
+                                </button>
+                                <button
+                                    className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+                                    onClick={(e) => onBulkTagClick?.(e.currentTarget)}
+                                >
+                                    <Tag className="w-4 h-4" />
+                                    Tag
+                                </button>
+                                <div className="relative" ref={typeContainerRef}>
+                                    <InlineTypeEditor
+                                        currentType={bulkCommonType || 'expense'}
+                                        onSave={(newType) => {
+                                            if (!onUpdateTransaction) return;
+                                            transactions.forEach(t => {
+                                                if (selectedTransactions.has(t.id)) {
+                                                    onUpdateTransaction(t.id, { type: newType });
+                                                }
+                                            });
+                                        }}
+                                        onCancel={() => setTypeOpen(false)}
+                                        triggerClassName={"inline-flex items-center gap-2 h-9 px-3 text-sm bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"}
+                                        triggerContent={(
+                                            <>
+                                                <TrendingUp className="w-4 h-4" />
+                                                <span>Type</span>
+                                            </>
+                                        )}
+                                    />
+                                </div>
+                                {/* More menu */}
+                                <div className="relative" ref={moreContainerRef}>
+                                    <button
+                                        className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+                                        onClick={() => setMoreOpen(v => !v)}
+                                    >
+                                        <MoreHorizontal className="w-4 h-4" />
+                                        More
+                                    </button>
+                                    {moreOpen && (
+                                        <div className="absolute bottom-12 right-0 w-44 z-50">
+                                            <div className={cn(theme.dropdown, "py-1")}
+                                                role="menu"
+                                                aria-orientation="vertical"
+                                                aria-labelledby="more-menu">
+                                                <button
+                                                    className={cn(theme.dropdownItem, "w-full text-left text-sm")}
+                                                    onClick={() => {
+                                                        onSelectAll?.();
+                                                        setMoreOpen(false);
+                                                    }}
+                                                >
+                                                    Select all
+                                                </button>
+                                                <button
+                                                    className={cn(theme.dropdownItem, "w-full text-left text-sm")}
+                                                    onClick={() => {
+                                                        onClearSelection?.();
+                                                        setMoreOpen(false);
+                                                    }}
+                                                >
+                                                    Unselect all
+                                                </button>
+                                                <div className="px-1 pt-1">
+                                                    <button
+                                                        className={cn(theme.dropdownItem, "w-full text-left text-sm rounded-md hover:bg-red-50")}
+                                                        style={{ color: '#dc2626' }}
+                                                        onClick={() => {
+                                                            onBulkDelete?.();
+                                                            setMoreOpen(false);
+                                                        }}
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
         </div>
     );
 };

@@ -4,7 +4,9 @@ import { useData } from '../../contexts/DataContext';
 import AutoCategorizationService from '../../services/autoCategorization';
 import InlineCategoryEditor from '../transactions/InlineCategoryEditor';
 import InlineAccountPicker from '../transactions/InlineAccountPicker';
-import { ChevronDown, Calendar, FileText } from 'lucide-react';
+import { ChevronDown, Calendar, FileText, Tag as TagIcon, Plus, X } from 'lucide-react';
+import TagPopover from '../transactions/TagPopover';
+import TagCreationModal from '../transactions/TagCreationModal';
 
 
 export interface SimpleTransactionFormHandle {
@@ -28,7 +30,7 @@ const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTran
   autoSave = false,
   onSaveStatusChange
 }, ref) => {
-  const { bankAccounts, categories: contextCategories } = useData();
+  const { bankAccounts, categories: contextCategories, tags, updateTransaction, addTag } = useData();
 
   // Use categories from context
   const categories = contextCategories || [];
@@ -49,6 +51,10 @@ const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTran
   const [errors, setErrors] = useState<Record<string, string>>({});
   const isFormDirty = useRef(false);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [showTagPopover, setShowTagPopover] = useState(false);
+  const [tagPopoverAnchor, setTagPopoverAnchor] = useState<HTMLElement | null>(null);
+  const [showCreateTagModal, setShowCreateTagModal] = useState(false);
+  const [createTagInitialName, setCreateTagInitialName] = useState('');
 
   useEffect(() => {
     if (transaction) {
@@ -316,9 +322,118 @@ const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTran
             className="w-full bg-gray-50 dark:bg-gray-900/50 rounded-lg border-none text-sm p-3 focus:ring-0 focus:outline-none resize-none h-20 placeholder-gray-400"
           />
         </div>
-
+        {/* Tags */}
+        <div>
+          <div className="flex items-center text-gray-500 mb-2">
+            <TagIcon className="w-4 h-4 mr-2" />
+            <h4 className="text-xs font-medium uppercase tracking-wide">Tags</h4>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            {formData.tags && formData.tags.length > 0 ? (
+              formData.tags.map((tagId) => {
+                const tag = tags.find(t => t.id === tagId);
+                if (!tag) return null;
+                return (
+                  <span
+                    key={tagId}
+                    className="group inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm relative"
+                  >
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: tag.color }}
+                    />
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{tag.name}</span>
+                    {transaction && (
+                      <button
+                        type="button"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                        aria-label="Remove tag"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const updated = (transaction.tags || []).filter(id => id !== tagId);
+                          // Optimistic UI: update local form state immediately
+                          setFormData(prev => ({ ...prev, tags: updated }));
+                          // Persist in background
+                          Promise.resolve(updateTransaction(transaction.id, { tags: updated })).catch(() => {
+                            // Optional: revert on failure
+                          });
+                        }}
+                      >
+                        <X className="w-3 h-3" strokeWidth={3} />
+                      </button>
+                    )}
+                  </span>
+                );
+              })
+            ) : (
+              <p className="text-sm text-gray-400">No tags</p>
+            )}
+            {transaction && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setTagPopoverAnchor(e.currentTarget as HTMLElement);
+                  setShowTagPopover(true);
+                }}
+                className="ml-1 p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
+                aria-label="Add tag"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
 
       </div>
+
+      {/* Tag Popover for detail view */}
+      {transaction && (
+        <TagPopover
+          isOpen={showTagPopover}
+          onClose={() => {
+            setShowTagPopover(false);
+            setTagPopoverAnchor(null);
+          }}
+          transaction={transaction}
+          onUpdateTransaction={updateTransaction}
+          anchorElement={tagPopoverAnchor}
+          onOpenTagSettings={() => {}}
+          onOpenTagCreate={(initialName) => {
+            setCreateTagInitialName(initialName);
+            setShowCreateTagModal(true);
+          }}
+        />
+      )}
+
+      {/* Local Tag Creation Modal */}
+      {transaction && (
+        <TagCreationModal
+          isOpen={showCreateTagModal}
+          onClose={() => setShowCreateTagModal(false)}
+          initialName={createTagInitialName}
+          onCreateTag={async (name, color) => {
+            try {
+              const newTag = await addTag({
+                name,
+                color,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              });
+              if (newTag) {
+                const existingTags = transaction.tags || [];
+                const updatedTags = [...existingTags, newTag.id];
+                updateTransaction(transaction.id, { tags: updatedTags });
+              }
+            } finally {
+              setShowCreateTagModal(false);
+              setCreateTagInitialName('');
+            }
+          }}
+        />
+      )}
 
       {/* Actions */}
       {

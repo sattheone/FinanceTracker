@@ -1,11 +1,12 @@
-import React from 'react';
-import { X, CreditCard } from 'lucide-react';
+import React, { useState } from 'react';
+import { CreditCard } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { Transaction } from '../../types';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency } from '../../utils/formatters';
 import SidePanel from '../common/SidePanel';
-import InlineCategoryEditor from './InlineCategoryEditor';
-import InlineTypeEditor from './InlineTypeEditor';
+import TransactionTable from './TransactionTable';
+import TagPopover from './TagPopover';
+import TagSettingsOverlay from './TagSettingsOverlay';
 import { useData } from '../../contexts/DataContext';
 
 interface TransactionListModalProps {
@@ -25,6 +26,10 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
 }) => {
   const theme = useThemeClasses();
   const { updateTransaction, deleteTransaction, transactions: allTransactions } = useData();
+  const [showTagPopover, setShowTagPopover] = useState(false);
+  const [tagPopoverTransaction, setTagPopoverTransaction] = useState<Transaction | null>(null);
+  const [tagPopoverAnchor, setTagPopoverAnchor] = useState<HTMLElement | null>(null);
+  const [showTagSettings, setShowTagSettings] = useState(false);
 
   // Get fresh transaction data to ensure UI updates immediately
   const freshTransactions = React.useMemo(() => {
@@ -35,6 +40,13 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
   const handleDeleteTransaction = (transactionId: string) => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       deleteTransaction(transactionId);
+    }
+  };
+
+  const handleUpdateTransaction = (transactionId: string, updates: Partial<Transaction>) => {
+    const transaction = freshTransactions.find(t => t.id === transactionId);
+    if (transaction) {
+      updateTransaction(transactionId, { ...transaction, ...updates });
     }
   };
 
@@ -89,92 +101,42 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-600">
-                    <th className="text-left py-1 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">Date</th>
-                    <th className="text-left py-1 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">Description</th>
-                    <th className="text-left py-1 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">Category</th>
-                    <th className="text-left py-1 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">Type</th>
-                    <th className="text-right py-1 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">Amount</th>
-                    <th className="text-right py-1 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {freshTransactions.map((transaction) => (
-                    <tr
-                      key={transaction.id}
-                      className={cn(
-                        'border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors'
-                      )}
-                    >
-                      {/* Date */}
-                      <td className="py-1 px-2">
-                        <div className="flex items-center space-x-2">
-                          <span className={cn(theme.textSecondary, 'text-xs whitespace-nowrap')}>
-                            {formatDate(transaction.date)}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Description */}
-                      <td className="py-1 px-2">
-                        <div>
-                          <p className={cn(theme.textPrimary, 'text-xs font-medium truncate max-w-xs')} title={transaction.description}>
-                            {transaction.description}
-                          </p>
-                          {transaction.paymentMethod && (
-                            <p className={cn(theme.textMuted, 'text-[10px] capitalize')}>
-                              {transaction.paymentMethod.replace('_', ' ')}
-                            </p>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Category */}
-                      <td className="py-1 px-2">
-                        <InlineCategoryEditor
-                          currentCategory={transaction.category || 'other'}
-                          onSave={(categoryId) => updateTransaction(transaction.id, { ...transaction, category: categoryId })}
-                        />
-                      </td>
-
-                      {/* Type Badge */}
-                      <td className="py-1 px-2">
-                        <InlineTypeEditor
-                          currentType={transaction.type}
-                          onSave={(newType) => updateTransaction(transaction.id, { ...transaction, type: newType })}
-                        />
-                      </td>
-
-                      {/* Amount */}
-                      <td className="py-1 px-2 text-right">
-                        <span className={cn(
-                          'text-xs font-bold',
-                          transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                        )}>
-                          {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                        </span>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-1 px-2 text-right">
-                        <button
-                          onClick={() => handleDeleteTransaction(transaction.id)}
-                          className="p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:text-red-200 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                          title="Delete Transaction"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <TransactionTable
+                transactions={freshTransactions}
+                onDeleteTransaction={handleDeleteTransaction}
+                onUpdateTransaction={handleUpdateTransaction}
+                onTagClick={(t, anchor) => {
+                  setTagPopoverTransaction(t);
+                  setTagPopoverAnchor(anchor);
+                  setShowTagPopover(true);
+                }}
+              />
             </div>
           )}
         </div>
       </div>
+
+      {/* Tag Popover */}
+      {tagPopoverTransaction && (
+        <TagPopover
+          isOpen={showTagPopover}
+          onClose={() => {
+            setShowTagPopover(false);
+            setTagPopoverTransaction(null);
+            setTagPopoverAnchor(null);
+          }}
+          transaction={tagPopoverTransaction}
+          onUpdateTransaction={updateTransaction}
+          anchorElement={tagPopoverAnchor}
+          onOpenTagSettings={() => setShowTagSettings(true)}
+        />
+      )}
+
+      {/* Tag Settings Overlay */}
+      <TagSettingsOverlay
+        isOpen={showTagSettings}
+        onClose={() => setShowTagSettings(false)}
+      />
     </SidePanel>
   );
 };

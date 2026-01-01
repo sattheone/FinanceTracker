@@ -20,6 +20,21 @@ export interface Transaction {
     id: string;
     name: string;
   };
+  // Split relationships
+  splitGroupId?: string; // Shared ID across all split parts
+  splitParentId?: string; // Points to original transaction if this is a child
+  isSplitParent?: boolean; // Marks the original transaction before splitting
+  originalAmount?: number; // Preserves original amount for split edit/restore
+  splitOrder?: number; // Order of child within a split group (edit rendering)
+}
+
+// Tag for transaction categorization
+export interface Tag {
+  id: string;
+  name: string;
+  color: string; // Hex color code
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Simple Goal Contribution Tracking

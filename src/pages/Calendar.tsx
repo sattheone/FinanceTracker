@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar as CalendarIcon, Filter, Download, LayoutGrid, List } from 'lucide-react';
+import { Filter, LayoutGrid, List } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
 import Calendar from '../components/common/Calendar';
@@ -35,8 +35,7 @@ const CalendarPage: React.FC = () => {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [selectedDateTransactions, setSelectedDateTransactions] = useState<Transaction[]>([]);
   const [modalTitle, setModalTitle] = useState('');
-  const [selectedTransactionForDetail, setSelectedTransactionForDetail] = useState<Transaction | null>(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
+
 
   // Filter transactions based on current filters
   const filteredTransactions = transactions.filter(transaction => {
@@ -44,12 +43,12 @@ const CalendarPage: React.FC = () => {
     if (filters.transactionType !== 'all' && transaction.type !== filters.transactionType) {
       return false;
     }
-    
+
     // Filter by selected categories
     if (filters.selectedCategories.length > 0 && !filters.selectedCategories.includes(transaction.category)) {
       return false;
     }
-    
+
     return true;
   });
 
@@ -88,23 +87,20 @@ const CalendarPage: React.FC = () => {
       const transactionDate = new Date(transaction.date);
       return transactionDate.toDateString() === date.toDateString();
     });
-    
+
     if (dateTransactions.length > 0) {
       setSelectedDateTransactions(dateTransactions);
-      setModalTitle(`Transactions for ${date.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+      setModalTitle(`Transactions for ${date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
       })}`);
       setShowTransactionModal(true);
     }
   };
 
-  const exportCalendarData = () => {
-    // Export calendar data as CSV or PDF
-    console.log('Exporting calendar data...');
-  };
+
 
   // Filter categories by search query
   const filteredCategories = categories.filter(category =>
@@ -128,7 +124,7 @@ const CalendarPage: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="flex items-center space-x-3 relative">
           {/* View Mode Toggle */}
           <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
@@ -170,24 +166,24 @@ const CalendarPage: React.FC = () => {
             >
               <Filter className="w-4 h-4 mr-2" />
               Filters
-              {(filters.selectedCategories.length > 0 || 
-                filters.transactionType !== 'all' || 
-                !filters.showTransactions || 
-                !filters.showRecurring || 
+              {(filters.selectedCategories.length > 0 ||
+                filters.transactionType !== 'all' ||
+                !filters.showTransactions ||
+                !filters.showRecurring ||
                 !filters.showBills) && (
-                <span className="ml-1 w-2 h-2 bg-blue-500 rounded-full"></span>
-              )}
+                  <span className="ml-1 w-2 h-2 bg-blue-500 rounded-full"></span>
+                )}
             </button>
-            
+
             {/* Filter Popover */}
             {showFilters && (
               <>
                 {/* Backdrop */}
-                <div 
-                  className="fixed inset-0 z-40" 
+                <div
+                  className="fixed inset-0 z-40"
                   onClick={() => setShowFilters(false)}
                 />
-                
+
                 {/* Popover Content */}
                 <div className="absolute right-0 top-full mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 max-h-[calc(100vh-200px)] overflow-y-auto">
                   <div className="p-4 space-y-4">
@@ -210,7 +206,7 @@ const CalendarPage: React.FC = () => {
                         Reset All
                       </button>
                     </div>
-                    
+
                     {/* Display Type Filters */}
                     <div>
                       <label className={cn(theme.textSecondary, 'block text-xs font-medium mb-2')}>Display</label>
@@ -250,7 +246,7 @@ const CalendarPage: React.FC = () => {
                         </button>
                       </div>
                     </div>
-                    
+
                     {/* Transaction Type Filter */}
                     <div>
                       <label className={cn(theme.textSecondary, 'block text-xs font-medium mb-2')}>Transaction Type</label>
@@ -292,7 +288,7 @@ const CalendarPage: React.FC = () => {
                           </button>
                         )}
                       </div>
-                      
+
                       {/* Search Input */}
                       <input
                         type="text"
@@ -304,7 +300,7 @@ const CalendarPage: React.FC = () => {
                           'text-sm py-2 mb-2'
                         )}
                       />
-                      
+
                       {/* Category List */}
                       <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
                         {filteredCategories.length > 0 ? (
@@ -372,7 +368,6 @@ const CalendarPage: React.FC = () => {
         showRecurring={filters.showRecurring}
         showBills={filters.showBills}
         viewMode={viewMode}
-        title="Financial Calendar"
       />
 
       {/* Transaction List Overlay */}
@@ -383,8 +378,8 @@ const CalendarPage: React.FC = () => {
         subtitle=""
         transactions={selectedDateTransactions}
         onTransactionClick={(transaction) => {
-          setSelectedTransactionForDetail(transaction);
-          setShowDetailModal(true);
+          // Placeholder for detail view
+          console.log('View detail:', transaction);
         }}
         onDeleteTransaction={(transactionId) => {
           if (window.confirm('Are you sure you want to delete this transaction?')) {

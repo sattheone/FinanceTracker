@@ -33,7 +33,8 @@ export class FirebaseService {
     BILLS: 'bills',
     CATEGORY_RULES: 'categoryRules',
     CATEGORIES: 'categories',
-    SIP_RULES: 'sipRules'
+    SIP_RULES: 'sipRules',
+    TAGS: 'tags'
   };
 
   // User Profile Operations
@@ -1307,6 +1308,65 @@ export class FirebaseService {
       await deleteDoc(doc(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.CATEGORIES, categoryId));
     } catch (error) {
       console.error('Error deleting category:', error);
+      throw error;
+    }
+  }
+
+  // ==================== Tag Operations ====================
+
+  static async getTags(userId: string): Promise<any[]> {
+    try {
+      const q = query(
+        collection(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.TAGS)
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('Error getting tags:', error);
+      throw error;
+    }
+  }
+
+  static async addTag(userId: string, tag: any): Promise<string> {
+    try {
+      const cleanTag = Object.fromEntries(
+        Object.entries(tag).filter(([_, value]) => value !== undefined)
+      );
+
+      const docRef = await addDoc(collection(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.TAGS), {
+        ...cleanTag,
+        userId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error adding tag:', error);
+      throw error;
+    }
+  }
+
+  static async updateTag(userId: string, tagId: string, updates: any): Promise<void> {
+    try {
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, value]) => value !== undefined)
+      );
+
+      await updateDoc(doc(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.TAGS, tagId), {
+        ...cleanUpdates,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error updating tag:', error);
+      throw error;
+    }
+  }
+
+  static async deleteTag(userId: string, tagId: string): Promise<void> {
+    try {
+      await deleteDoc(doc(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.TAGS, tagId));
+    } catch (error) {
+      console.error('Error deleting tag:', error);
       throw error;
     }
   }

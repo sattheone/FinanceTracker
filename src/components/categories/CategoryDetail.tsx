@@ -17,6 +17,8 @@ import TransactionTable from '../transactions/TransactionTable';
 import SimpleTransactionModal from '../transactions/SimpleTransactionModal';
 import RulePrompt from '../transactions/RulePrompt';
 import RuleCreationDialog from '../transactions/RuleCreationDialog';
+import TagPopover from '../transactions/TagPopover';
+import TagSettingsOverlay from '../transactions/TagSettingsOverlay';
 import { useData } from '../../contexts/DataContext';
 
 interface CategoryDetailProps {
@@ -35,6 +37,12 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     const { updateTransaction, categories, addCategoryRule } = useData();
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
     
+    // Tag management state
+    const [showTagPopover, setShowTagPopover] = useState(false);
+    const [tagPopoverTransaction, setTagPopoverTransaction] = useState<Transaction | null>(null);
+    const [tagPopoverAnchor, setTagPopoverAnchor] = useState<HTMLElement | null>(null);
+    const [showTagSettings, setShowTagSettings] = useState(false);
+
     // Rule creation state
     const [showRulePrompt, setShowRulePrompt] = useState(false);
     const [rulePromptData, setRulePromptData] = useState<{
@@ -111,7 +119,9 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     const currentMonthStats = useMemo(() => {
         const stats = {
             spent: 0,
-            budget: monthlyBudget?.categoryBudgets?.[category.id] || 0,
+            budget: (category.budget !== undefined
+                ? category.budget
+                : (monthlyBudget?.categoryBudgets?.[category.id] || 0)),
             count: 0
         };
 
@@ -267,6 +277,11 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                     transactions={transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
                     onTransactionClick={(t) => setSelectedTransaction(t)}
                     onUpdateTransaction={handleUpdateTransaction}
+                    onTagClick={(t, anchor) => {
+                        setTagPopoverTransaction(t);
+                        setTagPopoverAnchor(anchor);
+                        setShowTagPopover(true);
+                    }}
                 // Only passing update, delete handled via overlay or could be passed here
                 />
             </div>
@@ -316,6 +331,28 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                     />
                 </>
             )}
+
+            {/* Tag Popover */}
+            {tagPopoverTransaction && (
+                <TagPopover
+                    isOpen={showTagPopover}
+                    onClose={() => {
+                        setShowTagPopover(false);
+                        setTagPopoverTransaction(null);
+                        setTagPopoverAnchor(null);
+                    }}
+                    transaction={tagPopoverTransaction}
+                    onUpdateTransaction={updateTransaction}
+                    anchorElement={tagPopoverAnchor}
+                    onOpenTagSettings={() => setShowTagSettings(true)}
+                />
+            )}
+
+            {/* Tag Settings Overlay */}
+            <TagSettingsOverlay
+                isOpen={showTagSettings}
+                onClose={() => setShowTagSettings(false)}
+            />
         </div>
     );
 };

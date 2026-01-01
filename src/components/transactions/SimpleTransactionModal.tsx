@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Loader2, Check } from 'lucide-react';
+import { Loader2, Check, Scissors, Repeat, Trash2 } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { useData } from '../../contexts/DataContext';
 import { Transaction } from '../../types';
@@ -7,6 +7,8 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 import SidePanel from '../common/SidePanel';
 import SimpleTransactionForm, { SimpleTransactionFormHandle } from '../forms/SimpleTransactionForm';
 import InlineCategoryEditor from './InlineCategoryEditor';
+import SplitTransactionModal from './SplitTransactionModal';
+import RecurringSetupModal from './RecurringSetupModal';
 
 interface SimpleTransactionModalProps {
   transaction: Transaction;
@@ -39,9 +41,11 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
   onClose,
   onTransactionClick
 }) => {
-  const { transactions: allTransactions, updateTransaction, categories: contextCategories } = useData();
+  const { transactions: allTransactions, updateTransaction, deleteTransaction, categories: contextCategories } = useData();
   const theme = useThemeClasses();
   const formRef = useRef<SimpleTransactionFormHandle>(null);
+  const [showSplitModal, setShowSplitModal] = useState(false);
+  const [showRecurringModal, setShowRecurringModal] = useState(false);
 
   // LIVE DATA
   const transaction = allTransactions.find(t => t.id === passedTransaction.id) || passedTransaction;
@@ -96,6 +100,7 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
     if (!normalizedCurrentMerchant) return [];
 
     return allTransactions
+      .filter(t => !t.isSplitParent)
       .filter(t => normalizeMerchant(extractMerchant(t.description)) === normalizedCurrentMerchant)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [allTransactions, normalizedCurrentMerchant]);
@@ -136,7 +141,46 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
     });
   };
 
+  // Avoid showing zero-amount split parent in the detail view.
+  // When a split is saved, automatically switch to the first child transaction.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (transaction.isSplitParent && Number(transaction.amount) === 0) {
+      const children = allTransactions
+        .filter(t => t.splitGroupId === transaction.splitGroupId && !t.isSplitParent)
+        .sort((a, b) => {
+          const ao = (a as any).splitOrder ?? 0;
+          const bo = (b as any).splitOrder ?? 0;
+          return ao - bo;
+        });
+      if (children.length > 0) {
+        onTransactionClick && onTransactionClick(children[0]);
+      } else {
+        // If no children, simply close the detail as there is nothing useful to show.
+        onClose();
+      }
+    }
+  }, [isOpen, transaction.isSplitParent, transaction.amount, transaction.splitGroupId, allTransactions, onTransactionClick, onClose]);
+
+  // Handle child recreation after edit: if the current transaction ID no longer exists
+  // (because children were deleted and recreated for ordering), redirect to the new child.
+  useEffect(() => {
+    if (!isOpen) return;
+    const exists = allTransactions.some(t => t.id === passedTransaction.id);
+    const wasChild = !!passedTransaction.splitGroupId && !!passedTransaction.splitParentId && !passedTransaction.isSplitParent;
+    if (!exists && wasChild) {
+      const children = allTransactions.filter(t => t.splitGroupId === passedTransaction.splitGroupId && !t.isSplitParent);
+      if (children.length > 0) {
+        // Prefer a child with the same category; fallback to splitOrder
+        const sameCategory = children.find(c => c.category === passedTransaction.category);
+        const nextChild = sameCategory || children.sort((a, b) => ((a as any).splitOrder ?? 0) - ((b as any).splitOrder ?? 0))[0];
+        onTransactionClick && onTransactionClick(nextChild);
+      }
+    }
+  }, [isOpen, allTransactions, passedTransaction.id, passedTransaction.splitGroupId, passedTransaction.splitParentId, passedTransaction.isSplitParent, passedTransaction.category, onTransactionClick]);
+
   return (
+    <>
     <SidePanel
       isOpen={isOpen}
       onClose={onClose}
@@ -159,6 +203,47 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
           {saveStatus === 'error' && (
             <span className="text-xs text-red-500">Error saving</span>
           )}
+          {/* Top Bar Actions */}
+          <div className="flex items-center gap-2 ml-4">
+            {(() => {
+              const isChildSplit = !!transaction.splitGroupId && !!transaction.splitParentId && !transaction.isSplitParent;
+              const hasActiveChildren = transaction.splitGroupId
+                ? allTransactions.some(t => t.splitGroupId === transaction.splitGroupId && !t.isSplitParent)
+                : false;
+              const label = isChildSplit && hasActiveChildren ? 'Edit Split' : 'Split';
+              return (
+                <button
+                  onClick={() => setShowSplitModal(true)}
+                  className="px-2 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 flex items-center gap-1"
+                  title={label}
+                >
+                  <Scissors className="w-4 h-4" />
+                  <span className="text-xs font-medium">{label}</span>
+                </button>
+              );
+            })()}
+            <button
+              onClick={() => setShowRecurringModal(true)}
+              className="px-2 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 flex items-center gap-1"
+              title="Recurring"
+            >
+              <Repeat className="w-4 h-4" />
+              <span className="text-xs font-medium">Recurring</span>
+            </button>
+            <button
+              onClick={() => {
+                if (confirm('Are you sure you want to delete this transaction?')) {
+                  deleteTransaction(transaction.id);
+                  onClose();
+                }
+              }}
+              className="px-2 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center gap-1"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="text-xs font-medium">Delete</span>
+            </button>
+          </div>
         </div>
       }
     >
@@ -275,6 +360,24 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
         </div>
       </div>
     </SidePanel>
+    {/* Split Modal */}
+    {showSplitModal && (
+      <SplitTransactionModal
+        isOpen={showSplitModal}
+        onClose={() => setShowSplitModal(false)}
+        transaction={transaction.splitParentId ? (allTransactions.find(t => t.id === transaction.splitParentId) || transaction) : transaction}
+      />
+    )}
+    {/* Recurring Modal */}
+    {showRecurringModal && (
+      <RecurringSetupModal
+        isOpen={showRecurringModal}
+        onClose={() => setShowRecurringModal(false)}
+        transaction={transaction}
+        onSave={() => setShowRecurringModal(false)}
+      />
+    )}
+    </>
   );
 };
 

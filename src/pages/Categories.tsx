@@ -4,7 +4,9 @@ import CategoryList from '../components/categories/CategoryList';
 import CategoryDetail from '../components/categories/CategoryDetail';
 import CategoryOverview from '../components/categories/CategoryOverview';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
-import { X, ChevronDown, Filter, Calendar, Building2, TrendingUp } from 'lucide-react';
+import { X, ChevronDown, Filter, Calendar, Building2, TrendingUp, Plus, List, Layers } from 'lucide-react';
+import SidePanel from '../components/common/SidePanel';
+import CategoryForm, { CategoryFormHandle } from '../components/categories/CategoryForm';
 
 const Categories: React.FC = () => {
     const { categories, transactions, monthlyBudget, bankAccounts } = useData();
@@ -13,9 +15,12 @@ const Categories: React.FC = () => {
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
     const [includeInvestments, setIncludeInvestments] = useState(false);
+    const [categoryDisplayMode, setCategoryDisplayMode] = useState<'flat' | 'grouped'>('flat');
     const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
     const [showFilters, setShowFilters] = useState(false);
+    const [showAddPanel, setShowAddPanel] = useState(false);
     const filterRef = useRef<HTMLDivElement>(null);
+    const formRef = useRef<CategoryFormHandle | null>(null);
 
     // Close popover when clicking outside
     useEffect(() => {
@@ -116,32 +121,33 @@ const Categories: React.FC = () => {
                             Categories
                         </h1>
                         
-                        {/* Filter Popover */}
-                        <div className="relative" ref={filterRef}>
-                            <button
-                                onClick={() => setShowFilters(!showFilters)}
-                                className={cn(
-                                    "relative p-2 rounded-lg transition-all",
-                                    showFilters || activeFilterCount > 0
-                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                                        : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
-                                )}
-                            >
-                                <Filter className="w-4 h-4" />
-                                {activeFilterCount > 0 && (
-                                    <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center bg-blue-600 text-white text-[10px] rounded-full">
-                                        {activeFilterCount}
-                                    </span>
-                                )}
-                            </button>
+                        {/* Header Actions: Filter + Add */}
+                        <div className="flex items-center gap-2">
+                            <div className="relative" ref={filterRef}>
+                                <button
+                                    onClick={() => setShowFilters(!showFilters)}
+                                    className={cn(
+                                        "relative p-2 rounded-lg transition-all",
+                                        showFilters || activeFilterCount > 0
+                                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                            : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+                                    )}
+                                >
+                                    <Filter className="w-4 h-4" />
+                                    {activeFilterCount > 0 && (
+                                        <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center bg-blue-600 text-white text-[10px] rounded-full">
+                                            {activeFilterCount}
+                                        </span>
+                                    )}
+                                </button>
 
-                            {/* Popover Content */}
-                            {showFilters && (
-                                <div className="fixed mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-[100]" 
-                                     style={{ 
-                                         top: filterRef.current?.getBoundingClientRect().bottom ?? 0,
-                                         left: Math.max(16, (filterRef.current?.getBoundingClientRect().right ?? 0) - 288)
-                                     }}>
+                                {/* Popover Content */}
+                                {showFilters && (
+                                    <div className="fixed mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-[100]" 
+                                         style={{ 
+                                             top: filterRef.current?.getBoundingClientRect().bottom ?? 0,
+                                             left: Math.max(16, (filterRef.current?.getBoundingClientRect().right ?? 0) - 288)
+                                         }}>
                                     <div className="p-3 space-y-3">
                                         {/* Account Filter */}
                                         <div>
@@ -209,8 +215,33 @@ const Categories: React.FC = () => {
                                             </button>
                                         </div>
                                     )}
-                                </div>
-                            )}
+                                    </div>
+                                )}
+                            </div>
+                            {/* Category Display Mode Toggle */}
+                            <button
+                                onClick={() => setCategoryDisplayMode(categoryDisplayMode === 'flat' ? 'grouped' : 'flat')}
+                                className={cn(
+                                    "relative p-2 rounded-lg transition-all",
+                                    categoryDisplayMode === 'grouped'
+                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                        : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+                                )}
+                                title={categoryDisplayMode === 'grouped' ? 'Grouped View' : 'Individual View'}
+                            >
+                                {categoryDisplayMode === 'grouped' ? (
+                                    <Layers className="w-4 h-4" />
+                                ) : (
+                                    <List className="w-4 h-4" />
+                                )}
+                            </button>
+                            <button
+                                onClick={() => setShowAddPanel(true)}
+                                className={cn("p-2 rounded-lg transition-all bg-black text-white hover:bg-gray-900")}
+                                title="Add Category"
+                            >
+                                <Plus className="w-4 h-4" />
+                            </button>
                         </div>
                     </div>
 
@@ -241,6 +272,7 @@ const Categories: React.FC = () => {
                             This Year
                         </button>
                     </div>
+
 
                     {/* Active Filter Chips - Always show when filters are active */}
                     {activeFilterCount > 0 && (
@@ -281,8 +313,33 @@ const Categories: React.FC = () => {
                         spendingByCategory={expenseSpending}
                         investmentSpending={includeInvestments ? investmentSpending : undefined}
                         monthlyBudget={monthlyBudget}
+                        displayMode={categoryDisplayMode}
                     />
                 </div>
+
+                {/* Add Category Side Overlay */}
+                <SidePanel
+                    isOpen={showAddPanel}
+                    onClose={() => setShowAddPanel(false)}
+                    title="Add New Category"
+                    headerActions={(
+                        <button
+                            onClick={() => formRef.current?.submit()}
+                            className="px-4 py-1.5 bg-black text-white rounded-lg text-sm font-semibold shadow hover:bg-gray-900"
+                        >
+                            Add
+                        </button>
+                    )}
+                >
+                    <div id="category-form-modal" onClick={(e) => e.stopPropagation()}>
+                        <CategoryForm
+                            ref={formRef}
+                            categories={categories}
+                            onSave={() => setShowAddPanel(false)}
+                            onCancel={() => setShowAddPanel(false)}
+                        />
+                    </div>
+                </SidePanel>
             </div>
 
             {/* RIGHT PANE: Detail View */}

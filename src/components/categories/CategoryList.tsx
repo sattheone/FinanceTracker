@@ -12,6 +12,7 @@ interface CategoryListProps {
     spendingByCategory: Record<string, number>;
     investmentSpending?: Record<string, number>;
     monthlyBudget: MonthlyBudget | null;
+    displayMode?: 'flat' | 'grouped';
 }
 
 const CategoryList: React.FC<CategoryListProps> = ({
@@ -20,11 +21,12 @@ const CategoryList: React.FC<CategoryListProps> = ({
     onSelectCategory,
     spendingByCategory,
     investmentSpending = {},
-    monthlyBudget
+    monthlyBudget,
+    displayMode = 'flat'
 }) => {
     const theme = useThemeClasses();
 
-    // Group categories
+    // Group categories by type (expenses/investments/system/hidden)
     const groupedCategories = useMemo(() => {
         const active: Category[] = [];
         const investments: Category[] = [];
@@ -74,13 +76,35 @@ const CategoryList: React.FC<CategoryListProps> = ({
         return { active, investments, hidden, system };
     }, [categories, spendingByCategory, investmentSpending]);
 
+    // Build parent-group structures for expenses when in grouped mode
+    const expenseGroups = useMemo(() => {
+        if (displayMode !== 'grouped') return [] as Array<{ parent: Category; children: Category[]; total: number }>;
+        const parents = categories.filter(c => !c.parentId && c.id !== 'transfer' && c.id !== 'adjustment');
+        const childrenByParent = parents.map(parent => {
+            const children = groupedCategories.active.filter(c => c.parentId === parent.id);
+            const total = children.reduce((sum, c) => sum + (spendingByCategory[c.id] || 0), 0);
+            return { parent, children, total };
+        });
+        // Include standalone root categories that have no children and appear in active
+        const standaloneRoots = groupedCategories.active.filter(c => !c.parentId);
+        const standaloneGroups = standaloneRoots.map(root => ({ parent: root, children: [] as Category[], total: spendingByCategory[root.id] || 0 }));
+        const combined = [...childrenByParent, ...standaloneGroups];
+        // Sort groups by total spend desc
+        combined.sort((a, b) => b.total - a.total);
+        return combined;
+    }, [displayMode, categories, groupedCategories.active, spendingByCategory]);
+
     // Render a single category item
     const renderCategoryItem = (category: Category, isInvestment = false) => {
         const spent = isInvestment
             ? (investmentSpending[category.id] || 0)
             : (spendingByCategory[category.id] || 0);
 
-        const budgetAmount = !isInvestment ? (monthlyBudget?.categoryBudgets?.[category.id] || 0) : 0;
+        const budgetAmount = !isInvestment
+            ? (category.budget !== undefined
+                ? category.budget
+                : (monthlyBudget?.categoryBudgets?.[category.id] || 0))
+            : 0;
         const isSelected = selectedCategoryId === category.id;
 
         // Progress bar calculations
@@ -180,7 +204,31 @@ const CategoryList: React.FC<CategoryListProps> = ({
                             {formatCurrency(getSectionTotal(groupedCategories.active, false))}
                         </span>
                     </div>
-                    {groupedCategories.active.map(c => renderCategoryItem(c, false))}
+                    {displayMode === 'grouped' ? (
+                        <div className="space-y-2">
+                            {expenseGroups.map(({ parent, children, total }) => (
+                                <div key={parent.id}>
+                                    {/* Parent header (non-selectable) */}
+                                    <div className="flex items-center justify-between px-3 py-1.5 rounded-md bg-gray-100 dark:bg-gray-700/50">
+                                        <div className="flex items-center min-w-0 flex-1">
+                                            <span className="text-xl mr-2 flex-shrink-0">{parent.icon}</span>
+                                            <p className={cn('text-xs font-bold uppercase tracking-wider truncate', theme.textMuted)}>{parent.name}</p>
+                                        </div>
+                                        <span className={cn('text-xs font-medium', theme.textMuted)}>{formatCurrency(total)}</span>
+                                    </div>
+                                    {/* Children items */}
+                                    {children.length > 0 ? (
+                                        children.map(child => renderCategoryItem(child, false))
+                                    ) : (
+                                        // Standalone root category: show its item as a child entry (for consistency)
+                                        renderCategoryItem(parent, false)
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        groupedCategories.active.map(c => renderCategoryItem(c, false))
+                    )}
                 </section>
 
                 {/* System Categories (if any) */}

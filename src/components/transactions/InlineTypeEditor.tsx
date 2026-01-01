@@ -8,6 +8,8 @@ interface InlineTypeEditorProps {
     currentType: Transaction['type'];
     onSave: (type: Transaction['type']) => void;
     onCancel?: () => void;
+    triggerContent?: React.ReactNode;
+    triggerClassName?: string;
 }
 
 const transactionTypes = [
@@ -20,7 +22,9 @@ const transactionTypes = [
 const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
     currentType,
     onSave,
-    onCancel
+    onCancel,
+    triggerContent,
+    triggerClassName
 }) => {
     const theme = useThemeClasses();
     const [isOpen, setIsOpen] = useState(false);
@@ -89,17 +93,25 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
                     setIsOpen(!isOpen);
                 }}
                 className={cn(
-                    "flex items-center space-x-1 px-2 py-1 rounded-lg border transition-all w-full",
-                    theme.bgElevated,
-                    theme.border,
-                    "hover:border-blue-500 dark:hover:border-blue-400"
+                    triggerClassName || (
+                        "flex items-center space-x-1 px-2 py-1 rounded-lg border transition-all w-full"
+                    ),
+                    !triggerClassName && theme.bgElevated,
+                    !triggerClassName && theme.border,
+                    !triggerClassName && "hover:border-blue-500 dark:hover:border-blue-400"
                 )}
             >
-                <span className="text-base">{currentTypeObj.icon}</span>
-                <span className={cn("text-xs font-medium truncate", currentTypeObj.color)}>
-                    {currentTypeObj.label}
-                </span>
-                <ChevronDown className="w-4 h-4 text-gray-400 ml-auto" />
+                {triggerContent ? (
+                    triggerContent
+                ) : (
+                    <>
+                        <span className="text-base">{currentTypeObj.icon}</span>
+                        <span className={cn("text-xs font-medium truncate", currentTypeObj.color)}>
+                            {currentTypeObj.label}
+                        </span>
+                        <ChevronDown className="w-4 h-4 text-gray-400 ml-auto" />
+                    </>
+                )}
             </button>
 
             {/* Popover Menu - Portal */}

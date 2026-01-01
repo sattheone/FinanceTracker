@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Search, Filter, Camera, Edit3, Trash2, FileSpreadsheet, Tag, Type, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown, MoreVertical, Table } from 'lucide-react';
+import { Plus, Search, Edit3, Trash2, FileSpreadsheet, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown, MoreVertical, Table } from 'lucide-react';
 import { Transaction, BankAccount } from '../types';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency } from '../utils/formatters';
@@ -8,6 +8,10 @@ import { formatCurrency } from '../utils/formatters';
 import ImageUploader from '../components/common/ImageUploader';
 import FileUploader from '../components/common/FileUploader';
 import DataConfirmationDialog from '../components/common/DataConfirmationDialog';
+import TransactionFilters from '../components/transactions/TransactionFilters';
+import TagPopover from '../components/transactions/TagPopover';
+import TagSettingsOverlay from '../components/transactions/TagSettingsOverlay';
+import TagCreationModal from '../components/transactions/TagCreationModal';
 import DuplicateConfirmationDialog from '../components/common/DuplicateConfirmationDialog';
 import Modal from '../components/common/Modal';
 
@@ -45,10 +49,12 @@ const Transactions: React.FC = () => {
     deleteBankAccount,
     addCategoryRule,
     categories,
+    tags,
     categoryRules,
     addRecurringTransaction,
     addTransaction,
-    addTransactionsBulk
+    addTransactionsBulk,
+    addTag
   } = useData();
 
   const formRef = useRef<SimpleTransactionFormHandle>(null);
@@ -106,7 +112,7 @@ const Transactions: React.FC = () => {
 
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
+  const filterType = 'all'; // Keep for backward compatibility with existing code
   const [showImageUploader, setShowImageUploader] = useState(false);
   const [showFileUploader, setShowFileUploader] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -117,9 +123,10 @@ const Transactions: React.FC = () => {
   const [extractedData, setExtractedData] = useState<any[]>([]);
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [showBulkActions, setShowBulkActions] = useState(false);
-  const [bulkActionType, setBulkActionType] = useState<'category' | 'type' | 'delete' | null>(null);
+  const [bulkActionType, setBulkActionType] = useState<'category' | 'type' | 'tag' | 'delete' | null>(null);
   const [bulkCategory, setBulkCategory] = useState('');
   const [bulkType, setBulkType] = useState<'income' | 'expense' | 'investment' | 'insurance' | ''>('');
+  const [bulkTagId, setBulkTagId] = useState('');
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicateSummary, setDuplicateSummary] = useState<any>(null);
   const [pendingImportData, setPendingImportData] = useState<any[]>([]);
@@ -142,7 +149,7 @@ const Transactions: React.FC = () => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [activeTab, setActiveTab] = useState<'summary' | 'transactions'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'transactions'>('transactions');
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedTransactionForDetail, setSelectedTransactionForDetail] = useState<Transaction | null>(null);
 
@@ -159,6 +166,24 @@ const Transactions: React.FC = () => {
   const [transactionListSubtitle, setTransactionListSubtitle] = useState('');
   const [viewingContextId, setViewingContextId] = useState<string | null>(null);
   const [pieChartType, setPieChartType] = useState<'income' | 'expense'>('expense');
+
+  // Filter states
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
+  const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
+
+  // Tag management states
+  const [showTagPopover, setShowTagPopover] = useState(false);
+  const [tagPopoverTransaction, setTagPopoverTransaction] = useState<Transaction | null>(null);
+  const [tagPopoverAnchor, setTagPopoverAnchor] = useState<HTMLElement | null>(null);
+  // Bulk tag popover states
+  const [showBulkTagPopover, setShowBulkTagPopover] = useState(false);
+  const [bulkTagPopoverAnchor, setBulkTagPopoverAnchor] = useState<HTMLElement | null>(null);
+  const [showTagSettings, setShowTagSettings] = useState(false);
+  const [showCreateTagModal, setShowCreateTagModal] = useState(false);
+  const [createTagInitialName, setCreateTagInitialName] = useState('');
+  const [tagCreationTarget, setTagCreationTarget] = useState<Transaction | null>(null);
 
   // Rule creation state
   const [showRulePrompt, setShowRulePrompt] = useState(false);
@@ -229,31 +254,39 @@ const Transactions: React.FC = () => {
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(transaction => {
+      // Hide split parent (amount=0 retained only for grouping state)
+      if (transaction.isSplitParent) return false;
       const matchesSearch = (transaction.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (typeof transaction.category === 'string' ? transaction.category : '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesFilter = filterType === 'all' || transaction.type === filterType;
+
+      // Apply new filters (category, tag, type, account)
+      const matchesCategory = selectedCategories.size === 0 || selectedCategories.has(transaction.category);
+      const matchesTag = selectedTags.size === 0 || (transaction.tags && transaction.tags.some(tagId => selectedTags.has(tagId)));
+      const matchesType = selectedTypes.size === 0 || selectedTypes.has(transaction.type);
+      const matchesAccountFilter = selectedAccounts.size === 0 || (transaction.bankAccountId && selectedAccounts.has(transaction.bankAccountId));
 
       // Filter by selected month and bank account for transactions tab
       if (activeTab === 'transactions') {
         const matchesAccount = selectedAccount === 'all_accounts' ? true : transaction.bankAccountId === selectedAccount;
 
-        // If searching, ignore month filter AND account filter
+        // If searching, ignore month filter AND account filter but apply category/tag/type filters
         if (searchTerm) {
-          return matchesSearch && matchesFilter;
+          return matchesSearch && matchesFilter && matchesCategory && matchesTag && matchesType && matchesAccountFilter;
         }
 
         const transactionDate = new Date(transaction.date);
         const [year, month] = selectedTransactionMonth.split('-');
         const matchesMonth = transactionDate.getFullYear() === parseInt(year) &&
           transactionDate.getMonth() === parseInt(month) - 1;
-        return matchesSearch && matchesFilter && matchesMonth && matchesAccount;
+        return matchesSearch && matchesFilter && matchesMonth && matchesAccount && matchesCategory && matchesTag && matchesType && matchesAccountFilter;
       }
 
       // For summary tab, also filter by selected account
       const matchesAccount = selectedAccount === 'all_accounts' ? true : transaction.bankAccountId === selectedAccount;
-      return matchesSearch && matchesFilter && matchesAccount;
+      return matchesSearch && matchesFilter && matchesAccount && matchesCategory && matchesTag && matchesType && matchesAccountFilter;
     });
-  }, [transactions, searchTerm, filterType, activeTab, selectedTransactionMonth, selectedAccount]);
+  }, [transactions, searchTerm, filterType, activeTab, selectedTransactionMonth, selectedAccount, selectedCategories, selectedTags, selectedTypes, selectedAccounts]);
 
 
   // Use a ref to access the latest category rules inside callbacks without dependency issues
@@ -585,6 +618,50 @@ const Transactions: React.FC = () => {
     }
   };
 
+  const handleBulkTagChange = () => {
+    if (bulkTagId) {
+      selectedTransactions.forEach(id => {
+        const transaction = transactions.find(t => t.id === id);
+        if (transaction) {
+          const existingTags = transaction.tags || [];
+          const updatedTags = existingTags.includes(bulkTagId)
+            ? existingTags
+            : [...existingTags, bulkTagId];
+          updateTransaction(id, { tags: updatedTags });
+        }
+      });
+      setSelectedTransactions(new Set());
+      setShowBulkActions(false);
+      setBulkTagId('');
+    }
+  };
+
+  // Compute common tag IDs across selected transactions for bulk popover
+  const bulkCommonTagIds = useMemo(() => {
+    const selected = transactions.filter(t => selectedTransactions.has(t.id));
+    if (selected.length === 0) return [];
+    const sets = selected.map(t => new Set(t.tags || []));
+    let common = new Set<string>(sets[0]);
+    for (let i = 1; i < sets.length; i++) {
+      const s = sets[i];
+      common = new Set(Array.from(common).filter(id => s.has(id)));
+    }
+    return Array.from(common);
+  }, [transactions, selectedTransactions]);
+
+  // Toggle tag across selected transactions
+  const handleBulkToggleTag = (tagId: string, shouldAdd: boolean) => {
+    selectedTransactions.forEach(id => {
+      const transaction = transactions.find(t => t.id === id);
+      if (!transaction) return;
+      const existing = transaction.tags || [];
+      const updated = shouldAdd
+        ? (existing.includes(tagId) ? existing : [...existing, tagId])
+        : existing.filter(tid => tid !== tagId);
+      updateTransaction(id, { tags: updated });
+    });
+  };
+
   // Delete confirmation handler
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
@@ -781,6 +858,7 @@ const Transactions: React.FC = () => {
 
     // Filter transactions for this specific category and month
     const filteredTransactions = transactions.filter(t => {
+      if (t.isSplitParent) return false; // Hide split parent in overlay listings too
       const tDate = new Date(t.date);
       return (
         tDate.getFullYear() === breakdownMonthFilter.year &&
@@ -925,17 +1003,17 @@ const Transactions: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-700 dark:bg-gray-900 -m-4 lg:-m-6">
-      {/* Top Header with Account Dropdown */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 px-4 sm:px-6 py-3">
-        <div className="flex items-center justify-between">
-          {/* Custom Account Dropdown */}
+      {/* Compact Top Header */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 px-4 sm:px-6 py-2">
+        <div className="grid grid-cols-3 items-center">
+          {/* Left: Account Dropdown */}
           <div className="relative" ref={accountDropdownRef}>
             <button
               onClick={() => setShowAccountDropdown(!showAccountDropdown)}
-              className="flex items-center gap-1 text-lg sm:text-xl font-bold text-gray-900 dark:text-white cursor-pointer focus:outline-none"
+              className="flex items-center gap-1 text-base sm:text-lg font-semibold text-gray-900 dark:text-white cursor-pointer focus:outline-none"
             >
               <span>{getSelectedAccountText()}</span>
-              <ChevronDown className={`h-5 w-5 text-gray-500 transition-transform ${showAccountDropdown ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${showAccountDropdown ? 'rotate-180' : ''}`} />
             </button>
 
             {showAccountDropdown && (
@@ -947,8 +1025,8 @@ const Transactions: React.FC = () => {
                       setShowAccountDropdown(false);
                     }}
                     className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                      selectedAccount === 'all_accounts' 
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium' 
+                      selectedAccount === 'all_accounts'
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
                         : 'text-gray-700 dark:text-gray-200'
                     }`}
                   >
@@ -963,8 +1041,8 @@ const Transactions: React.FC = () => {
                       setShowAccountDropdown(false);
                     }}
                     className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                      selectedAccount === account.id 
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium' 
+                      selectedAccount === account.id
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
                         : 'text-gray-700 dark:text-gray-200'
                     }`}
                   >
@@ -975,8 +1053,30 @@ const Transactions: React.FC = () => {
             )}
           </div>
 
-          {/* Right side buttons */}
-          <div className="flex items-center gap-2">
+          {/* Center: Segmented Tabs */}
+          <div className="flex justify-center">
+            <div className="bg-gray-100 dark:bg-gray-700 rounded-full p-1 flex gap-1">
+              <button
+                onClick={() => setActiveTab('transactions')}
+                className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+                  activeTab === 'transactions' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                Transactions
+              </button>
+              <button
+                onClick={() => setActiveTab('summary')}
+                className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
+                  activeTab === 'summary' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                Summary
+              </button>
+            </div>
+          </div>
+
+          {/* Right: Actions */}
+          <div className="flex items-center justify-end gap-2">
             <Button
               variant="primary"
               size="sm"
@@ -984,8 +1084,7 @@ const Transactions: React.FC = () => {
               leftIcon={<FileSpreadsheet className="h-4 w-4" />}
               disabled={!currentAccount || selectedAccount === 'all_accounts'}
             >
-              <span className="hidden sm:inline">Import</span>
-              <span className="sm:hidden">Import</span>
+              Import
             </Button>
             <Button
               variant="secondary"
@@ -994,11 +1093,8 @@ const Transactions: React.FC = () => {
               leftIcon={<Plus className="h-4 w-4" />}
               disabled={!currentAccount || selectedAccount === 'all_accounts'}
             >
-              <span className="hidden sm:inline">Add</span>
-              <span className="sm:hidden">Add</span>
+              Add
             </Button>
-
-            {/* More Menu */}
             <div className="relative" ref={moreMenuRef}>
               <button
                 onClick={() => setShowMoreMenu(!showMoreMenu)}
@@ -1006,7 +1102,6 @@ const Transactions: React.FC = () => {
               >
                 <MoreVertical className="h-5 w-5" />
               </button>
-
               {showMoreMenu && (
                 <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
                   <button
@@ -1063,8 +1158,8 @@ const Transactions: React.FC = () => {
       </div>
 
       <div>
-        {/* Dark Account Balance Card */}
-        {currentAccount && (
+        {/* Dark Account Balance Card - show only on Summary tab */}
+        {activeTab === 'summary' && currentAccount && (
           <div className="bg-gradient-to-r from-gray-900 to-gray-800 p-4 sm:p-6 text-white">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
@@ -1092,32 +1187,8 @@ const Transactions: React.FC = () => {
 
 
 
-        {/* Tab Section */}
         <div className="bg-white dark:bg-gray-800">
-          <div className="border-b border-gray-200 dark:border-gray-600 overflow-x-auto scrollbar-hide">
-            <nav className="flex min-w-max">
-              <button
-                onClick={() => setActiveTab('summary')}
-                className={`px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'summary'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-              >
-                Summary
-              </button>
-              <button
-                onClick={() => setActiveTab('transactions')}
-                className={`px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'transactions'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-              >
-                Transactions
-              </button>
-            </nav>
-          </div>
-
-          <div className="p-4 sm:p-6">
+          <div className="p-4 sm:p-5">
             {activeTab === 'summary' ? (
               <div className="space-y-4 sm:space-y-6">
                 {/* Month/Year Dropdown */}
@@ -1328,11 +1399,11 @@ const Transactions: React.FC = () => {
                           Import transactions or upload a screenshot to get started
                         </p>
                         <button
-                          onClick={() => setShowImageUploader(true)}
+                          onClick={() => setShowFileUploader(true)}
                           className="flex items-center justify-center px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
                         >
-                          <Camera className="h-4 w-4 mr-2" />
-                          Import from Screenshot
+                          <FileSpreadsheet className="h-4 w-4 mr-2" />
+                          Import
                         </button>
                       </div>
                     </div>
@@ -1488,77 +1559,10 @@ const Transactions: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="space-y-6">
-                {/* Header with Title and Controls */}
-                <div className="flex items-center justify-between">
-                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Transactions</h2>
-                  
-                  <div className="flex items-center gap-3">
-                    {/* Bulk Actions (shown when items selected) */}
-                    {selectedTransactions.size > 0 && (
-                      <>
-                        <div className="flex items-center gap-2 border-r border-gray-300 dark:border-gray-600 pr-3">
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            {selectedTransactions.size} selected
-                          </span>
-                          <button
-                            onClick={() => {
-                              setBulkActionType('category');
-                              setShowBulkActions(true);
-                            }}
-                            className="btn-secondary flex items-center text-sm whitespace-nowrap px-4 py-2"
-                          >
-                            <Tag className="w-4 h-4 mr-1" />
-                            Category
-                          </button>
-                          <button
-                            onClick={() => {
-                              setBulkActionType('type');
-                              setShowBulkActions(true);
-                            }}
-                            className="btn-secondary flex items-center text-sm whitespace-nowrap px-4 py-2"
-                          >
-                            <Type className="w-4 h-4 mr-1" />
-                            Type
-                          </button>
-                          <button
-                            onClick={handleBulkDelete}
-                            className="flex items-center px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 whitespace-nowrap"
-                          >
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            Delete
-                          </button>
-                          <button
-                            onClick={() => setSelectedTransactions(new Set())}
-                            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 text-sm"
-                          >
-                            Clear
-                          </button>
-                        </div>
-                      </>
-                    )}
-                    
-                    {/* Month Dropdown */}
-                    <div className="relative">
-                      <select
-                        value={selectedTransactionMonth}
-                        onChange={(e) => setSelectedTransactionMonth(e.target.value)}
-                        className="w-full sm:w-auto px-4 py-2 pr-10 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 appearance-none"
-                      >
-                        {monthOptions.map(option => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Search and Filters */}
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1">
+              <div className="space-y-4">
+                {/* Search, Filters, Month */}
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-center">
+                  <div className="flex-1 w-full">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                       <input
@@ -1571,18 +1575,32 @@ const Transactions: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-gray-400 dark:text-gray-300" />
-                    <select
-                      className="input-field theme-input"
-                      value={filterType}
-                      onChange={(e) => setFilterType(e.target.value)}
-                    >
-                      <option value="all">All Types</option>
-                      <option value="income">Income</option>
-                      <option value="expense">Expense</option>
-                      <option value="investment">Investment</option>
-                      <option value="insurance">Insurance</option>
-                    </select>
+                    <TransactionFilters
+                      selectedCategories={selectedCategories}
+                      selectedTags={selectedTags}
+                      selectedTypes={selectedTypes}
+                      selectedAccounts={selectedAccounts}
+                      onCategoryChange={setSelectedCategories}
+                      onTagChange={setSelectedTags}
+                      onTypeChange={setSelectedTypes}
+                      onAccountChange={setSelectedAccounts}
+                      showAccountFilter={selectedAccount === 'all_accounts'}
+                    />
+                    {/* Month Dropdown */}
+                    <div className="relative">
+                      <select
+                        value={selectedTransactionMonth}
+                        onChange={(e) => setSelectedTransactionMonth(e.target.value)}
+                        className="w-full sm:w-auto px-3 py-2 pr-8 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 appearance-none text-sm"
+                      >
+                        {monthOptions.map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                    </div>
                   </div>
                 </div>
 
@@ -1621,7 +1639,7 @@ const Transactions: React.FC = () => {
                 </div>
 
                 {/* Transactions List */}
-                <div className="card overflow-hidden min-h-[400px]">
+                <div className="card !p-0 overflow-hidden min-h-[400px]">
                   {filteredTransactions.length === 0 ? (
                     <div className="text-center py-12">
                       <div className="text-gray-400 mb-4">
@@ -1632,11 +1650,11 @@ const Transactions: React.FC = () => {
                         No transactions found for {monthOptions.find(m => m.value === selectedTransactionMonth)?.label}
                       </p>
                       <button
-                        onClick={() => setShowImageUploader(true)}
+                        onClick={() => setShowFileUploader(true)}
                         className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                       >
-                        <Camera className="h-4 w-4 mr-2" />
-                        Import from Screenshot
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        Import
                       </button>
                     </div>
                   ) : (
@@ -1645,6 +1663,7 @@ const Transactions: React.FC = () => {
                       selectedTransactions={selectedTransactions}
                       onSelectTransaction={handleSelectTransaction}
                       onSelectAll={handleSelectAll}
+                      onClearSelection={() => setSelectedTransactions(new Set())}
                       onTransactionClick={(t) => {
                         setSelectedTransactionForDetail(t);
                         setShowDetailModal(true);
@@ -1672,6 +1691,24 @@ const Transactions: React.FC = () => {
                         }
                       }}
                       onContextMenu={handleContextMenu}
+                      onTagClick={(t, anchor) => {
+                        setTagPopoverTransaction(t);
+                        setTagPopoverAnchor(anchor);
+                        setShowTagPopover(true);
+                      }}
+                      onBulkCategoryClick={() => {
+                        setBulkActionType('category');
+                        setShowBulkActions(true);
+                      }}
+                      onBulkTypeClick={() => {
+                        setBulkActionType('type');
+                        setShowBulkActions(true);
+                      }}
+                      onBulkTagClick={(anchor) => {
+                        setBulkTagPopoverAnchor(anchor as HTMLElement);
+                        setShowBulkTagPopover(true);
+                      }}
+                      onBulkDelete={handleBulkDelete}
                     />
                   )}
                 </div>
@@ -1688,7 +1725,10 @@ const Transactions: React.FC = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 border border-gray-200 dark:border-gray-600 dark:border-gray-600">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white mb-4">
-                {bulkActionType === 'category' ? 'Change Category' : 'Change Type'} for {selectedTransactions.size} transactions
+                {bulkActionType === 'category' && 'Change Category'}
+                {bulkActionType === 'type' && 'Change Type'}
+                {bulkActionType === 'tag' && 'Edit Tags'}
+                {' '}for {selectedTransactions.size} transactions
               </h3>
 
               {bulkActionType === 'category' && (
@@ -1720,6 +1760,24 @@ const Transactions: React.FC = () => {
                 </div>
               )}
 
+              {bulkActionType === 'tag' && (
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Select Tag</label>
+                  <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto">
+                    {tags.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => setBulkTagId(t.id)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${bulkTagId === t.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700'} text-left`}
+                      >
+                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: t.color }} />
+                        <span className="text-sm text-gray-900 dark:text-white">{t.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-end space-x-3 mt-6">
                 <button
                   onClick={() => {
@@ -1733,8 +1791,8 @@ const Transactions: React.FC = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={bulkActionType === 'category' ? handleBulkCategoryChange : handleBulkTypeChange}
-                  disabled={bulkActionType === 'category' ? !bulkCategory : !bulkType}
+                  onClick={bulkActionType === 'category' ? handleBulkCategoryChange : bulkActionType === 'type' ? handleBulkTypeChange : handleBulkTagChange}
+                  disabled={bulkActionType === 'category' ? !bulkCategory : bulkActionType === 'type' ? !bulkType : !bulkTagId}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Apply Changes
@@ -1982,6 +2040,91 @@ const Transactions: React.FC = () => {
         isOpen={showBulkAddModal}
         onClose={() => setShowBulkAddModal(false)}
         selectedAccount={selectedAccount === 'all_accounts' ? (bankAccounts[0]?.id || '') : selectedAccount}
+      />
+
+      {/* Tag Popover */}
+      {tagPopoverTransaction && (
+        <TagPopover
+          isOpen={showTagPopover}
+          onClose={() => {
+            setShowTagPopover(false);
+            setTagPopoverTransaction(null);
+            setTagPopoverAnchor(null);
+          }}
+          transaction={tagPopoverTransaction}
+          onUpdateTransaction={updateTransaction}
+          anchorElement={tagPopoverAnchor}
+          onOpenTagSettings={() => setShowTagSettings(true)}
+          onOpenTagCreate={(initialName, t) => {
+            setCreateTagInitialName(initialName);
+            setTagCreationTarget(t || null);
+            setShowCreateTagModal(true);
+          }}
+        />
+      )}
+
+      {/* Bulk Tag Popover */}
+      {showBulkTagPopover && (
+        <TagPopover
+          isOpen={showBulkTagPopover}
+          onClose={() => {
+            setShowBulkTagPopover(false);
+            setBulkTagPopoverAnchor(null);
+          }}
+          anchorElement={bulkTagPopoverAnchor}
+          bulkCommonTagIds={bulkCommonTagIds}
+          onBulkToggleTag={handleBulkToggleTag}
+          onOpenTagSettings={() => setShowTagSettings(true)}
+          onOpenTagCreate={(initialName) => {
+            setCreateTagInitialName(initialName);
+            setTagCreationTarget(null);
+            setShowCreateTagModal(true);
+          }}
+        />
+      )}
+
+      {/* Tag Settings Overlay */}
+      <TagSettingsOverlay
+        isOpen={showTagSettings}
+        onClose={() => setShowTagSettings(false)}
+      />
+
+      {/* Tag Creation Modal (global) */}
+      <TagCreationModal
+        isOpen={showCreateTagModal}
+        onClose={() => setShowCreateTagModal(false)}
+        initialName={createTagInitialName}
+        onCreateTag={async (name, color) => {
+          // Add tag and assign to target transaction
+          try {
+            const newTag = await addTag({
+              name,
+              color,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            });
+            if (newTag) {
+              if (tagCreationTarget) {
+                const existingTags = tagCreationTarget.tags || [];
+                const updatedTags = [...existingTags, newTag.id];
+                updateTransaction(tagCreationTarget.id, { tags: updatedTags });
+              } else if (selectedTransactions.size > 0) {
+                // Bulk create: apply new tag to all selected transactions
+                selectedTransactions.forEach(id => {
+                  const t = transactions.find(tx => tx.id === id);
+                  if (!t) return;
+                  const existing = t.tags || [];
+                  const updated = existing.includes(newTag.id) ? existing : [...existing, newTag.id];
+                  updateTransaction(id, { tags: updated });
+                });
+              }
+            }
+          } finally {
+            setShowCreateTagModal(false);
+            setCreateTagInitialName('');
+            setTagCreationTarget(null);
+          }
+        }}
       />
       
       {/* ... other modals ... */}
