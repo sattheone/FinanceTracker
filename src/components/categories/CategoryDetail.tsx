@@ -8,10 +8,10 @@ import {
     Cell
 } from 'recharts';
 import { format, subMonths, isSameMonth } from 'date-fns';
-import { Settings } from 'lucide-react';
+import { Edit3 } from 'lucide-react';
 import { Transaction, MonthlyBudget } from '../../types';
 import { Category } from '../../constants/categories';
-import { cn } from '../../hooks/useThemeClasses';
+// cn import no longer needed after removing badge
 import { formatCurrency } from '../../utils/formatters';
 import TransactionTable from '../transactions/TransactionTable';
 import SimpleTransactionModal from '../transactions/SimpleTransactionModal';
@@ -20,6 +20,8 @@ import RuleCreationDialog from '../transactions/RuleCreationDialog';
 import TagPopover from '../transactions/TagPopover';
 import TagSettingsOverlay from '../transactions/TagSettingsOverlay';
 import { useData } from '../../contexts/DataContext';
+import SidePanel from '../common/SidePanel';
+import CategoryForm, { CategoryFormHandle } from './CategoryForm';
 
 interface CategoryDetailProps {
     category: Category;
@@ -34,8 +36,10 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     monthlyBudget,
     currentMonth
 }) => {
-    const { updateTransaction, categories, addCategoryRule } = useData();
+    const { updateTransaction, categories, addCategoryRule, updateCategory } = useData();
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+    const [showEditPanel, setShowEditPanel] = useState(false);
+    const formRef = React.useRef<CategoryFormHandle | null>(null);
     
     // Tag management state
     const [showTagPopover, setShowTagPopover] = useState(false);
@@ -200,25 +204,15 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                                 style={{ backgroundColor: category.color || '#9CA3AF' }}
                             />
                             <h2 className="text-2xl font-bold dark:text-white">{category.name}</h2>
-                            <button className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-400">
-                                <Settings className="w-4 h-4 ml-1" />
+                            <button
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-400"
+                                onClick={() => setShowEditPanel(true)}
+                                aria-label="Edit Category"
+                            >
+                                <Edit3 className="w-4 h-4 ml-1" />
                             </button>
                         </div>
-                        {/* Budget Status Badge */}
-                        {budgetStatus ? (
-                            <div className={cn(
-                                "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1",
-                                budgetStatus.isOver
-                                    ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-                                    : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                            )}>
-                                {budgetStatus.isOver
-                                    ? `Over budget by ${formatCurrency(budgetStatus.diff)}`
-                                    : `${formatCurrency(budgetStatus.diff)} left`}
-                            </div>
-                        ) : (
-                            <span className="text-xs text-gray-400 italic mt-1 block">No budget set</span>
-                        )}
+                        {/* Budget status badge removed as per request */}
                     </div>
 
                     <div className="text-right">
@@ -234,6 +228,49 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
 
                 {/* Chart */}
                 <div className="h-48 w-full mt-4">
+
+                                {/* Edit Category Side Panel */}
+                                <SidePanel
+                                    isOpen={showEditPanel}
+                                    onClose={() => setShowEditPanel(false)}
+                                    title={`Edit ${category.name}`}
+                                    headerActions={(
+                                        <button
+                                            onClick={() => formRef.current?.submit()}
+                                            className="px-4 py-1.5 bg-black text-white rounded-lg text-sm font-semibold shadow hover:bg-gray-900"
+                                        >
+                                            Save
+                                        </button>
+                                    )}
+                                >
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                        <CategoryForm
+                                            ref={formRef}
+                                            initialData={category}
+                                            categories={categories}
+                                            onSave={async (data) => {
+                                                try {
+                                                    await updateCategory(category.id, data);
+                                                    setShowEditPanel(false);
+                                                } catch (err) {
+                                                    console.error('Failed to update category', err);
+                                                    alert('Failed to update category');
+                                                }
+                                            }}
+                                            onCancel={() => setShowEditPanel(false)}
+                                            onUngroupChildren={async (parentId) => {
+                                                const children = categories.filter(c => c.parentId === parentId);
+                                                try {
+                                                    await Promise.all(children.map(child => updateCategory(child.id, { parentId: undefined })));
+                                                    alert('Ungrouped all subcategories');
+                                                } catch (err) {
+                                                    console.error('Failed to ungroup children', err);
+                                                    alert('Failed to ungroup');
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                </SidePanel>
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={chartData}>
                             {/* <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" /> */}
