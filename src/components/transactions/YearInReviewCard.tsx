@@ -1,7 +1,8 @@
-import React from 'react';
-import { CalendarDays, Share2, TrendingUp, ShoppingCart, Utensils, Plane, ShoppingBag, PiggyBank, Car } from 'lucide-react';
+import React, { useRef } from 'react';
+import { CalendarDays, Download, TrendingUp, ShoppingCart, Utensils, Plane, ShoppingBag, PiggyBank, Car } from 'lucide-react';
 import { cn } from '../../hooks/useThemeClasses';
 import { formatCurrency } from '../../utils/formatters';
+import { downloadElementPng } from '../../utils/download';
 
 export interface CategoryStat {
   id: string;
@@ -36,9 +37,10 @@ const iconForCategory = (name: string) => {
 
 const YearInReviewCard: React.FC<YearInReviewCardProps> = ({ stats, onViewAllCategories }) => {
   const { year, totalTransactions, avgDaily, topCategories } = stats;
+  const containerRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className="relative w-[600px] h-[700px] bg-gray-900 dark:bg-gray-900 rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-white/5 mx-auto">
+    <div ref={containerRef} className="relative w-[600px] h-[700px] bg-gray-900 dark:bg-gray-900 rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-white/5 mx-auto">
       {/* Subtle gradient top */}
       <div className="absolute top-0 left-0 right-0 h-[300px] bg-gradient-to-b from-blue-500/10 via-blue-500/5 to-transparent pointer-events-none" />
 
@@ -53,8 +55,16 @@ const YearInReviewCard: React.FC<YearInReviewCardProps> = ({ stats, onViewAllCat
             <p className="text-gray-400 text-xs font-medium uppercase tracking-wide">Financial Report</p>
           </div>
         </div>
-        <button className="group flex items-center justify-center h-10 w-10 rounded-full hover:bg-white/10 transition-colors" aria-label="Share">
-          <Share2 className="text-white/70 group-hover:text-white h-5 w-5" />
+        <button
+          className="group flex items-center justify-center h-10 w-10 rounded-full hover:bg-white/10 transition-colors"
+          aria-label="Download"
+          onClick={() => {
+            if (containerRef.current) {
+              downloadElementPng(containerRef.current, `year-review-${year}-transactions.png`, 600, 700);
+            }
+          }}
+        >
+          <Download className="text-white/70 group-hover:text-white h-5 w-5" />
         </button>
       </div>
 
