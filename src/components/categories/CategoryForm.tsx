@@ -1,7 +1,10 @@
-import React, { useState, useMemo, forwardRef, useImperativeHandle } from 'react';
-import { ChevronDown } from 'lucide-react';
+import React, { useState, useMemo, forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronDown, Plus } from 'lucide-react';
+import SidePanel from '../common/SidePanel';
 import { cn } from '../../hooks/useThemeClasses';
 import { Category } from '../../constants/categories';
+import { useData } from '../../contexts/DataContext';
 
 export interface CategoryFormProps {
     initialData?: Category | null;
@@ -21,6 +24,7 @@ const CategoryForm = forwardRef<CategoryFormHandle, CategoryFormProps>(({
     onSave,
     onUngroupChildren
 }, ref) => {
+    const { addCategory } = useData();
     // Default parent: keep existing for edit; for new, allow no parent
     const defaultParentId = useMemo(() => {
         if (initialData?.parentId) return initialData.parentId;
@@ -37,6 +41,70 @@ const CategoryForm = forwardRef<CategoryFormHandle, CategoryFormProps>(({
     const [budgetInput, setBudgetInput] = useState<string>(
         initialData?.budget !== undefined ? String(initialData.budget) : ''
     );
+    // Group selection popover state
+    const [groupOpen, setGroupOpen] = useState(false);
+    const groupButtonRef = useRef<HTMLButtonElement>(null);
+    const groupPopoverRef = useRef<HTMLDivElement>(null);
+    const [groupPos, setGroupPos] = useState<{ top: number; left: number; width: number } | null>(null);
+    // New Group Panel state
+    const [showNewGroupPanel, setShowNewGroupPanel] = useState(false);
+    const [newGroupName, setNewGroupName] = useState('');
+    const [newGroupColor, setNewGroupColor] = useState('#3B82F6');
+    const [newGroupIcon, setNewGroupIcon] = useState('📁');
+    const [showNewGroupIconPicker, setShowNewGroupIconPicker] = useState(false);
+    const [newGroupEmojiSearch, setNewGroupEmojiSearch] = useState('');
+    const newGroupEmojiBtnRef = useRef<HTMLButtonElement>(null);
+    const newGroupEmojiPopoverRef = useRef<HTMLDivElement>(null);
+    const [newGroupEmojiPos, setNewGroupEmojiPos] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null>(null);
+
+    // Position emoji popover when opened
+    useEffect(() => {
+        if (showNewGroupIconPicker && newGroupEmojiBtnRef.current) {
+            const rect = newGroupEmojiBtnRef.current.getBoundingClientRect();
+            const width = 320;
+            const gap = 8;
+            const viewportHeight = window.innerHeight;
+            const spaceBelow = viewportHeight - rect.bottom;
+            const estimatedHeight = 300;
+            const showAbove = spaceBelow < estimatedHeight + gap && rect.top > estimatedHeight + gap;
+
+            const left = Math.min(
+                Math.max(16, rect.left + rect.width / 2 - width / 2),
+                window.innerWidth - width - 16
+            );
+            setNewGroupEmojiPos({
+                top: showAbove ? undefined : rect.bottom + gap,
+                bottom: showAbove ? (viewportHeight - rect.top + gap) : undefined,
+                left,
+                width,
+                maxHeight: Math.min(320, showAbove ? rect.top - gap * 2 : viewportHeight - rect.bottom - gap * 2)
+            });
+        }
+    }, [showNewGroupIconPicker]);
+
+    // Close emoji popover on outside click / Escape
+    useEffect(() => {
+        const onDown = (e: MouseEvent) => {
+            const target = e.target as Node;
+            const insideBtn = newGroupEmojiBtnRef.current && newGroupEmojiBtnRef.current.contains(target);
+            const insidePopover = newGroupEmojiPopoverRef.current && newGroupEmojiPopoverRef.current.contains(target);
+            if (!insideBtn && !insidePopover) setShowNewGroupIconPicker(false);
+        };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setShowNewGroupIconPicker(false);
+        };
+        if (showNewGroupIconPicker) {
+            document.addEventListener('mousedown', onDown);
+            document.addEventListener('keydown', onKey);
+            return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+        }
+    }, [showNewGroupIconPicker]);
+
+    // Detect if this category is a parent (has children)
+    const hasChildren = useMemo(() => {
+        if (!initialData) return false;
+        return categories.some(c => c.parentId === initialData.id);
+    }, [initialData, categories]);
 
     // Auto-inherit parent color
     React.useEffect(() => {
@@ -47,6 +115,30 @@ const CategoryForm = forwardRef<CategoryFormHandle, CategoryFormProps>(({
             }
         }
     }, [parentId, categories]);
+
+    // Position group popover when opened
+    useEffect(() => {
+        if (groupOpen && groupButtonRef.current) {
+            const rect = groupButtonRef.current.getBoundingClientRect();
+            const width = 280;
+            const left = Math.min(rect.left, Math.max(16, window.innerWidth - width - 16));
+            setGroupPos({ top: rect.bottom + 6, left, width });
+        }
+    }, [groupOpen]);
+
+    // Close group popover on outside click
+    useEffect(() => {
+        const handleOutside = (e: MouseEvent) => {
+            const target = e.target as Node;
+            const insideButton = groupButtonRef.current && groupButtonRef.current.contains(target);
+            const insidePopover = groupPopoverRef.current && groupPopoverRef.current.contains(target);
+            if (!insideButton && !insidePopover) setGroupOpen(false);
+        };
+        if (groupOpen) {
+            document.addEventListener('mousedown', handleOutside);
+            return () => document.removeEventListener('mousedown', handleOutside);
+        }
+    }, [groupOpen]);
 
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [showIconPicker, setShowIconPicker] = useState(false);
@@ -279,7 +371,7 @@ const CategoryForm = forwardRef<CategoryFormHandle, CategoryFormProps>(({
                 </div>
 
                 {/* Parent Category Selection or Ungroup for root groups */}
-                {initialData && !initialData.parentId ? (
+                {initialData && !initialData.parentId && hasChildren ? (
                     <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg">
                         <div>
                             <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Ungroup Categories</p>
@@ -299,27 +391,205 @@ const CategoryForm = forwardRef<CategoryFormHandle, CategoryFormProps>(({
                         </button>
                     </div>
                 ) : (
-                    <div>
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">
-                            Group Under (Optional)
-                        </label>
-                        <select
-                            value={parentId}
-                            onChange={(e) => setParentId(e.target.value)}
-                            className="input-field theme-input"
+                    <div className="relative">
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                Group Under (Optional)
+                            </label>
+                        </div>
+                        {/* Trigger: shows current group selection */}
+                        <button
+                            type="button"
+                            ref={groupButtonRef}
+                            onClick={() => setGroupOpen(v => !v)}
+                            className="input-field theme-input w-full flex items-center justify-between"
                         >
-                            <option value="">No Parent Group</option>
-                            {parentOptions.map(parent => (
-                                <option key={parent.id} value={parent.id}>
-                                    {parent.icon} {parent.name}
-                                </option>
-                            ))}
-                        </select>
+                            <span className="text-sm truncate">
+                                {parentId ? (
+                                    <>
+                                        {categories.find(c => c.id === parentId)?.icon} {categories.find(c => c.id === parentId)?.name}
+                                    </>
+                                ) : 'No Parent Group'}
+                            </span>
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                        </button>
+
+                        {/* Popover: custom group picker + actions (portal for reliable stacking) */}
+                        {groupOpen && groupPos && createPortal(
+                            <>
+                                {/* Click-capture backdrop to avoid accidental closes behind */}
+                                <div
+                                    className="fixed inset-0 z-[1000]"
+                                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                    onClick={() => setGroupOpen(false)}
+                                />
+                                <div
+                                    ref={groupPopoverRef}
+                                    className="fixed z-[1001] mt-1 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700"
+                                    style={{ top: groupPos.top, left: groupPos.left, width: groupPos.width }}
+                                >
+                                    <div className="p-2 max-h-[240px] overflow-y-auto">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setParentId(''); setGroupOpen(false); }}
+                                            className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        >
+                                            No Parent Group
+                                        </button>
+                                        {parentOptions.map(parent => (
+                                            <button
+                                                key={parent.id}
+                                                type="button"
+                                                onClick={() => { setParentId(parent.id); setGroupOpen(false); }}
+                                                className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                                            >
+                                                <span className="mr-2">{parent.icon}</span>{parent.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="px-2 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-xl">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setGroupOpen(false); setShowNewGroupPanel(true); }}
+                                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-semibold"
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                            Add New Group
+                                        </button>
+                                    </div>
+                                </div>
+                            </>,
+                            document.body
+                        )}
                     </div>
                 )}
             </div>
 
             {/* Footer Actions removed: header button handles submit */}
+            {/* New Group SidePanel */}
+            <SidePanel
+                isOpen={showNewGroupPanel}
+                onClose={() => setShowNewGroupPanel(false)}
+                title="Add New Group"
+                showBackdrop={false}
+                headerActions={(
+                    <button
+                        onClick={async () => {
+                            if (!newGroupName.trim()) return;
+                            const roots = categories.filter(c => !c.parentId);
+                            const maxOrder = roots.length ? Math.max(...roots.map(c => c.order || 0)) : 0;
+                            const newId = await addCategory({
+                                name: newGroupName.trim(),
+                                color: newGroupColor,
+                                icon: newGroupIcon || '📁',
+                                isCustom: true,
+                                order: maxOrder + 10
+                            });
+                            if (newId) {
+                                setParentId(newId);
+                                setShowNewGroupPanel(false);
+                                setNewGroupName('');
+                                setNewGroupColor('#3B82F6');
+                                setNewGroupIcon('📁');
+                            }
+                        }}
+                        className="px-4 py-1.5 bg-black text-white rounded-lg text-sm font-semibold shadow hover:bg-gray-900"
+                    >
+                        Add
+                    </button>
+                )}
+                footer={<></>}
+            >
+                <div onClick={(e) => e.stopPropagation()}>
+                    <div className="space-y-4">
+                        <div className="flex flex-col items-center gap-3">
+                            <button
+                                type="button"
+                                className="text-5xl leading-none hover:opacity-90 transition-opacity"
+                                onClick={() => setShowNewGroupIconPicker(v => !v)}
+                                ref={newGroupEmojiBtnRef}
+                                aria-label="Choose emoji"
+                            >
+                                {newGroupIcon || '📁'}
+                            </button>
+                            <input
+                                type="text"
+                                value={newGroupName}
+                                onChange={(e) => setNewGroupName(e.target.value)}
+                                className="w-full text-center text-3xl sm:text-4xl font-semibold text-gray-700 dark:text-gray-200 placeholder-gray-300 dark:placeholder-gray-500 bg-transparent border-none outline-none"
+                                placeholder="Group Name"
+                            />
+                        </div>
+
+                        {showNewGroupIconPicker && newGroupEmojiPos && createPortal(
+                            <div className="fixed inset-0 z-[1002]" aria-hidden="true">
+                                {/* Backdrop: explicitly close on click outside */}
+                                <div
+                                    className="absolute inset-0"
+                                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                    onClick={() => setShowNewGroupIconPicker(false)}
+                                />
+                                <div
+                                    ref={newGroupEmojiPopoverRef}
+                                    className="absolute bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-4 overflow-hidden"
+                                    style={{
+                                        top: newGroupEmojiPos.top,
+                                        bottom: newGroupEmojiPos.bottom,
+                                        left: newGroupEmojiPos.left,
+                                        width: newGroupEmojiPos.width,
+                                        maxHeight: newGroupEmojiPos.maxHeight
+                                    }}
+                                >
+                                    <input
+                                        type="text"
+                                        value={newGroupEmojiSearch}
+                                        onChange={(e) => setNewGroupEmojiSearch(e.target.value)}
+                                        placeholder="Search..."
+                                        className="w-full input-field theme-input text-sm"
+                                    />
+                                     <div className="mt-3 grid grid-cols-8 gap-2 overflow-y-auto overflow-x-hidden pr-1 pb-2"
+                                         style={{ maxHeight: Math.max(120, newGroupEmojiPos.maxHeight - 72) }}>
+                                        {emojiItems
+                                            .filter(item => !newGroupEmojiSearch || item.search.includes(newGroupEmojiSearch.toLowerCase()))
+                                            .slice(0, 600)
+                                            .map(item => (
+                                                <button
+                                                    key={`newgrp-${item.emoji}-${item.search}`}
+                                                    onClick={() => {
+                                                        setNewGroupIcon(item.emoji);
+                                                        setShowNewGroupIconPicker(false);
+                                                    }}
+                                                    className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-lg transition-colors"
+                                                >
+                                                    {item.emoji}
+                                                </button>
+                                            ))}
+                                    </div>
+                                </div>
+                            </div>,
+                            document.body
+                        )}
+
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Color</label>
+                            <div className="grid grid-cols-9 gap-2">
+                                {colorOptions.map(c => (
+                                    <button
+                                        key={c}
+                                        type="button"
+                                        onClick={() => setNewGroupColor(c)}
+                                        className={cn(
+                                            "w-7 h-7 rounded-full border",
+                                            newGroupColor === c ? "ring-2 ring-blue-500 border-blue-500" : "border-gray-300 dark:border-gray-700"
+                                        )}
+                                        style={{ backgroundColor: c }}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </SidePanel>
         </div>
     );
 });

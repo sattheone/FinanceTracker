@@ -8,13 +8,17 @@ interface RepaymentScheduleModalProps {
     onClose: () => void;
     schedule: AmortizationScheduleEntry[];
     liabilityName: string;
+    paidInstallments?: number[];
+    onMarkPaid?: (installmentNumber: number) => void;
 }
 
 const RepaymentScheduleModal: React.FC<RepaymentScheduleModalProps> = ({
     isOpen,
     onClose,
     schedule,
-    liabilityName
+    liabilityName,
+    paidInstallments = [],
+    onMarkPaid
 }) => {
     if (!isOpen) return null;
 
@@ -60,11 +64,12 @@ const RepaymentScheduleModal: React.FC<RepaymentScheduleModalProps> = ({
                             </thead>
                             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                 {schedule.map((entry, index) => {
-                                    const isPaid = entry.installmentDate <= new Date();
+                                    const isPastMonth = entry.installmentDate <= new Date();
+                                    const isMarkedPaid = paidInstallments.includes(entry.installmentNumber);
                                     return (
                                         <tr
                                             key={index}
-                                            className={isPaid ? 'bg-green-50 dark:bg-green-900/10' : ''}
+                                            className={isMarkedPaid ? 'bg-green-50 dark:bg-green-900/10' : ''}
                                         >
                                             <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
                                                 {entry.installmentNumber}
@@ -80,6 +85,21 @@ const RepaymentScheduleModal: React.FC<RepaymentScheduleModalProps> = ({
                                             </td>
                                             <td className="px-4 py-3 text-sm text-right font-medium text-red-600 dark:text-red-400">
                                                 {formatCurrency(entry.remainingBalance)}
+                                            </td>
+                                            <td className="px-4 py-3 text-sm text-right">
+                                                {isPastMonth && !isMarkedPaid && onMarkPaid && (
+                                                    <button
+                                                        onClick={() => onMarkPaid(entry.installmentNumber)}
+                                                        className="px-3 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                                    >
+                                                        Mark as Paid
+                                                    </button>
+                                                )}
+                                                {isMarkedPaid && (
+                                                    <span className="inline-block px-2 py-0.5 text-[11px] rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                                                        Paid
+                                                    </span>
+                                                )}
                                             </td>
                                         </tr>
                                     );

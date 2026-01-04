@@ -9,9 +9,11 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  bodyScroll?: boolean; // controls outer body scroll
+  footer?: React.ReactNode; // optional footer rendered at the bottom
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'md' }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'md', bodyScroll = true, footer }) => {
   const theme = useThemeClasses();
 
   if (!isOpen) return null;
@@ -56,9 +58,14 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
             </button>
           </div>
         </div>
-        <div className={cn(theme.bgElevated, 'p-6 overflow-y-auto')}>
+        <div className={cn(theme.bgElevated, 'p-6 flex-1', bodyScroll ? 'overflow-y-auto' : 'overflow-visible')}>
           {children}
         </div>
+        {footer && (
+          <div className={cn(theme.bgElevated, theme.border, 'p-4 border-t shrink-0')}>
+            {footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body

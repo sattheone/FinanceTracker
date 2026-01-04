@@ -329,6 +329,16 @@ const Forecast: React.FC = () => {
         onClose={() => setIsAssetModalOpen(false)}
         title="Asset Inclusion for FI Corpus"
         size="lg"
+          footer={(
+            <div className="flex justify-end">
+              <button
+                onClick={() => setIsAssetModalOpen(false)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          )}
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-300">
@@ -341,65 +351,62 @@ const Forecast: React.FC = () => {
             <span className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatLargeNumber(currentRetirementCorpus)}</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 max-h-[60vh] overflow-y-auto pr-2">
-            {Object.entries(assetsByCategory).map(([category, categoryAssets]) => (
-              <div key={category} className="space-y-2">
-                <h4 className="text-sm font-medium text-gray-900 dark:text-white uppercase tracking-wider border-b pb-1 border-gray-100 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-800 z-10">
-                  {category.replace('_', ' ')}
-                </h4>
-                <div className="space-y-2">
-                  {categoryAssets.map(asset => {
-                    const isExcluded = excludedAssetIds.has(asset.id);
-                    const linkedGoal = goals.find(g => g.linkedSIPAssets?.includes(asset.id));
+          {/* Scroll container holding asset grid + sticky footer */}
+          <div className="mt-4 pr-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {Object.entries(assetsByCategory).map(([category, categoryAssets]) => (
+                <div key={category} className="space-y-2">
+                  <h4 className="text-sm font-medium text-gray-900 dark:text-white uppercase tracking-wider border-b pb-1 border-gray-100 dark:border-gray-800">
+                    {category.replace('_', ' ')}
+                  </h4>
+                  <div className="space-y-2">
+                    {categoryAssets.map(asset => {
+                      const isExcluded = excludedAssetIds.has(asset.id);
+                      const linkedGoal = goals.find(g => g.linkedSIPAssets?.includes(asset.id));
 
-                    return (
-                      <div key={asset.id} className={`flex items-start p-2 rounded-lg transition-colors border ${isExcluded ? 'border-gray-100 bg-gray-50 dark:bg-gray-800/50 dark:border-gray-700 opacity-70' : 'border-gray-200 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700/50'}`}>
-                        <div className="flex items-center h-5">
-                          <input
-                            id={`modal-asset-${asset.id}`}
-                            name={`modal-asset-${asset.id}`}
-                            type="checkbox"
-                            checked={!isExcluded}
-                            onChange={() => toggleAssetExclusion(asset.id)}
-                            className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded cursor-pointer"
-                          />
-                        </div>
-                        <div className="ml-3 text-sm flex-1">
-                          <label htmlFor={`modal-asset-${asset.id}`} className="font-medium text-gray-700 dark:text-gray-300 cursor-pointer block">
-                            {asset.name}
-                          </label>
-                          <div className="flex justify-between items-center mt-1">
-                            <span className="text-gray-500 text-xs">{formatCurrency(asset.currentValue)}</span>
-                            {linkedGoal ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" title={`Linked to goal: ${linkedGoal.name}`}>
-                                <Target className="w-3 h-3 mr-1" />
-                                {linkedGoal.name}
-                              </span>
-                            ) : (
-                              growthRates[asset.category] && (
-                                <span className="text-xs text-green-600 dark:text-green-400">
-                                  <TrendingUp className="w-3 h-3 inline mr-0.5" />
-                                  {growthRates[asset.category]}%
+                      return (
+                        <div key={asset.id} className={`flex items-start p-2 rounded-lg transition-colors border ${isExcluded ? 'border-gray-100 bg-gray-50 dark:bg-gray-800/50 dark:border-gray-700 opacity-70' : 'border-gray-200 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700/50'}`}>
+                          <div className="flex items-center h-5">
+                            <input
+                              id={`modal-asset-${asset.id}`}
+                              name={`modal-asset-${asset.id}`}
+                              type="checkbox"
+                              checked={!isExcluded}
+                              onChange={() => toggleAssetExclusion(asset.id)}
+                              className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded cursor-pointer"
+                            />
+                          </div>
+                          <div className="ml-3 text-sm flex-1">
+                            <label htmlFor={`modal-asset-${asset.id}`} className="font-medium text-gray-700 dark:text-gray-300 cursor-pointer block">
+                              {asset.name}
+                            </label>
+                            <div className="flex justify-between items-center mt-1">
+                              <span className="text-gray-500 text-xs">{formatCurrency(asset.currentValue)}</span>
+                              {linkedGoal ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" title={`Linked to goal: ${linkedGoal.name}`}>
+                                  <Target className="w-3 h-3 mr-1" />
+                                  {linkedGoal.name}
                                 </span>
-                              )
-                            )}
+                              ) : (
+                                growthRates[asset.category] && (
+                                  <span className="text-xs text-green-600 dark:text-green-400">
+                                    <TrendingUp className="w-3 h-3 inline mr-0.5" />
+                                    {growthRates[asset.category]}%
+                                  </span>
+                                )
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-gray-700">
-            <button
-              onClick={() => setIsAssetModalOpen(false)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-            >
-              Done
-            </button>
+            {/* Sticky footer keeps the action button visible while scrolling */}
+            {/* Removed sticky footer */}
           </div>
         </div>
       </Modal>

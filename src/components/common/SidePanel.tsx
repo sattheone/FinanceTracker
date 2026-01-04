@@ -11,6 +11,7 @@ interface SidePanelProps {
     footer?: React.ReactNode;
     headerActions?: React.ReactNode;
     size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+    showBackdrop?: boolean; // optional: disable backdrop for nested panels
 }
 
 const SidePanel: React.FC<SidePanelProps> = ({
@@ -20,7 +21,8 @@ const SidePanel: React.FC<SidePanelProps> = ({
     children,
     footer,
     headerActions,
-    size = 'md'
+    size = 'md',
+    showBackdrop = true
 }) => {
 
     const [isVisible, setIsVisible] = useState(false);
@@ -51,16 +53,18 @@ const SidePanel: React.FC<SidePanelProps> = ({
 
     return createPortal(
         <>
-            {/* Backdrop */}
-            <div
-                className={cn(
-                    "fixed inset-0 bg-black transition-opacity duration-300 z-[60]",
-                    isOpen ? "bg-opacity-50" : "bg-opacity-0 pointer-events-none"
-                )}
-                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
-                aria-hidden="true"
-            />
+            {/* Backdrop (optional) */}
+            {showBackdrop && (
+                <div
+                    className={cn(
+                        "fixed inset-0 bg-black transition-opacity duration-300 z-[60]",
+                        isOpen ? "bg-opacity-50" : "bg-opacity-0 pointer-events-none"
+                    )}
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
+                    aria-hidden="true"
+                />
+            )}
 
             {/* Panel */}
             <div

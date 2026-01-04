@@ -10,13 +10,14 @@ import SidePanel from '../components/common/SidePanel';
 import CategoryForm, { CategoryFormHandle } from '../components/categories/CategoryForm';
 
 const Categories: React.FC = () => {
-    const { categories, transactions, monthlyBudget, bankAccounts } = useData();
+    const { categories, transactions, monthlyBudget, bankAccounts, addCategory } = useData();
     const theme = useThemeClasses();
     const [searchParams] = useSearchParams();
 
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'month' | 'year' | 'prevYear'>('month');
     const [includeInvestments, setIncludeInvestments] = useState(false);
+    const [includeTransfer, setIncludeTransfer] = useState(false);
     const [categoryDisplayMode, setCategoryDisplayMode] = useState<'flat' | 'grouped'>('flat');
     const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
     const [showFilters, setShowFilters] = useState(false);
@@ -108,8 +109,9 @@ const Categories: React.FC = () => {
         let count = 0;
         if (selectedAccountId !== 'all') count++;
         if (includeInvestments) count++;
+        if (includeTransfer) count++;
         return count;
-    }, [selectedAccountId, includeInvestments]);
+    }, [selectedAccountId, includeInvestments, includeTransfer]);
 
     // Get account display name with last 4 digits
     const getAccountName = (accountId: string) => {
@@ -213,6 +215,30 @@ const Categories: React.FC = () => {
                                                 />
                                             </button>
                                         </div>
+
+                                        {/* Transfer Toggle */}
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                <List className="w-3.5 h-3.5" />
+                                                <span>Include Transfer</span>
+                                            </div>
+                                            <button
+                                                onClick={() => setIncludeTransfer(!includeTransfer)}
+                                                className={cn(
+                                                    "relative w-9 h-5 rounded-full transition-colors",
+                                                    includeTransfer
+                                                        ? "bg-blue-600"
+                                                        : "bg-gray-300 dark:bg-gray-600"
+                                                )}
+                                            >
+                                                <span
+                                                    className={cn(
+                                                        "absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
+                                                        includeTransfer && "translate-x-4"
+                                                    )}
+                                                />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {/* Clear Filters Footer */}
@@ -222,6 +248,7 @@ const Categories: React.FC = () => {
                                                 onClick={() => {
                                                     setSelectedAccountId('all');
                                                     setIncludeInvestments(false);
+                                                    setIncludeTransfer(false);
                                                 }}
                                                 className="w-full text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium"
                                             >
@@ -324,6 +351,18 @@ const Categories: React.FC = () => {
                                     </button>
                                 </span>
                             )}
+                            {includeTransfer && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-[10px] font-medium rounded-full">
+                                    <List className="w-3 h-3" />
+                                    + Transfer
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setIncludeTransfer(false); }}
+                                        className="ml-0.5 hover:text-blue-900 dark:hover:text-blue-200"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </span>
+                            )}
                         </div>
                     )}
                 </div>
@@ -338,6 +377,7 @@ const Categories: React.FC = () => {
                         monthlyBudget={monthlyBudget}
                         displayMode={categoryDisplayMode}
                         viewMode={viewMode}
+                        includeTransfer={includeTransfer}
                     />
                 </div>
 
@@ -359,7 +399,23 @@ const Categories: React.FC = () => {
                         <CategoryForm
                             ref={formRef}
                             categories={categories}
-                            onSave={() => setShowAddPanel(false)}
+                            onSave={async (data) => {
+                                try {
+                                    await addCategory({
+                                        name: data.name || 'New Category',
+                                        color: data.color || '#3B82F6',
+                                        icon: data.icon || '📁',
+                                        isCustom: true,
+                                        parentId: data.parentId,
+                                        order: (categories.length ? Math.max(...categories.map(c => c.order || 0)) : 0) + 10,
+                                        budget: data.budget
+                                    });
+                                    setShowAddPanel(false);
+                                } catch (err) {
+                                    console.error('Failed to add category', err);
+                                    alert('Failed to add category');
+                                }
+                            }}
                             onCancel={() => setShowAddPanel(false)}
                         />
                     </div>

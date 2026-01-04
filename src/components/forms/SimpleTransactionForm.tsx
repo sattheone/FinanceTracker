@@ -20,15 +20,17 @@ interface SimpleTransactionFormProps {
   hideActions?: boolean;
   autoSave?: boolean;
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void;
+  defaultBankAccountId?: string;
 }
 
-const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTransactionFormProps>(({
+const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTransactionFormProps>(({ 
   transaction,
   onSubmit,
   onCancel,
   hideActions = false,
   autoSave = false,
-  onSaveStatusChange
+  onSaveStatusChange,
+  defaultBankAccountId
 }, ref) => {
   const { bankAccounts, categories: contextCategories, tags, updateTransaction, addTag } = useData();
 
@@ -75,10 +77,11 @@ const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTran
       setFormData(prev => ({
         ...prev,
         date: new Date().toISOString().split('T')[0],
-        type: 'expense'
+        type: 'expense',
+        bankAccountId: defaultBankAccountId || ''
       }));
     }
-  }, [transaction]);
+  }, [transaction, defaultBankAccountId]);
 
   // Auto-save Logic
   useEffect(() => {

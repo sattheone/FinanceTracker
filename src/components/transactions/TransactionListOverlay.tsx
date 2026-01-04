@@ -5,6 +5,7 @@ import { formatCurrency } from '../../utils/formatters';
 import { cn } from '../../hooks/useThemeClasses';
 import TransactionTable from './TransactionTable';
 import TagPopover from './TagPopover';
+import CategoryPopover from './CategoryPopover';
 import TagSettingsOverlay from './TagSettingsOverlay';
 import { useData } from '../../contexts/DataContext';
 
@@ -37,6 +38,8 @@ const TransactionListOverlay: React.FC<TransactionListOverlayProps> = ({
     const [showTagSettings, setShowTagSettings] = useState(false);
     const [showBulkTagPopover, setShowBulkTagPopover] = useState(false);
     const [bulkTagPopoverAnchor, setBulkTagPopoverAnchor] = useState<HTMLElement | null>(null);
+    const [showBulkCategoryPopover, setShowBulkCategoryPopover] = useState(false);
+    const [bulkCategoryAnchor, setBulkCategoryAnchor] = useState<HTMLElement | null>(null);
 
     const selectedTxns = useMemo(() => transactions.filter(t => selectedTransactions.has(t.id)), [transactions, selectedTransactions]);
     const bulkCommonTagIds = useMemo(() => {
@@ -44,6 +47,10 @@ const TransactionListOverlay: React.FC<TransactionListOverlayProps> = ({
         const initial = (selectedTxns[0].tags || []).slice();
         return selectedTxns.reduce((acc, t) => acc.filter(id => (t.tags || []).includes(id)), initial);
     }, [selectedTxns]);
+
+    // IMPORTANT: Hooks must not be conditional; compute displayTransactions before any early return
+    const displayTransactions = useMemo(() => transactions.filter(t => !t.isSplitParent), [transactions]);
+    const totalAmount = displayTransactions.reduce((sum, t) => sum + t.amount, 0);
 
     const handleBulkToggleTag = async (tagId: string) => {
         const isCommon = bulkCommonTagIds.includes(tagId);
@@ -59,9 +66,6 @@ const TransactionListOverlay: React.FC<TransactionListOverlayProps> = ({
     };
 
     if (!isOpen) return null;
-
-    const displayTransactions = useMemo(() => transactions.filter(t => !t.isSplitParent), [transactions]);
-    const totalAmount = displayTransactions.reduce((sum, t) => sum + t.amount, 0);
 
     const handleSelectTransaction = (id: string) => {
         const newSelected = new Set(selectedTransactions);
@@ -144,6 +148,13 @@ const TransactionListOverlay: React.FC<TransactionListOverlayProps> = ({
                         transactions={displayTransactions}
                         selectedTransactions={selectedTransactions}
                         onSelectTransaction={handleSelectTransaction}
+                        onSelectTransactionsRange={(ids, select) => {
+                            setSelectedTransactions(prev => {
+                                const next = new Set(prev);
+                                ids.forEach(id => { if (select) next.add(id); else next.delete(id); });
+                                return next;
+                            });
+                        }}
                         onSelectAll={handleSelectAll}
                         onClearSelection={() => setSelectedTransactions(new Set())}
                         onTransactionClick={onTransactionClick}
@@ -157,6 +168,10 @@ const TransactionListOverlay: React.FC<TransactionListOverlayProps> = ({
                         onBulkTagClick={(anchor) => {
                             setBulkTagPopoverAnchor(anchor as HTMLElement);
                             setShowBulkTagPopover(true);
+                        }}
+                        onBulkCategoryClick={(anchor) => {
+                            setBulkCategoryAnchor(anchor as HTMLElement);
+                            setShowBulkCategoryPopover(true);
                         }}
                     />
                 </div>
@@ -196,6 +211,28 @@ const TransactionListOverlay: React.FC<TransactionListOverlayProps> = ({
                     bulkCommonTagIds={bulkCommonTagIds}
                     onBulkToggleTag={handleBulkToggleTag}
                     onOpenTagSettings={() => setShowTagSettings(true)}
+                />
+            )}
+
+            {/* Bulk Category Popover */}
+            {showBulkCategoryPopover && (
+                <CategoryPopover
+                    isOpen={showBulkCategoryPopover}
+                    onClose={() => {
+                        setShowBulkCategoryPopover(false);
+                        setBulkCategoryAnchor(null);
+                    }}
+                    anchorElement={bulkCategoryAnchor}
+                    currentCategory={''}
+                    onSelect={(id) => {
+                        // apply selection immediately to all selected transactions
+                        selectedTxns.forEach(t => {
+                            updateTransaction(t.id, { category: id });
+                        });
+                        setSelectedTransactions(new Set());
+                        setShowBulkCategoryPopover(false);
+                        setBulkCategoryAnchor(null);
+                    }}
                 />
             )}
         </>

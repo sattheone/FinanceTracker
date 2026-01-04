@@ -112,6 +112,8 @@ interface DataContextType {
   addCategory: (category: Omit<Category, 'id'>) => Promise<string | undefined>;
   updateCategory: (id: string, category: Partial<Category>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
+  // Grouping helpers
+  ungroupChildren: (parentId: string) => Promise<void>;
 
   // Tag Operations
   addTag: (tag: Omit<Tag, 'id'>) => Promise<Tag | undefined>;
@@ -388,6 +390,32 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         console.log('[DataContext] Reloading categories after migration...');
         categoriesData = await FirebaseService.getCategories(userId);
         console.log('[DataContext] Migrated categories count:', categoriesData.length);
+      }
+
+      // Ensure 'Miscellaneous' group exists and reparent any children of system 'other' to 'misc'
+      try {
+        const hasMisc = categoriesData.some(c => c.id === 'misc');
+        if (!hasMisc) {
+          console.log('[DataContext] Creating Miscellaneous group (misc)');
+          await FirebaseService.addCategoryWithId(userId, 'misc', {
+            name: 'Miscellaneous',
+            color: '#6B7280',
+            icon: '📋',
+            isCustom: false,
+            order: 950
+          });
+          categoriesData = await FirebaseService.getCategories(userId);
+        }
+
+        // Reparent all non-system children under 'other' to 'misc'
+        const toMove = categoriesData.filter(c => c.parentId === 'other' && !c.isSystem);
+        if (toMove.length > 0) {
+          console.log(`[DataContext] Reparenting ${toMove.length} categories from 'other' to 'misc'`);
+          await Promise.all(toMove.map(c => FirebaseService.updateCategory(userId, c.id, { parentId: 'misc' })));
+          categoriesData = categoriesData.map(c => c.parentId === 'other' && !c.isSystem ? { ...c, parentId: 'misc' } : c);
+        }
+      } catch (error) {
+        console.error('[DataContext] Miscellaneous migration error:', error);
       }
 
       console.log('[DataContext] Setting categories to state:', categoriesData.length, 'categories');
@@ -1252,10 +1280,38 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
 
     try {
+      // If deleting a parent group, first ungroup its children (make them standalone)
+      const children = categories.filter(c => c.parentId === id);
+      if (children.length > 0) {
+        await Promise.all(children.map(child => updateCategory(child.id, { parentId: undefined })));
+      }
+
       await FirebaseService.deleteCategory(user.id, id);
       setCategories(prev => prev.filter(c => c.id !== id));
     } catch (error) {
       console.error('Error deleting category:', error);
+    }
+  };
+
+  // Helper: Ungroup all children of a parent (keep the parent group even if empty)
+  const ungroupChildren = async (parentId: string) => {
+    if (!user) return;
+
+    try {
+      const children = categories.filter(c => c.parentId === parentId);
+      if (children.length === 0) {
+        // Nothing to ungroup; keep the parent as an empty group
+        return;
+      }
+
+      // Update all children in Firebase first
+      await Promise.all(children.map(child => FirebaseService.updateCategory(user.id, child.id, { parentId: undefined })));
+
+      // Compute new categories snapshot where children are ungrouped
+      const newCategories = categories.map(c => c.parentId === parentId ? { ...c, parentId: undefined } as Category : c);
+      setCategories(newCategories);
+    } catch (error) {
+      console.error('[DataContext] Error ungrouping children:', error);
     }
   };
 
@@ -1501,6 +1557,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     addCategory,
     updateCategory,
     deleteCategory,
+    ungroupChildren,
 
     // Tags
     tags,

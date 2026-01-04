@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Trash2, ToggleLeft, ToggleRight, AlertCircle, Plus, Edit3, Play } from 'lucide-react';
+import { Trash2, ToggleLeft, ToggleRight, AlertCircle, Plus, Edit3, Play, Sparkles } from 'lucide-react';
 import { CategoryRule, Transaction } from '../../types';
 import { useData } from '../../contexts/DataContext';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import RuleCreationDialog from '../transactions/RuleCreationDialog';
+import SuggestedRulesModal from './SuggestedRulesModal';
 import AutoCategorizationService from '../../services/autoCategorization';
 
 const CategoryRules: React.FC = () => {
@@ -14,6 +15,7 @@ const CategoryRules: React.FC = () => {
     const categories = contextCategories || [];
     const [showAddDialog, setShowAddDialog] = useState(false);
     const [editingRule, setEditingRule] = useState<CategoryRule | null>(null);
+    const [showSuggestedModal, setShowSuggestedModal] = useState(false);
 
     // Removed localstorage loading effect
 
@@ -66,6 +68,14 @@ const CategoryRules: React.FC = () => {
                     </p>
                 </div>
                 <div className="flex gap-2">
+                    <button
+                        onClick={() => setShowSuggestedModal(true)}
+                        className="flex items-center space-x-2 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg transition-colors shadow-sm border border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800"
+                        title="Intelligent rule suggestions"
+                    >
+                        <Sparkles className="w-4 h-4" />
+                        <span>Suggestions</span>
+                    </button>
                     <button
                         onClick={async () => {
                             if (!window.confirm('This will scan all past transactions and apply your active rules. Existing categories might be overwritten if a rule matches. Continue?')) return;
@@ -288,6 +298,11 @@ const CategoryRules: React.FC = () => {
                         setEditingRule(null);
                     }}
                 />
+            )}
+
+            {/* Suggested Rules Modal */}
+            {showSuggestedModal && (
+                <SuggestedRulesModal isOpen={showSuggestedModal} onClose={() => setShowSuggestedModal(false)} />
             )}
         </div>
     );

@@ -5,11 +5,12 @@ import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { Transaction } from '../../types';
 
 interface InlineTypeEditorProps {
-    currentType: Transaction['type'];
-    onSave: (type: Transaction['type']) => void;
+    currentType: Transaction['type'] | 'unchanged';
+    onSave: (type: Transaction['type'] | 'unchanged') => void;
     onCancel?: () => void;
     triggerContent?: React.ReactNode;
     triggerClassName?: string;
+    allowUnchanged?: boolean;
 }
 
 const transactionTypes = [
@@ -24,7 +25,8 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
     onSave,
     onCancel,
     triggerContent,
-    triggerClassName
+    triggerClassName,
+    allowUnchanged = false,
 }) => {
     const theme = useThemeClasses();
     const [isOpen, setIsOpen] = useState(false);
@@ -82,7 +84,10 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
         }
     }, [isOpen, onCancel]);
 
-    const currentTypeObj = transactionTypes.find(t => t.value === currentType) || transactionTypes[1];
+    const currentTypeObj =
+        currentType === 'unchanged'
+            ? { value: 'unchanged' as const, label: 'Unchanged', icon: '⏸️', color: 'text-gray-600 dark:text-gray-300' }
+            : transactionTypes.find(t => t.value === currentType) || transactionTypes[1];
 
     return (
         <div className="relative" ref={containerRef}>
@@ -135,6 +140,27 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
                     )}
                 >
                     <div className="p-1">
+                        {allowUnchanged && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSave('unchanged');
+                                    setIsOpen(false);
+                                }}
+                                className={cn(
+                                    "w-full flex items-center space-x-2 px-3 py-1 rounded-md text-left transition-colors",
+                                    currentType === 'unchanged'
+                                        ? "bg-blue-50 dark:bg-blue-900/20"
+                                        : "hover:bg-gray-100 dark:hover:bg-gray-700"
+                                )}
+                            >
+                                <span className="text-sm">⏸️</span>
+                                <span className={cn("text-xs font-medium flex-1", "text-gray-600 dark:text-gray-300")}>Unchanged</span>
+                                {currentType === 'unchanged' && (
+                                    <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                )}
+                            </button>
+                        )}
                         {transactionTypes.map(type => (
                             <button
                                 key={type.value}

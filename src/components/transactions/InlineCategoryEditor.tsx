@@ -193,10 +193,15 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
   const flatList = useMemo(() => {
     const flat: Array<{ id: string; name: string; isParent: boolean }> = [];
     displayGroups.forEach(group => {
-      // Parent groups are not assignable to transactions; only include children
-      group.children.forEach(child => {
-        flat.push({ id: child.id, name: child.name, isParent: false });
-      });
+      if (group.children.length === 0) {
+        // Standalone category: parent is selectable
+        flat.push({ id: group.parent.id, name: group.parent.name, isParent: false });
+      } else {
+        // Parent groups are headers; only children are selectable
+        group.children.forEach(child => {
+          flat.push({ id: child.id, name: child.name, isParent: false });
+        });
+      }
     });
     return flat;
   }, [displayGroups]);
@@ -323,11 +328,30 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
           >
             {displayGroups.map(({ parent, children }) => (
               <div key={parent.id} className="mb-1">
-                {/* Parent - Header if has children, Button if standalone */}
-                {/* Render parent as a non-selectable header always */}
-                <div className="px-2 py-1.5 mt-2 first:mt-0 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50 rounded flex items-center gap-1">
-                  <span>{parent.icon}</span> {parent.name}
-                </div>
+                {/* Parent: selectable if standalone (no children), otherwise header-only */}
+                {children.length === 0 ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSave(parent.id);
+                      setIsOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center space-x-2 px-2 py-1 rounded-md text-left transition-colors",
+                      currentCategory === parent.id
+                        ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                        : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                    )}
+                  >
+                    <span className="text-sm">{parent.icon}</span>
+                    <span className="text-xs flex-1">{parent.name}</span>
+                    {currentCategory === parent.id && <Check className="w-3 h-3" />}
+                  </button>
+                ) : (
+                  <div className="px-2 py-1.5 mt-2 first:mt-0 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50 rounded flex items-center gap-1">
+                    <span>{parent.icon}</span> {parent.name}
+                  </div>
+                )}
 
                 {/* Children */}
                 {children.map(child => (

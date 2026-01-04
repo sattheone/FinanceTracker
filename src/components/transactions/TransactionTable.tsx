@@ -10,7 +10,8 @@ import { useData } from '../../contexts/DataContext';
 interface TransactionTableProps {
     transactions: Transaction[];
     selectedTransactions?: Set<string>;
-    onSelectTransaction?: (id: string) => void;
+    onSelectTransaction?: (id: string, select?: boolean) => void;
+    onSelectTransactionsRange?: (ids: string[], select: boolean) => void;
     onSelectAll?: () => void;
     onClearSelection?: () => void;
     onTransactionClick?: (transaction: Transaction) => void;
@@ -32,6 +33,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     transactions,
     selectedTransactions = new Set(),
     onSelectTransaction,
+    onSelectTransactionsRange,
     onSelectAll,
     onTransactionClick,
     onDeleteTransaction,
@@ -109,9 +111,27 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
         return selectedTxns.every(t => t.type === t0) ? t0 : undefined;
     }, [selectedTxns]);
 
-    const handleSelectTransaction = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const lastClickedIndexRef = useRef<number | null>(null);
+
+    const handleSelectTransaction = (id: string, index: number, e: React.MouseEvent<HTMLInputElement>) => {
         e.stopPropagation();
-        onSelectTransaction?.(id);
+        const select = (e.currentTarget as HTMLInputElement).checked;
+
+        if (e.shiftKey && lastClickedIndexRef.current !== null) {
+            const start = Math.min(lastClickedIndexRef.current, index);
+            const end = Math.max(lastClickedIndexRef.current, index);
+            const idsInRange = sortedTransactions.slice(start, end + 1).map(t => t.id);
+            if (onSelectTransactionsRange) {
+                onSelectTransactionsRange(idsInRange, select);
+            } else if (onSelectTransaction) {
+                // Fallback: apply individually with desired select state
+                idsInRange.forEach(rid => onSelectTransaction(rid, select));
+            }
+        } else {
+            onSelectTransaction?.(id, select);
+        }
+
+        lastClickedIndexRef.current = index;
     };
 
     const handleSelectAllClick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,7 +191,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                             </tr>
                         </thead>
                         <tbody>
-                            {sortedTransactions.map((transaction) => {
+                            {sortedTransactions.map((transaction, index) => {
                                 const date = new Date(transaction.date);
                                 return (
                                     <tr
@@ -186,8 +206,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                             <input
                                                 type="checkbox"
                                                 checked={selectedTransactions.has(transaction.id)}
-                                                onChange={(e) => handleSelectTransaction(transaction.id, e)}
-                                                onClick={(e) => e.stopPropagation()}
+                                                onClick={(e) => handleSelectTransaction(transaction.id, index, e)}
                                                 className="cursor-pointer"
                                             />
                                         </td>
@@ -217,7 +236,11 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                             {onUpdateTransaction ? (
                                                 <InlineTypeEditor
                                                     currentType={transaction.type}
-                                                    onSave={(newType) => onUpdateTransaction(transaction.id, { type: newType })}
+                                                    allowUnchanged={false}
+                                                    onSave={(newType) => {
+                                                        if (newType === 'unchanged') return;
+                                                        onUpdateTransaction(transaction.id, { type: newType });
+                                                    }}
                                                 />
                                             ) : (
                                                 <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-full ${getTypeColor(transaction.type)}`}>
@@ -333,8 +356,9 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                 <div className="relative" ref={typeContainerRef}>
                                     <InlineTypeEditor
                                         currentType={bulkCommonType || 'expense'}
+                                        allowUnchanged={false}
                                         onSave={(newType) => {
-                                            if (!onUpdateTransaction) return;
+                                            if (!onUpdateTransaction || newType === 'unchanged') return;
                                             transactions.forEach(t => {
                                                 if (selectedTransactions.has(t.id)) {
                                                     onUpdateTransaction(t.id, { type: newType });

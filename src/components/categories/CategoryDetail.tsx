@@ -36,7 +36,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     monthlyBudget,
     currentMonth
 }) => {
-    const { updateTransaction, categories, addCategoryRule, updateCategory } = useData();
+    const { updateTransaction, categories, addCategoryRule, updateCategory, ungroupChildren } = useData();
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
     const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
     const [showEditPanel, setShowEditPanel] = useState(false);
@@ -260,13 +260,11 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                                             }}
                                             onCancel={() => setShowEditPanel(false)}
                                             onUngroupChildren={async (parentId) => {
-                                                const children = categories.filter(c => c.parentId === parentId);
                                                 try {
-                                                    await Promise.all(children.map(child => updateCategory(child.id, { parentId: undefined })));
-                                                    alert('Ungrouped all subcategories');
+                                                    await ungroupChildren(parentId);
+                                                    // Silent delete of empty group per requirement; no alert
                                                 } catch (err) {
                                                     console.error('Failed to ungroup children', err);
-                                                    alert('Failed to ungroup');
                                                 }
                                             }}
                                         />
@@ -314,10 +312,19 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                 <TransactionTable
                     transactions={transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
                     selectedTransactions={selectedTransactions}
-                    onSelectTransaction={(id) => {
+                    onSelectTransaction={(id, select) => {
                         setSelectedTransactions(prev => {
                             const next = new Set(prev);
-                            if (next.has(id)) next.delete(id); else next.add(id);
+                            if (select === true) next.add(id);
+                            else if (select === false) next.delete(id);
+                            else { if (next.has(id)) next.delete(id); else next.add(id); }
+                            return next;
+                        });
+                    }}
+                    onSelectTransactionsRange={(ids, select) => {
+                        setSelectedTransactions(prev => {
+                            const next = new Set(prev);
+                            ids.forEach(i => { if (select) next.add(i); else next.delete(i); });
                             return next;
                         });
                     }}

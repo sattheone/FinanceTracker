@@ -19,6 +19,7 @@ import BankAccountForm from '../components/forms/BankAccountForm';
 import SimpleTransactionForm, { SimpleTransactionFormHandle } from '../components/forms/SimpleTransactionForm';
 import SimpleTransactionModal from '../components/transactions/SimpleTransactionModal';
 import TransactionTable from '../components/transactions/TransactionTable';
+import CategoryPopover from '../components/transactions/CategoryPopover';
 import SidePanel from '../components/common/SidePanel';
 import Button from '../components/common/Button';
 import InlineCategoryEditor from '../components/transactions/InlineCategoryEditor';
@@ -37,6 +38,7 @@ import BulkAddTransactionsModal from '../components/transactions/BulkAddTransact
 import { RecurringTransaction } from '../types';
 import YearInReviewCard, { YearInReviewStats } from '../components/transactions/YearInReviewCard';
 import YearInReviewSpendingsCard from '../components/transactions/YearInReviewSpendingsCard';
+import YearInReviewOverviewCard, { YearInReviewOverviewData } from '../components/transactions/YearInReviewOverviewCard';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4', '#84CC16'];
 
@@ -173,6 +175,7 @@ const Transactions: React.FC = () => {
   const [yearReviewStats, setYearReviewStats] = useState<YearInReviewStats | null>(null);
   const [yearReviewCardIndex, setYearReviewCardIndex] = useState(0);
   const [yearSpendings, setYearSpendings] = useState<Array<{ id: string; name: string; icon?: React.ReactNode; color?: string; amount: number }>>([]);
+  const [yearOverviewData, setYearOverviewData] = useState<YearInReviewOverviewData | null>(null);
 
   // Filter states
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
@@ -335,7 +338,7 @@ const Transactions: React.FC = () => {
     setShowConfirmDialog(true);
   };
 
-  const handleConfirmData = async (confirmedData: any[], isHistorical: boolean = false) => {
+  const handleConfirmData = async (confirmedData: any[], isHistorical: boolean = false, targetAccountId?: string) => {
     // 1. Process Data & Identify SIPs
     // Don't auto-create SIPs here, just link them if possible?
     // Actually, File/Image uploader returns bare objects.
@@ -351,7 +354,9 @@ const Transactions: React.FC = () => {
         date: item.date instanceof Date ? item.date.toISOString().split('T')[0] : item.date,
         type: item.type,
         category: item.category,
-        bankAccountId: item.bankAccountId || selectedAccount === 'all_accounts' ? bankAccounts[0]?.id : selectedAccount,
+        bankAccountId: (item.bankAccountId
+          || (targetAccountId && targetAccountId.length > 0 && targetAccountId)
+          || (selectedAccount !== 'all_accounts' ? selectedAccount : '')),
         tags: ['imported'], // Default tag
       };
 
@@ -582,14 +587,24 @@ const Transactions: React.FC = () => {
     }
   };
 
-  const handleSelectTransaction = (transactionId: string) => {
+  const handleSelectTransaction = (transactionId: string, select?: boolean) => {
     const newSelected = new Set(selectedTransactions);
-    if (newSelected.has(transactionId)) {
+    if (select === true) {
+      newSelected.add(transactionId);
+    } else if (select === false) {
       newSelected.delete(transactionId);
     } else {
-      newSelected.add(transactionId);
+      if (newSelected.has(transactionId)) newSelected.delete(transactionId); else newSelected.add(transactionId);
     }
     setSelectedTransactions(newSelected);
+  };
+
+  const handleSelectTransactionRange = (ids: string[], select: boolean) => {
+    const next = new Set(selectedTransactions);
+    ids.forEach(id => {
+      if (select) next.add(id); else next.delete(id);
+    });
+    setSelectedTransactions(next);
   };
 
   const handleBulkDelete = () => {
@@ -655,6 +670,19 @@ const Transactions: React.FC = () => {
     }
     return Array.from(common);
   }, [transactions, selectedTransactions]);
+
+  // Bulk Category Popover state
+  const [showBulkCategoryPopover, setShowBulkCategoryPopover] = useState(false);
+  const [bulkCategoryAnchor, setBulkCategoryAnchor] = useState<HTMLElement | null>(null);
+  const openBulkCategoryPopover = (anchor?: HTMLElement) => {
+    setBulkCategoryAnchor(anchor || null);
+    setShowBulkCategoryPopover(true);
+    setBulkActionType(null); // ensure modal path is disabled
+  };
+  const closeBulkCategoryPopover = () => {
+    setShowBulkCategoryPopover(false);
+    setBulkCategoryAnchor(null);
+  };
 
   // Toggle tag across selected transactions
   const handleBulkToggleTag = (tagId: string, shouldAdd: boolean) => {
@@ -962,6 +990,7 @@ const Transactions: React.FC = () => {
         onSubmit={handleManualAddSubmit}
         onCancel={() => setShowManualAddModal(false)}
         hideActions
+        defaultBankAccountId={selectedAccount !== 'all_accounts' ? selectedAccount : ''}
       />
     </SidePanel>
   );
@@ -1089,7 +1118,6 @@ const Transactions: React.FC = () => {
               size="sm"
               onClick={() => setShowFileUploader(true)}
               leftIcon={<FileSpreadsheet className="h-4 w-4" />}
-              disabled={!currentAccount || selectedAccount === 'all_accounts'}
             >
               Import
             </Button>
@@ -1098,7 +1126,6 @@ const Transactions: React.FC = () => {
               size="sm"
               onClick={() => setShowManualAddModal(true)}
               leftIcon={<Plus className="h-4 w-4" />}
-              disabled={!currentAccount || selectedAccount === 'all_accounts'}
             >
               Add
             </Button>
@@ -1605,6 +1632,47 @@ const Transactions: React.FC = () => {
                             return { id: c.id, name: c.name, icon: <span>{c.icon}</span>, color: c.color as string, amount };
                           }).sort((a, b) => b.amount - a.amount);
                           setYearSpendings(spendings);
+
+                          // Compute overview totals and monthly flows
+                          const months: YearInReviewOverviewData['monthly'] = Array.from({ length: 12 }, (_, m) => {
+                            const monthTxns = yearTxns.filter(t => new Date(t.date).getMonth() === m);
+                            const income = monthTxns.filter(t => t.type === 'income' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
+                            const expense = monthTxns.filter(t => t.type === 'expense' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
+                            const invest = monthTxns.filter(t => t.type === 'investment' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
+                            return { income, expense, invest };
+                          });
+                          const totals = months.reduce((acc, m) => ({
+                            income: acc.income + m.income,
+                            expense: acc.expense + m.expense,
+                            invest: acc.invest + m.invest,
+                          }), { income: 0, expense: 0, invest: 0 });
+                          // Previous year totals for deltas
+                          const prevYearMonths = Array.from({ length: 12 }, (_, m) => {
+                            const pmTxns = prevYearTxns.filter(t => new Date(t.date).getMonth() === m);
+                            const income = pmTxns.filter(t => t.type === 'income' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
+                            const expense = pmTxns.filter(t => t.type === 'expense' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
+                            const invest = pmTxns.filter(t => t.type === 'investment' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
+                            return { income, expense, invest };
+                          });
+                          const prevTotals = prevYearMonths.reduce((acc, m) => ({
+                            income: acc.income + m.income,
+                            expense: acc.expense + m.expense,
+                            invest: acc.invest + m.invest,
+                          }), { income: 0, expense: 0, invest: 0 });
+                          const deltas: YearInReviewOverviewData['deltas'] = {
+                            income: prevTotals.income > 0 ? ((totals.income - prevTotals.income) / prevTotals.income) * 100 : 0,
+                            expense: prevTotals.expense > 0 ? ((totals.expense - prevTotals.expense) / prevTotals.expense) * 100 : 0,
+                            invest: prevTotals.invest > 0 ? ((totals.invest - prevTotals.invest) / prevTotals.invest) * 100 : 0,
+                          };
+                          const peakIncomeIdx = months.reduce((maxIdx, m, idx, arr) => m.income > arr[maxIdx].income ? idx : maxIdx, 0);
+                          const overview: YearInReviewOverviewData = {
+                            year,
+                            totals,
+                            deltas,
+                            monthly: months,
+                            peakIncome: { monthIndex: peakIncomeIdx, amount: months[peakIncomeIdx].income },
+                          };
+                          setYearOverviewData(overview);
                           setShowYearReview(true);
                           setYearReviewCardIndex(0);
                         }}
@@ -1717,6 +1785,7 @@ const Transactions: React.FC = () => {
                       transactions={filteredTransactions}
                       selectedTransactions={selectedTransactions}
                       onSelectTransaction={handleSelectTransaction}
+                      onSelectTransactionsRange={handleSelectTransactionRange}
                       onSelectAll={handleSelectAll}
                       onClearSelection={() => setSelectedTransactions(new Set())}
                       onTransactionClick={(t) => {
@@ -1751,9 +1820,8 @@ const Transactions: React.FC = () => {
                         setTagPopoverAnchor(anchor);
                         setShowTagPopover(true);
                       }}
-                      onBulkCategoryClick={() => {
-                        setBulkActionType('category');
-                        setShowBulkActions(true);
+                      onBulkCategoryClick={(anchorEl) => {
+                        openBulkCategoryPopover(anchorEl as HTMLElement);
                       }}
                       onBulkTypeClick={() => {
                         setBulkActionType('type');
@@ -1784,7 +1852,7 @@ const Transactions: React.FC = () => {
                             setShowYearReview(false);
                           }}
                         />
-                      ) : (
+                      ) : yearReviewCardIndex === 1 ? (
                         <YearInReviewSpendingsCard
                           year={yearReviewStats.year}
                           items={yearSpendings}
@@ -1793,6 +1861,12 @@ const Transactions: React.FC = () => {
                             setShowYearReview(false);
                           }}
                         />
+                      ) : (
+                        yearOverviewData && (
+                          <YearInReviewOverviewCard
+                            data={yearOverviewData}
+                          />
+                        )
                       )}
                     </div>
                     {/* Outside nav controls */}
@@ -1810,7 +1884,7 @@ const Transactions: React.FC = () => {
                         <button
                           type="button"
                           className="text-gray-200 hover:text-white"
-                          onClick={() => setYearReviewCardIndex((i) => Math.min(1, i + 1))}
+                          onClick={() => setYearReviewCardIndex((i) => Math.min(2, i + 1))}
                           aria-label="Next"
                         >
                           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="M12 5l7 7-7 7" /></svg>
@@ -1909,6 +1983,24 @@ const Transactions: React.FC = () => {
           </div>
         )
       }
+      {/* Bulk Category Popover */}
+      {showBulkCategoryPopover && (
+        <CategoryPopover
+          isOpen={showBulkCategoryPopover}
+          onClose={closeBulkCategoryPopover}
+          anchorElement={bulkCategoryAnchor}
+          currentCategory={''}
+          onSelect={(id) => {
+            // apply selection immediately to all selected transactions
+            Array.from(selectedTransactions).forEach(txId => {
+              const transaction = transactions.find(t => t.id === txId);
+              if (transaction) updateTransaction(txId, { ...transaction, category: id });
+            });
+            setSelectedTransactions(new Set());
+            closeBulkCategoryPopover();
+          }}
+        />
+      )}
 
       {/* Modals */}
       {/* Image Uploader Modal */}
@@ -1968,6 +2060,8 @@ const Transactions: React.FC = () => {
         type="transactions"
         title="Confirm Extracted Transactions"
         categories={categories}
+        accounts={bankAccounts}
+        selectedAccountId={selectedAccount !== 'all_accounts' ? selectedAccount : ''}
       />
 
       {/* Duplicate Confirmation Dialog */}

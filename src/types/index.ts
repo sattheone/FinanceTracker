@@ -162,6 +162,8 @@ export interface Liability {
   bankName: string; // Lender name
   accountNumber?: string; // Loan account number
   description?: string; // Additional notes
+  // Tracked repayments: installment numbers marked as paid
+  paidInstallments?: number[];
 }
 
 export interface LICPolicy {

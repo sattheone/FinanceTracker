@@ -3,7 +3,7 @@ import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { MonthlyBudget } from '../../types';
 import { Category } from '../../constants/categories';
 import { formatCurrency } from '../../utils/formatters';
-import { Settings, EyeOff } from 'lucide-react';
+import { Settings, EyeOff, ChevronRight } from 'lucide-react';
 
 interface CategoryListProps {
     categories: Category[];
@@ -14,6 +14,7 @@ interface CategoryListProps {
     monthlyBudget: MonthlyBudget | null;
     displayMode?: 'flat' | 'grouped';
     viewMode?: 'month' | 'year' | 'prevYear';
+    includeTransfer?: boolean;
 }
 
 const CategoryList: React.FC<CategoryListProps> = ({
@@ -24,7 +25,8 @@ const CategoryList: React.FC<CategoryListProps> = ({
     investmentSpending = {},
     monthlyBudget,
     displayMode = 'flat',
-    viewMode = 'month'
+    viewMode = 'month',
+    includeTransfer = false
 }) => {
     const theme = useThemeClasses();
 
@@ -38,9 +40,12 @@ const CategoryList: React.FC<CategoryListProps> = ({
         categories.forEach(cat => {
             const hasExpense = (spendingByCategory[cat.id] || 0) > 0;
             const hasInvestment = (investmentSpending[cat.id] || 0) > 0;
-            const isSystem = cat.id === 'transfer' || cat.id === 'adjustment';
+            const isSystem = cat.isSystem || cat.id === 'transfer' || cat.id === 'adjustment';
 
             if (isSystem) {
+                if (!includeTransfer && cat.id === 'transfer') {
+                    return; // skip transfer when not included
+                }
                 system.push(cat);
             } else if (hasInvestment) {
                 investments.push(cat);
@@ -76,25 +81,45 @@ const CategoryList: React.FC<CategoryListProps> = ({
         });
 
         return { active, investments, hidden, system };
-    }, [categories, spendingByCategory, investmentSpending]);
+    }, [categories, spendingByCategory, investmentSpending, includeTransfer]);
 
     // Build parent-group structures for expenses when in grouped mode
     const expenseGroups = useMemo(() => {
         if (displayMode !== 'grouped') return [] as Array<{ parent: Category; children: Category[]; total: number }>;
-        const parents = categories.filter(c => !c.parentId && c.id !== 'transfer' && c.id !== 'adjustment');
-        const childrenByParent = parents.map(parent => {
+        const parents = categories.filter(c => !c.parentId && !c.isSystem && c.id !== 'transfer' && c.id !== 'adjustment');
+
+        // Build groups ensuring each parent appears exactly once
+        const activeIds = new Set(groupedCategories.active.map(c => c.id));
+        const groups = parents.map(parent => {
             const children = groupedCategories.active.filter(c => c.parentId === parent.id);
-            const total = children.reduce((sum, c) => sum + (spendingByCategory[c.id] || 0), 0);
+            const total = children.length > 0
+                ? children.reduce((sum, c) => sum + (spendingByCategory[c.id] || 0), 0)
+                : (spendingByCategory[parent.id] || 0);
             return { parent, children, total };
-        });
-        // Include standalone root categories that have no children and appear in active
-        const standaloneRoots = groupedCategories.active.filter(c => !c.parentId);
-        const standaloneGroups = standaloneRoots.map(root => ({ parent: root, children: [] as Category[], total: spendingByCategory[root.id] || 0 }));
-        const combined = [...childrenByParent, ...standaloneGroups];
+        })
+        // Include parents that either have children or are standalone roots present in active
+        .filter(g => g.children.length > 0 || activeIds.has(g.parent.id));
+
         // Sort groups by total spend desc
-        combined.sort((a, b) => b.total - a.total);
-        return combined;
+        groups.sort((a, b) => b.total - a.total);
+        return groups;
     }, [displayMode, categories, groupedCategories.active, spendingByCategory]);
+
+    // Helper to get total spending for a section
+    const getSectionTotal = (list: Category[], isInvestment: boolean) => {
+        return list.reduce((sum, c) => sum + (isInvestment ? (investmentSpending[c.id] || 0) : (spendingByCategory[c.id] || 0)), 0);
+    };
+
+    // In flat view, show active categories along with system categories inline
+    const flatCategories = useMemo(() => {
+        const combined = [...groupedCategories.active, ...groupedCategories.system];
+        combined.sort((a, b) => {
+            const spendA = spendingByCategory[a.id] || 0;
+            const spendB = spendingByCategory[b.id] || 0;
+            return spendB - spendA;
+        });
+        return combined;
+    }, [groupedCategories.active, groupedCategories.system, spendingByCategory]);
 
     // Render a single category item
     const renderCategoryItem = (category: Category, isInvestment = false) => {
@@ -114,6 +139,8 @@ const CategoryList: React.FC<CategoryListProps> = ({
         // Progress bar calculations
         const progress = budgetAmount > 0 ? Math.min((spent / budgetAmount) * 100, 100) : 0;
         const isOverBudget = budgetAmount > 0 && spent > budgetAmount;
+
+        const isSystemCategory = category.isSystem || category.id === 'transfer' || category.id === 'adjustment';
 
         return (
             <button
@@ -138,6 +165,9 @@ const CategoryList: React.FC<CategoryListProps> = ({
                             isSelected ? 'text-blue-900 dark:text-blue-100' : theme.textPrimary
                         )}>
                             {category.name}
+                            {isSystemCategory && (
+                                <Settings className="inline w-3 h-3 ml-1 text-gray-400 dark:text-gray-500" />
+                            )}
                         </p>
                         {budgetAmount > 0 && (
                             <div className="mt-1 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
@@ -170,20 +200,10 @@ const CategoryList: React.FC<CategoryListProps> = ({
         );
     };
 
-    // Calculate total for a group
-    const getSectionTotal = (group: Category[], isInvestment: boolean) => {
-        return group.reduce((sum, cat) => {
-            const val = isInvestment
-                ? (investmentSpending[cat.id] || 0)
-                : (spendingByCategory[cat.id] || 0);
-            return sum + val;
-        }, 0);
-    };
-
+    // Main render
     return (
-        <div className="h-full overflow-y-auto">
-            <div className="space-y-6 py-2">
-                {/* Investment Categories */}
+        <div className={cn('p-2', theme.bgPrimary)}>
+            <div className="space-y-4">
                 {groupedCategories.investments.length > 0 && (
                     <section>
                         <div className="flex items-center justify-between mb-2 px-2">
@@ -217,6 +237,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
                                         <div className="flex items-center min-w-0 flex-1">
                                             <span className="text-xl mr-2 flex-shrink-0">{parent.icon}</span>
                                             <p className={cn('text-xs font-bold uppercase tracking-wider truncate', theme.textMuted)}>{parent.name}</p>
+                                            <ChevronRight className="w-3 h-3 ml-2 flex-shrink-0" style={{ color: parent.color || '#3B82F6' }} />
                                         </div>
                                         <span className={cn('text-xs font-medium', theme.textMuted)}>{formatCurrency(total)}</span>
                                     </div>
@@ -224,19 +245,20 @@ const CategoryList: React.FC<CategoryListProps> = ({
                                     {children.length > 0 ? (
                                         children.map(child => renderCategoryItem(child, false))
                                     ) : (
-                                        // Standalone root category: show its item as a child entry (for consistency)
-                                        renderCategoryItem(parent, false)
+                                        <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 italic">
+                                            No categories in this group
+                                        </div>
                                     )}
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        groupedCategories.active.map(c => renderCategoryItem(c, false))
+                        flatCategories.map(c => renderCategoryItem(c, false))
                     )}
                 </section>
 
-                {/* System Categories (if any) */}
-                {groupedCategories.system.length > 0 && (
+                {/* System Categories (grouped mode only) */}
+                {displayMode === 'grouped' && groupedCategories.system.length > 0 && (
                     <section>
                         <div className="flex items-center justify-between mb-2 px-2">
                             <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1">

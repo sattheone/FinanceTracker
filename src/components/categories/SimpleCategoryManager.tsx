@@ -126,12 +126,18 @@ const SimpleCategoryManager: React.FC = () => {
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
-    if (window.confirm('Are you sure you want to delete this category? Transactions will be moved to "Other".')) {
+    const hasChildren = categories.some(c => c.parentId === categoryId);
+    const message = hasChildren
+      ? 'Delete this group? Its subcategories will become standalone.'
+      : 'Are you sure you want to delete this category? Transactions will be moved to "Other".';
+    if (window.confirm(message)) {
       try {
-        const transactionsToUpdate = transactions.filter(t => t.category === categoryId);
-        // Update transactions sequentially to avoid race conditions if any
-        for (const t of transactionsToUpdate) {
-          await updateTransaction(t.id, { ...t, category: 'other' });
+        if (!hasChildren) {
+          const transactionsToUpdate = transactions.filter(t => t.category === categoryId);
+          // Update transactions sequentially to avoid race conditions if any
+          for (const t of transactionsToUpdate) {
+            await updateTransaction(t.id, { ...t, category: 'other' });
+          }
         }
 
         await deleteCategory(categoryId);
@@ -202,7 +208,7 @@ const SimpleCategoryManager: React.FC = () => {
     const validCategories = categories.filter(c => c && typeof c.name === 'string');
 
     return validCategories
-      .filter(c => !c.parentId &&
+      .filter(c => !c.parentId && !c.isSystem &&
         (c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           validCategories.some(child => child.parentId === c.id && child.name.toLowerCase().includes(searchTerm.toLowerCase())))
       )
@@ -214,6 +220,12 @@ const SimpleCategoryManager: React.FC = () => {
       .filter(c => c.parentId === parentId)
       .sort((a, b) => (a.order || 0) - (b.order || 0));
   };
+
+  const systemCategories = useMemo(() => {
+    return categories
+      .filter(c => c.isSystem && !c.parentId)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+  }, [categories]);
 
   return (
     <div className="space-y-6">
@@ -354,7 +366,12 @@ const SimpleCategoryManager: React.FC = () => {
                     <div>
                       <h4 className={cn(theme.textPrimary, 'font-medium')}>{category.name}</h4>
                       <p className={cn(theme.textMuted, 'text-sm')}>
-                        {subcategories.length} subcategories • {category.isCustom ? 'Custom' : 'Default'}
+                        {subcategories.length > 0 && (
+                          <>
+                            {subcategories.length} subcategories •{' '}
+                          </>
+                        )}
+                        {category.isCustom ? 'Custom' : 'Default'}
                       </p>
                     </div>
                   </div>
@@ -371,14 +388,14 @@ const SimpleCategoryManager: React.FC = () => {
                     <div className="flex flex-col space-y-1">
                       <button
                         onClick={() => moveCategory(category.id, 'up')}
-                        disabled={index === 0}
+                        disabled={index === 0 || category.isSystem}
                         className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-30"
                       >
                         <ArrowUp className="w-3 h-3" />
                       </button>
                       <button
                         onClick={() => moveCategory(category.id, 'down')}
-                        disabled={index === rootCategories.length - 1}
+                        disabled={index === rootCategories.length - 1 || category.isSystem}
                         className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-30"
                       >
                         <ArrowDown className="w-3 h-3" />
@@ -488,6 +505,49 @@ const SimpleCategoryManager: React.FC = () => {
             <p className={theme.textMuted}>
               {searchTerm ? 'Try a different search term' : 'Create your first category to get started'}
             </p>
+          </div>
+        )}
+
+        {/* System Categories Section */}
+        {systemCategories.length > 0 && (
+          <div className="mt-8">
+            <h3 className={cn(theme.heading3, 'mb-4')}>System</h3>
+            <div className="space-y-4">
+              {systemCategories.map((category) => (
+                <div key={category.id} className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+                  <div className="p-4 bg-white dark:bg-gray-800 flex items-center justify-between">
+                    <div className="flex items-center space-x-3 flex-1">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg" style={{ backgroundColor: (category.color || '#9CA3AF') + '20' }}>
+                        {category.icon}
+                      </div>
+                      <div>
+                        <h4 className={cn(theme.textPrimary, 'font-medium')}>{category.name}</h4>
+                        <p className={cn(theme.textMuted, 'text-sm')}>Default</p>
+                      </div>
+                    </div>
+                    {/* Controls disabled for system categories */}
+                    <div className="flex items-center space-x-4">
+                      <div className="flex flex-col space-y-1">
+                        <button className="p-1 text-gray-300 cursor-not-allowed" disabled>
+                          <ArrowUp className="w-3 h-3" />
+                        </button>
+                        <button className="p-1 text-gray-300 cursor-not-allowed" disabled>
+                          <ArrowDown className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <button className="p-2 text-gray-300 cursor-not-allowed" disabled>
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button className="p-2 text-gray-300 cursor-not-allowed" disabled>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

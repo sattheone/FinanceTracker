@@ -11,7 +11,8 @@ import {
   where,
   onSnapshot,
   writeBatch,
-  serverTimestamp
+  serverTimestamp,
+  deleteField
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Asset, Insurance, Goal, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, CategoryRule, SIPRule } from '../types';
@@ -1151,8 +1152,20 @@ export class FirebaseService {
   static async updateCategoryRule(ruleId: string, updates: Partial<CategoryRule>): Promise<void> {
     try {
       const docRef = doc(db, this.COLLECTIONS.CATEGORY_RULES, ruleId);
+      // Sanitize undefineds and map to deleteField where needed
+      const sanitized: Record<string, any> = {};
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === undefined) {
+          if (key === 'transactionType') {
+            sanitized[key] = deleteField();
+          }
+          // omit other undefined keys
+        } else {
+          sanitized[key] = value;
+        }
+      });
       await updateDoc(docRef, {
-        ...updates,
+        ...sanitized,
         updatedAt: serverTimestamp()
       });
     } catch (error) {

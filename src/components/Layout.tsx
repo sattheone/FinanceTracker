@@ -182,9 +182,13 @@ const Layout: React.FC = () => {
             theme.border,
             'fixed lg:static inset-y-0 left-0 z-50 shadow-lg lg:shadow-sm min-h-screen border-r flex-shrink-0 relative',
             'transform transition-transform duration-300 ease-in-out lg:transform-none',
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+            // Visibility: hide completely on mobile when closed to avoid layout gaps
+            sidebarOpen ? 'block translate-x-0' : 'hidden -translate-x-full lg:block lg:translate-x-0',
+            // Width behavior: on mobile use w-64 when open; on desktop use CSS variable-driven width
+            sidebarOpen ? 'w-64' : '',
+            'lg:w-[var(--sidebar-width)]'
           )}
-          style={{ width: sidebarOpen ? '256px' : `${sidebarWidth}px` }}
+          style={{ ['--sidebar-width' as any]: `${sidebarWidth}px` }}
           role="navigation"
           aria-label="Main navigation"
         >

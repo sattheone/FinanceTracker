@@ -73,7 +73,9 @@ export const defaultCategories: Category[] = [
     { id: 'insurance_inv', name: 'Insurance (Inv)', color: '#059669', icon: '🛡️', isCustom: false, parentId: 'investment', order: 904 },
     { id: 'chit', name: 'Chit', color: '#059669', icon: '🎫', isCustom: false, parentId: 'investment', order: 905 },
 
-    // Other (Order 1000)
+    // Miscellaneous Group (Order 950) - user group
+    { id: 'misc', name: 'Miscellaneous', color: '#6B7280', icon: '📋', isCustom: false, order: 950 },
+    // Other (System) (Order 1000) - system fallback category, no children
     { id: 'other', name: 'Other', color: '#6B7280', icon: '📋', isCustom: false, order: 1000, isSystem: true },
     { id: 'travel', name: 'Travel', color: '#14B8A6', icon: '✈️', isCustom: false, order: 1001 },
 

@@ -79,6 +79,27 @@ const Liabilities: React.FC = () => {
     setShowScheduleModal(true);
   };
 
+  const handleMarkInstallmentPaid = async (installmentNumber: number) => {
+    if (!selectedLiabilityForSchedule) return;
+    const liab = selectedLiabilityForSchedule;
+    const schedule = generateAmortizationSchedule(
+      liab.principalAmount,
+      liab.interestRate,
+      liab.emiAmount,
+      liab.startDate
+    );
+    const existing = new Set(liab.paidInstallments || []);
+    existing.add(installmentNumber);
+    const paidList = Array.from(existing).sort((a, b) => a - b);
+    const totalPrincipalPaid = schedule
+      .filter(e => paidList.includes(e.installmentNumber))
+      .reduce((sum, e) => sum + e.principalPaid, 0);
+    const newBalance = Math.max(0, liab.principalAmount - totalPrincipalPaid);
+    await updateLiability(liab.id, { paidInstallments: paidList, currentBalance: newBalance });
+    // Reflect updated liability in modal state
+    setSelectedLiabilityForSchedule({ ...liab, paidInstallments: paidList, currentBalance: newBalance });
+  };
+
   // Calculate totals
   const totalPrincipal = liabilities.reduce((sum, liability) => sum + liability.principalAmount, 0);
   const totalOutstanding = liabilities.reduce((sum, liability) => sum + liability.currentBalance, 0);
@@ -213,9 +234,9 @@ const Liabilities: React.FC = () => {
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Repayments</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Remaining EMIs</p>
                       <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {amortization.paidInstallments}/{amortization.paidInstallments + amortization.remainingInstallments}
+                        {amortization.remainingInstallments}
                       </p>
                     </div>
                   </div>
@@ -411,12 +432,14 @@ const Liabilities: React.FC = () => {
             setSelectedLiabilityForSchedule(null);
           }}
           schedule={generateAmortizationSchedule(
-            selectedLiabilityForSchedule.currentBalance,
+            selectedLiabilityForSchedule.principalAmount,
             selectedLiabilityForSchedule.interestRate,
             selectedLiabilityForSchedule.emiAmount,
-            new Date().toISOString().split('T')[0] // Start from today
+            selectedLiabilityForSchedule.startDate // Start from original loan start date (first installment)
           )}
           liabilityName={selectedLiabilityForSchedule.name}
+          paidInstallments={selectedLiabilityForSchedule.paidInstallments || []}
+          onMarkPaid={handleMarkInstallmentPaid}
         />
       )}
     </div>

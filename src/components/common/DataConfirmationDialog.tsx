@@ -1,18 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Check, X, AlertTriangle, DollarSign, Calendar, Tag, ChevronDown } from 'lucide-react';
 
 import { Category } from '../../constants/categories';
 import InlineCategoryEditor from '../transactions/InlineCategoryEditor';
+import InlineAccountPicker from '../transactions/InlineAccountPicker';
+import { BankAccount } from '../../types';
 
 interface DataConfirmationDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (confirmedData: any[], isHistorical?: boolean) => void;
+  onConfirm: (confirmedData: any[], isHistorical?: boolean, targetAccountId?: string) => void;
   data: any[];
   type: 'assets' | 'transactions' | 'insurance';
   title: string;
   categories?: Category[];
   accountName?: string;
+  accounts?: BankAccount[];
+  selectedAccountId?: string;
+  onAccountChange?: (accountId: string) => void;
 }
 
 const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
@@ -23,13 +28,17 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
   type,
   title,
   categories = [],
-  accountName
+  accounts = [],
+  selectedAccountId = '',
+  onAccountChange
 }) => {
   const [editableData, setEditableData] = useState(data);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(
     new Set(data.map((_, index) => index))
   );
   const [isHistorical, setIsHistorical] = useState(false);
+  const [accountId, setAccountId] = useState<string>(selectedAccountId);
+  const lastClickedIndexRef = useRef<number | null>(null);
 
   // Update editableData when data prop changes
   React.useEffect(() => {
@@ -49,6 +58,29 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
     setSelectedItems(newSelected);
   };
 
+  const handleItemCheckboxClick = (index: number, e: React.MouseEvent<HTMLInputElement>) => {
+    const select = (e.currentTarget as HTMLInputElement).checked;
+    if (e.shiftKey && lastClickedIndexRef.current !== null) {
+      const start = Math.min(lastClickedIndexRef.current, index);
+      const end = Math.max(lastClickedIndexRef.current, index);
+      setSelectedItems(prev => {
+        const next = new Set(prev);
+        for (let i = start; i <= end; i++) {
+          if (select) next.add(i); else next.delete(i);
+        }
+        return next;
+      });
+    } else {
+      // Toggle single
+      setSelectedItems(prev => {
+        const next = new Set(prev);
+        if (select) next.add(index); else next.delete(index);
+        return next;
+      });
+    }
+    lastClickedIndexRef.current = index;
+  };
+
   const handleFieldChange = (index: number, field: string, value: any) => {
     setEditableData(prev => {
       const newData = [...prev];
@@ -59,7 +91,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
 
   const handleConfirm = () => {
     const confirmedData = editableData.filter((_, index) => selectedItems.has(index));
-    onConfirm(confirmedData, isHistorical);
+    onConfirm(confirmedData, isHistorical, accountId);
     onClose();
   };
 
@@ -229,7 +261,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                 <input
                   type="checkbox"
                   checked={selectedItems.has(index)}
-                  onChange={() => handleItemToggle(index)}
+                  onClick={(e) => handleItemCheckboxClick(index, e)}
                   className="h-4 w-4 text-primary-600 rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:ring-primary-500"
                 />
               </td>
@@ -437,10 +469,35 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
               <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
                 Review and edit the extracted data before adding to your account
               </p>
-              {accountName && (
-                <p className="text-sm font-medium text-blue-600 dark:text-blue-400 mt-1">
-                  Target Account: {accountName}
-                </p>
+              {type === 'transactions' && (
+                <div className="mt-3">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Account</label>
+                  <div className="w-80">
+                    <InlineAccountPicker
+                      currentAccountId={accountId}
+                      onSave={(id) => {
+                        setAccountId(id);
+                        onAccountChange?.(id);
+                      }}
+                      renderTrigger={(onClick) => {
+                        const selected = accounts.find(a => a.id === accountId);
+                        return (
+                          <button
+                            type="button"
+                            onClick={onClick}
+                            className={`flex items-center justify-between w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm ${selected ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}
+                          >
+                            <span className="flex items-center gap-2 truncate">
+                              <span className="text-lg">{selected?.logo || '🏦'}</span>
+                              <span className="truncate">{selected ? `${selected.bank} ••••${selected.number?.slice(-4)}` : 'Select account'}</span>
+                            </span>
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          </button>
+                        );
+                      }}
+                    />
+                  </div>
+                </div>
               )}
             </div>
             <button
@@ -545,7 +602,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
             </button>
             <button
               onClick={handleConfirm}
-              disabled={selectedItems.size === 0}
+              disabled={selectedItems.size === 0 || (type === 'transactions' && !accountId)}
               className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors shadow-sm"
             >
               <Check className="w-4 h-4 mr-2" />

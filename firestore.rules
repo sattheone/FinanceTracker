@@ -111,5 +111,12 @@ service cloud.firestore {
       allow create: if isNewDocumentOwner();
       allow list: if request.auth != null;
     }
+
+    // Users can only access their own tags
+    match /users/{userId}/tags/{tagId} {
+      allow read, write, delete: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow list: if isOwner(userId);
+    }
   }
 }
