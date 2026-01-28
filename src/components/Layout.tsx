@@ -125,7 +125,7 @@ const Layout: React.FC = () => {
               >
                 <Menu className="h-6 w-6" />
               </button>
-              
+
               <TrendingUp className="h-6 w-6 lg:h-8 lg:w-8 text-blue-600 dark:text-blue-400" aria-hidden="true" />
               <h1 className={cn(theme.textPrimary, 'ml-2 text-lg lg:text-xl font-bold')}>
                 <span className="hidden sm:inline">FinanceTracker</span>
@@ -180,13 +180,12 @@ const Layout: React.FC = () => {
           className={cn(
             theme.bgElevated,
             theme.border,
-            'fixed lg:static inset-y-0 left-0 z-50 shadow-lg lg:shadow-sm min-h-screen border-r flex-shrink-0 relative',
+            'fixed lg:static inset-y-0 left-0 z-50 shadow-lg lg:shadow-sm min-h-screen border-r flex-shrink-0 lg:relative',
             'transform transition-transform duration-300 ease-in-out lg:transform-none',
-            // Visibility: hide completely on mobile when closed to avoid layout gaps
-            sidebarOpen ? 'block translate-x-0' : 'hidden -translate-x-full lg:block lg:translate-x-0',
-            // Width behavior: on mobile use w-64 when open; on desktop use CSS variable-driven width
-            sidebarOpen ? 'w-64' : '',
-            'lg:w-[var(--sidebar-width)]'
+            // Visibility: slide off-screen on mobile when closed
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+            // Width: fixed w-64 on mobile, variable on desktop
+            'w-64 lg:w-[var(--sidebar-width)]'
           )}
           style={{ ['--sidebar-width' as any]: `${sidebarWidth}px` }}
           role="navigation"

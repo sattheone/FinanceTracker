@@ -1,0 +1,137 @@
+[
+    {
+        "symbol": "RELIANCE",
+        "price": 2750.45,
+        "change": 12.30,
+        "changePercent": 0.45,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 2738.15
+    },
+    {
+        "symbol": "TCS",
+        "price": 3890.20,
+        "change": -15.50,
+        "changePercent": -0.40,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 3905.70
+    },
+    {
+        "symbol": "HDFCBANK",
+        "price": 1450.60,
+        "change": 2.10,
+        "changePercent": 0.14,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 1448.50
+    },
+    {
+        "symbol": "ICICIBANK",
+        "price": 1005.35,
+        "change": 8.45,
+        "changePercent": 0.85,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 996.90
+    },
+    {
+        "symbol": "INFY",
+        "price": 1650.00,
+        "change": 5.00,
+        "changePercent": 0.30,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 1645.00
+    },
+    {
+        "symbol": "SBIN",
+        "price": 630.20,
+        "change": 4.10,
+        "changePercent": 0.65,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 626.10
+    },
+    {
+        "symbol": "BHARTIARTL",
+        "price": 1120.50,
+        "change": 10.20,
+        "changePercent": 0.92,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 1110.30
+    },
+    {
+        "symbol": "ITC",
+        "price": 450.75,
+        "change": -1.25,
+        "changePercent": -0.28,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 452.00
+    },
+    {
+        "symbol": "LICI",
+        "price": 950.00,
+        "change": 15.00,
+        "changePercent": 1.60,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 935.00
+    },
+    {
+        "symbol": "LT",
+        "price": 3600.40,
+        "change": 22.10,
+        "changePercent": 0.62,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 3578.30
+    },
+    {
+        "symbol": "TATASTEEEL",
+        "price": 135.50,
+        "change": 0.50,
+        "changePercent": 0.37,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 135.00
+    },
+    {
+        "symbol": "WIPRO",
+        "price": 480.10,
+        "change": -3.20,
+        "changePercent": -0.66,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 483.30
+    },
+    {
+        "symbol": "HCLTECH",
+        "price": 1560.80,
+        "change": 12.40,
+        "changePercent": 0.80,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 1548.40
+    },
+    {
+        "symbol": "ADANIENT",
+        "price": 3100.00,
+        "change": 50.00,
+        "changePercent": 1.64,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 3050.00
+    },
+    {
+        "symbol": "ASIANPAINT",
+        "price": 2980.50,
+        "change": -10.50,
+        "changePercent": -0.35,
+        "lastUpdated": "2024-01-19",
+        "currency": "INR",
+        "prevClose": 2991.00
+    }
+]

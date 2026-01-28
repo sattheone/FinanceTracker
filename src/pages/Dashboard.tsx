@@ -17,10 +17,44 @@ import SpendingInsightsWidget from '../components/insights/SpendingInsightsWidge
 import SmartAlertsWidget from '../components/dashboard/SmartAlertsWidget';
 import UnifiedGoalCard from '../components/goals/UnifiedGoalCard';
 
+import MarketDataService from '../services/marketDataService';
+
 const Dashboard: React.FC = () => {
-  const { assets, goals, insurance, transactions, bankAccounts, liabilities, recurringTransactions, categories } = useData();
+  const { assets, goals, insurance, transactions, bankAccounts, liabilities, recurringTransactions, categories, getAccountBalance, updateAsset } = useData();
   const navigate = useNavigate();
   const theme = useThemeClasses();
+
+  // Auto-refresh asset prices (Stocks/MF) on Dashboard load
+  const processedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (assets.length > 0 && !processedRef.current) {
+      processedRef.current = true;
+      const refreshMarketData = async () => {
+        console.log('🔄 Checking for live market updates...');
+        const updated = await MarketDataService.updatePortfolioValues(assets);
+
+        let updates = 0;
+        updated.forEach((newAsset, index) => {
+          const oldAsset = assets[index];
+          if (newAsset !== oldAsset) {
+            // Price changed
+            updateAsset(newAsset.id, {
+              marketPrice: newAsset.marketPrice,
+              currentValue: newAsset.currentValue,
+              dayChange: newAsset.dayChange,
+              dayChangePercent: newAsset.dayChangePercent,
+              lastUpdated: newAsset.lastUpdated
+            });
+            updates++;
+          }
+        });
+        if (updates > 0) console.log(`✅ Updated ${updates} assets with latest prices`);
+      };
+
+      refreshMarketData();
+    }
+  }, [assets.length]);
 
   const sipAssets = assets.filter(a => a.isSIP && (a.category === 'mutual_funds' || a.category === 'epf'));
 
@@ -32,9 +66,9 @@ const Dashboard: React.FC = () => {
       maturityYear: p.maturityDate ? new Date(p.maturityDate).getFullYear() : 0,
     }));
 
-  const totalAssets = assets.reduce((sum, asset) => sum + asset.currentValue, 0);
-  const totalBankBalance = bankAccounts.reduce((sum, account) => sum + account.balance, 0);
-  const totalLiabilities = liabilities.reduce((sum, liability) => sum + liability.currentBalance, 0);
+  const totalAssets = assets.reduce((sum, asset) => sum + (Number(asset.currentValue) || 0), 0);
+  const totalBankBalance = bankAccounts.reduce((sum, account) => sum + getAccountBalance(account.id), 0);
+  const totalLiabilities = liabilities.reduce((sum, liability) => sum + (Number(liability.currentBalance) || 0), 0);
   const netWorth = totalAssets + totalBankBalance - totalLiabilities;
 
   const retirementGoal = goals.find(g => g.category === 'retirement');
@@ -130,7 +164,7 @@ const Dashboard: React.FC = () => {
     .slice(0, 5);
 
   // Calculate total balance across all accounts (user-added values only)
-  const totalAccountBalance = bankAccounts.reduce((sum, account) => sum + account.balance, 0);
+  const totalAccountBalance = bankAccounts.reduce((sum, account) => sum + getAccountBalance(account.id), 0);
 
   // Generate upcoming events from actual data
   const upcomingEvents = [
@@ -421,25 +455,29 @@ const Dashboard: React.FC = () => {
             </button>
           </div>
           <div className="space-y-3">
-            {assets.slice(0, 5).map((asset) => {
-              const percentage = totalAssets > 0 ? (asset.currentValue / totalAssets) * 100 : 0;
-              return (
-                <div key={asset.id} className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-300">{asset.name}</span>
-                    <span className="font-medium">
-                      {formatLargeNumber(asset.currentValue)} ({percentage.toFixed(1)}%)
-                    </span>
+            {[...assets]
+              .sort((a, b) => (Number(b.currentValue) || 0) - (Number(a.currentValue) || 0))
+              .slice(0, 5)
+              .map((asset) => {
+                const val = Number(asset.currentValue) || 0;
+                const percentage = totalAssets > 0 ? (val / totalAssets) * 100 : 0;
+                return (
+                  <div key={asset.id} className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-300 truncate max-w-[150px]" title={asset.name}>{asset.name}</span>
+                      <span className="font-medium whitespace-nowrap">
+                        {formatLargeNumber(val)} ({percentage.toFixed(1)}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full"
+                        style={{ width: `${percentage}%` }}
+                      ></div>
+                    </div>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-primary-600 h-2 rounded-full"
-                      style={{ width: `${percentage}%` }}
-                    ></div>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
             {assets.length === 0 && (
               <div className="text-center py-4 text-gray-500 dark:text-gray-400">
                 <p>No assets added yet</p>

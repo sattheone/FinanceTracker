@@ -10,9 +10,15 @@ import UnifiedGoalCard from '../components/goals/UnifiedGoalCard';
 import { Goal } from '../types';
 
 const Goals: React.FC = () => {
-  const { goals, addGoal, updateGoal, deleteGoal, assets } = useData();
+  const { goals, addGoal, updateGoal, deleteGoal, assets, loadGoals, loadAssets } = useData();
   const [showGoalForm, setShowGoalForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+
+  // Lazy load goals and assets data when page mounts
+  useEffect(() => {
+    loadGoals();
+    loadAssets();
+  }, []);
 
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('en-IN', {
@@ -136,30 +142,6 @@ const Goals: React.FC = () => {
         onClose={handleGoalCancel}
         title={editingGoal ? 'Edit Goal' : 'Add New Goal'}
         size="lg"
-        footer={
-          <div className="flex justify-end w-full space-x-2">
-            <button
-              onClick={handleGoalCancel}
-              className="btn-secondary"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                // This button will trigger the form's onSubmit via a hidden submit button or direct call
-                // For now, we'll assume GoalForm handles its own submission logic
-                // and handleGoalSubmit is called from within GoalForm.
-                // If GoalForm needs to be submitted by the footer,
-                // a ref or a direct call to handleGoalSubmit would be needed here.
-              }}
-              type="submit" // This type will submit the form if it's wrapped in a form tag
-              form="goal-form" // Link to the form by its ID
-              className="btn-primary"
-            >
-              {editingGoal ? 'Update Goal' : 'Add Goal'}
-            </button>
-          </div>
-        }
       >
         <GoalForm
           goal={editingGoal || undefined}

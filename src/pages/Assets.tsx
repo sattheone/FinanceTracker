@@ -10,12 +10,13 @@ import AssetForm from '../components/forms/AssetForm';
 import MarketDataService from '../services/marketDataService';
 import XIRRService from '../services/xirrService';
 import PortfolioRebalancingService from '../services/portfolioRebalancingService';
-import PriceService from '../services/priceService';
+// PriceService removed
 // AI service will be imported dynamically when needed
+import { MarketDataStatus } from '../components/dashboard/MarketDataStatus';
 import { Asset } from '../types';
 
 const Assets: React.FC = () => {
-  const { assets, addAsset, updateAsset, deleteAsset, transactions, userProfile } = useData();
+  const { assets, addAsset, updateAsset, deleteAsset, transactions, userProfile, loadAssets } = useData();
   const theme = useThemeClasses();
   const [showImageUploader, setShowImageUploader] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -26,6 +27,11 @@ const Assets: React.FC = () => {
   const [isUpdatingPrices, setIsUpdatingPrices] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [priceUpdateProgress, setPriceUpdateProgress] = useState({ current: 0, total: 0 });
+
+  // Lazy load assets data when page mounts
+  useEffect(() => {
+    loadAssets();
+  }, []);
 
   const totalAssets = assets.reduce((sum, asset) => sum + asset.currentValue, 0);
   const totalInvested = assets.reduce((sum, asset) => sum + (asset.purchaseValue || 0), 0);
@@ -231,57 +237,35 @@ const Assets: React.FC = () => {
 
   const refreshAllPrices = async () => {
     setIsUpdatingPrices(true);
-    setPriceUpdateProgress({ current: 0, total: 0 });
+    setPriceUpdateProgress({ current: 0, total: 100 });
 
     try {
-      // Check API limits first
-      const apiStats = PriceService.getCacheStats();
-      if (apiStats.remainingRequests <= 0) {
-        console.warn('⚠️ Daily API limit reached. Using cached data only.');
-        setLastUpdated(new Date().toLocaleTimeString());
-        return;
+      console.log('🔄 refreshing all prices via MarketDataService...');
+      const updatedAssets = await MarketDataService.updatePortfolioValues(assets);
+
+      // Update assets in context/DB
+      let updates = 0;
+      for (let i = 0; i < assets.length; i++) {
+        const oldAsset = assets[i];
+        const newAsset = updatedAssets[i];
+
+        if (newAsset !== oldAsset) {
+          await updateAsset(newAsset.id, {
+            currentValue: newAsset.currentValue,
+            marketPrice: newAsset.marketPrice,
+            dayChange: newAsset.dayChange,
+            dayChangePercent: newAsset.dayChangePercent,
+            lastUpdated: newAsset.lastUpdated
+          });
+          updates++;
+        }
       }
 
-      // Use smart refresh to only update assets that need it
-      const assetsWithPriceData = assets.map(asset => ({
-        ...asset,
-        symbol: (asset as any).symbol,
-        schemeCode: (asset as any).schemeCode,
-        lastPriceUpdate: (asset as any).lastPriceUpdate
-      }));
-
-      await PriceService.smartRefresh(assetsWithPriceData);
-
-      // Update UI with fresh data from cache
-      await Promise.all(
-        assets.map(async (asset) => {
-          if (asset.category === 'stocks' && (asset as any).symbol) {
-            const priceData = await PriceService.getStockPrice((asset as any).symbol);
-            if (priceData) {
-              await updateAsset(asset.id, {
-                currentValue: priceData.price,
-                livePriceData: priceData,
-                lastPriceUpdate: new Date().toISOString()
-              });
-            }
-          } else if (asset.category === 'mutual_funds' && (asset as any).schemeCode) {
-            const navData = await PriceService.getMutualFundPrice((asset as any).schemeCode);
-            if (navData) {
-              await updateAsset(asset.id, {
-                currentValue: navData.nav,
-                livePriceData: navData,
-                lastPriceUpdate: new Date().toISOString()
-              });
-            }
-          }
-        })
-      );
-
       setLastUpdated(new Date().toLocaleTimeString());
-      console.log(`🎉 Smart price refresh completed! API calls remaining: ${PriceService.getCacheStats().remainingRequests}`);
+      console.log(`🎉 Price refresh completed! Updated ${updates} assets.`);
 
     } catch (error) {
-      console.error('❌ Error during smart price refresh:', error);
+      console.error('❌ Error during price refresh:', error);
     } finally {
       setIsUpdatingPrices(false);
       setPriceUpdateProgress({ current: 0, total: 0 });
@@ -340,7 +324,10 @@ const Assets: React.FC = () => {
           )}
         </div>
 
+
+
         <div className="flex items-center space-x-3">
+          <MarketDataStatus />
           <button
             onClick={refreshAllPrices}
             disabled={isUpdatingPrices}
@@ -621,171 +608,160 @@ const Assets: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {assets.map((asset) => {
                     const livePriceData = (asset as any).livePriceData;
-                    const lastPriceUpdate = (asset as any).lastPriceUpdate;
+
                     const hasLiveData = livePriceData && (asset.category === 'stocks' || asset.category === 'mutual_funds');
-                    const isRecentUpdate = lastPriceUpdate &&
-                      (new Date().getTime() - new Date(lastPriceUpdate).getTime()) < 10 * 60 * 1000; // 10 minutes
 
                     return (
-                      <div key={asset.id} className={cn(
-                        "p-4 bg-white dark:bg-gray-800 border rounded-lg transition-all duration-300",
-                        hasLiveData && isRecentUpdate
-                          ? "border-green-300 dark:border-green-600 shadow-md"
-                          : "border-gray-200 dark:border-gray-600"
-                      )}>
-                        {/* Header with live indicator */}
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-medium text-gray-900 dark:text-white">{asset.name}</h4>
-                          {hasLiveData && (
-                            <div className="flex items-center space-x-1">
-                              <div className={cn(
-                                "w-2 h-2 rounded-full",
-                                isRecentUpdate ? "bg-green-500 animate-pulse" : "bg-gray-400"
-                              )} />
-                              <span className={cn(
-                                "text-xs",
-                                isRecentUpdate ? "text-green-600 dark:text-green-400" : "text-gray-500"
-                              )}>
-                                {isRecentUpdate ? "LIVE" : "STALE"}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Live Price Display */}
-                        {hasLiveData && (
-                          <div className="mb-3 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm text-gray-600 dark:text-gray-300">
-                                {asset.category === 'stocks' ? 'Stock Price:' : 'NAV:'}
-                              </span>
-                              <div className="text-right">
-                                <span className="font-semibold text-gray-900 dark:text-white">
-                                  ₹{livePriceData.price || livePriceData.nav}
-                                </span>
-                                {livePriceData.change && (
-                                  <div className={cn(
-                                    "text-xs flex items-center",
-                                    livePriceData.change >= 0 ? "text-green-600" : "text-red-600"
-                                  )}>
-                                    <span className="mr-1">
-                                      {livePriceData.change >= 0 ? '↗' : '↘'}
-                                    </span>
-                                    {livePriceData.change >= 0 ? '+' : ''}{livePriceData.change.toFixed(2)}
-                                    {livePriceData.changePercent && (
-                                      <span className="ml-1">
-                                        ({livePriceData.changePercent >= 0 ? '+' : ''}{livePriceData.changePercent.toFixed(2)}%)
-                                      </span>
-                                    )}
-                                  </div>
+                      <div key={asset.id} className="group relative flex flex-col overflow-hidden rounded-xl bg-white dark:bg-gray-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-slate-900/5 dark:ring-gray-700 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+                        {/* Header Section */}
+                        <div className="flex items-start justify-between border-b border-gray-100 dark:border-gray-700 p-5">
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="text-lg font-bold leading-tight text-gray-900 dark:text-gray-100 truncate max-w-[150px]" title={asset.name}>
+                                {asset.name}
+                              </h3>
+                              {/* Subtle Actions (Visible on Hover) */}
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleEditAsset(asset); }}
+                                  className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
+                                  title="Edit"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteAsset(asset.id); }}
+                                  className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                                {hasLiveData && (
+                                  <button
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      try {
+                                        await MarketDataService.updatePortfolioValues([asset]);
+                                        refreshAllPrices();
+                                      } catch (err) { console.error(err); }
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-green-600 rounded transition-colors"
+                                    title="Refresh Price"
+                                  >
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                  </button>
                                 )}
                               </div>
                             </div>
-                            {lastPriceUpdate && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                Updated: {new Date(lastPriceUpdate).toLocaleTimeString()}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="space-y-1 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-300">Current Value:</span>
-                            <span className="font-semibold">{formatLargeNumber(asset.currentValue)}</span>
-                          </div>
-                          {asset.purchaseValue && (
-                            <>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600 dark:text-gray-300">Purchase Value:</span>
-                                <span>{formatLargeNumber(asset.purchaseValue)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-gray-600 dark:text-gray-300">Gain/Loss:</span>
-                                <span className={asset.currentValue > asset.purchaseValue ? 'text-green-600' : 'text-red-600'}>
-                                  {asset.currentValue > asset.purchaseValue ? '+' : ''}
-                                  {formatLargeNumber(asset.currentValue - asset.purchaseValue)}
-                                  <span className="ml-1 text-xs">
-                                    ({((asset.currentValue - asset.purchaseValue) / asset.purchaseValue * 100).toFixed(1)}%)
-                                  </span>
-                                </span>
-                              </div>
-                            </>
-                          )}
-                          <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-300">Portfolio %:</span>
-                            <span className="font-medium">
-                              {((asset.currentValue / totalAssets) * 100).toFixed(2)}%
+                            <span className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                              {((asset as any).symbol || (asset as any).schemeCode || asset.category).replace('_', ' ')}
                             </span>
                           </div>
 
-                          {/* Symbol/Code Display */}
-                          {((asset as any).symbol || (asset as any).schemeCode) && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600 dark:text-gray-300">
-                                {asset.category === 'stocks' ? 'Symbol:' : 'Scheme Code:'}
-                              </span>
-                              <span className="text-xs font-mono bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded">
-                                {(asset as any).symbol || (asset as any).schemeCode}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100 dark:border-gray-600">
-                          {/* Quick Price Refresh for Live Assets */}
-                          {hasLiveData && (
-                            <button
-                              onClick={async () => {
-                                try {
-                                  if (asset.category === 'stocks' && (asset as any).symbol) {
-                                    const priceData = await PriceService.getStockPrice((asset as any).symbol);
-                                    if (priceData) {
-                                      await updateAsset(asset.id, {
-                                        currentValue: priceData.price,
-                                        livePriceData: priceData,
-                                        lastPriceUpdate: new Date().toISOString()
-                                      });
-                                    }
-                                  } else if (asset.category === 'mutual_funds' && (asset as any).schemeCode) {
-                                    const navData = await PriceService.getMutualFundPrice((asset as any).schemeCode);
-                                    if (navData) {
-                                      await updateAsset(asset.id, {
-                                        currentValue: navData.nav,
-                                        livePriceData: navData,
-                                        lastPriceUpdate: new Date().toISOString()
-                                      });
-                                    }
-                                  }
-                                } catch (error) {
-                                  console.error('Failed to refresh price:', error);
-                                }
-                              }}
-                              className="p-1 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
-                              title="Refresh Price"
-                            >
-                              <RefreshCw className="w-3 h-3" />
-                            </button>
-                          )}
-
-                          <div className="flex gap-2 ml-auto">
-                            <button
-                              onClick={() => handleEditAsset(asset)}
-                              className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                              title="Edit Asset"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteAsset(asset.id)}
-                              className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                              title="Delete Asset"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                          <div className="text-right">
+                            {/* Live Price if available, else Market Price from asset */}
+                            <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                              {formatCurrency((hasLiveData ? (livePriceData.price || livePriceData.nav) : (asset as any).marketPrice) || 0)}
+                            </p>
+                            {hasLiveData && livePriceData.changePercent !== undefined && (
+                              <div className={cn(
+                                "flex items-center justify-end gap-1 text-xs font-medium",
+                                livePriceData.changePercent >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                              )}>
+                                {livePriceData.changePercent >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingUp className="w-3 h-3 rotate-180" />}
+                                <span>{Math.abs(livePriceData.changePercent).toFixed(2)}%</span>
+                              </div>
+                            )}
                           </div>
                         </div>
+
+                        {/* Metrics Grid */}
+                        <div className="p-5 pb-2">
+                          <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                            {/* Invested Value */}
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Invested Value</span>
+                              <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                {asset.purchaseValue ? formatCurrency(asset.purchaseValue) : '-'}
+                              </p>
+                            </div>
+
+                            {/* Current Value */}
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Current Value</span>
+                              <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                {formatCurrency(asset.currentValue)}
+                              </p>
+                            </div>
+
+                            {/* Quantity */}
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Quantity</span>
+                              <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                {(asset as any).quantity || '-'}
+                              </p>
+                            </div>
+
+                            {/* Average Price */}
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Avg. Price</span>
+                              <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                {(asset as any).averagePrice
+                                  ? formatCurrency((asset as any).averagePrice)
+                                  : asset.purchaseValue && (asset as any).quantity
+                                    ? formatCurrency(asset.purchaseValue / (asset as any).quantity)
+                                    : '-'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Total Returns Section (Styled with visual flair) */}
+                        {asset.purchaseValue && (
+                          <div className="mx-5 mb-5 mt-4 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 p-4 relative overflow-hidden">
+                            {/* Background blob effect */}
+                            <div className={cn(
+                              "absolute -right-10 -top-10 h-32 w-32 rounded-full blur-3xl opacity-20",
+                              (asset.currentValue - asset.purchaseValue) >= 0 ? "bg-green-400" : "bg-red-400"
+                            )}></div>
+
+                            <div className="relative z-10 flex items-end justify-between">
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Total Returns</span>
+                                <div className="flex items-baseline gap-2">
+                                  <span className={cn(
+                                    "text-2xl font-bold tracking-tight",
+                                    (asset.currentValue - asset.purchaseValue) >= 0 ? "text-gray-900 dark:text-white" : "text-gray-900 dark:text-white"
+                                  )}>
+                                    {(asset.currentValue - asset.purchaseValue) >= 0 ? '+' : ''}{formatCurrency(asset.currentValue - asset.purchaseValue)}
+                                  </span>
+                                </div>
+                                <span className={cn(
+                                  "inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold w-fit",
+                                  (asset.currentValue - asset.purchaseValue) >= 0
+                                    ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                    : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                                )}>
+                                  {((asset.currentValue - asset.purchaseValue) / asset.purchaseValue * 100).toFixed(2)}%
+                                </span>
+                              </div>
+
+                              {/* Mini Chart SVG (Static representation for visual) */}
+                              <div className="h-12 w-24 shrink-0 opacity-100">
+                                <svg className="h-full w-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 120 60">
+                                  <defs>
+                                    <linearGradient id={`chartGradient-${asset.id}`} x1="0" x2="0" y1="0" y2="1">
+                                      <stop offset="0%" stopColor={(asset.currentValue - asset.purchaseValue) >= 0 ? "#16a34a" : "#dc2626"} stopOpacity="0.2"></stop>
+                                      <stop offset="100%" stopColor={(asset.currentValue - asset.purchaseValue) >= 0 ? "#16a34a" : "#dc2626"} stopOpacity="0"></stop>
+                                    </linearGradient>
+                                  </defs>
+                                  <path d="M0 50 C10 45, 20 55, 30 40 C40 25, 50 45, 60 35 C70 25, 80 15, 90 20 C100 25, 110 5, 120 10 L 120 60 L 0 60 Z" fill={`url(#chartGradient-${asset.id})`}></path>
+                                  <path d="M0 50 C10 45, 20 55, 30 40 C40 25, 50 45, 60 35 C70 25, 80 15, 90 20 C100 25, 110 5, 120 10" fill="none" stroke={(asset.currentValue - asset.purchaseValue) >= 0 ? "#16a34a" : "#dc2626"} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path>
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

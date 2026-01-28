@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo, ReactNode } from 'react';
 import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction, CategoryRule, SIPRule, Tag } from '../types';
 import { Category } from '../constants/categories';
 import { UserProfile } from '../types/user';
@@ -32,6 +32,13 @@ const calculateNextDueDate = (currentDueDate: string, frequency: RecurringTransa
   }
 
   return date.toISOString().split('T')[0];
+};
+
+const getMonthKey = (dateString: string) => {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return 'invalid-date';
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${date.getFullYear()}-${month}`;
 };
 
 interface DataContextType {
@@ -71,11 +78,20 @@ interface DataContextType {
   deleteGoal: (id: string) => void;
 
   addTransaction: (transaction: Omit<Transaction, 'id'>) => void;
-  addTransactionsBulk: (transactions: Omit<Transaction, 'id'>[], options?: { isHistorical?: boolean }) => Promise<{ success: boolean; summary?: any; error?: string }>;
+  addTransactionsBulk: (transactions: Omit<Transaction, 'id'>[], options?: { isHistorical?: boolean; skipDuplicateCheck?: boolean }) => Promise<{ success: boolean; summary?: any; error?: string }>;
   updateTransaction: (id: string, transaction: Partial<Transaction>) => void;
   bulkUpdateTransactions: (ids: string[], update: Partial<Transaction>) => Promise<void>;
+  bulkUpdateTransactionsById: (updatesById: Record<string, Partial<Transaction>>) => Promise<void>;
   deleteTransaction: (id: string) => void;
   bulkDeleteTransactions: (ids: string[]) => Promise<void>;
+
+  // Transaction paging (industry standard: don't load all history on cold start)
+  loadMoreTransactions: () => Promise<void>;
+  hasMoreTransactions: boolean;
+  isLoadingMoreTransactions: boolean;
+
+  // Helper to compute account balance from initialBalance + transactions
+  getAccountBalance: (accountId: string) => number;
 
   addBankAccount: (account: Omit<BankAccount, 'id'>) => Promise<string | undefined>;
   updateBankAccount: (id: string, account: Partial<BankAccount>) => void;
@@ -101,7 +117,8 @@ interface DataContextType {
   addCategoryRule: (rule: Omit<CategoryRule, 'id'>) => void;
   updateCategoryRule: (id: string, rule: Partial<CategoryRule>) => void;
   deleteCategoryRule: (id: string) => void;
-  applyRuleToTransactions: (ruleId: string) => void;
+  applyRuleToTransactions: (ruleId: string) => Promise<void>;
+  initializeDefaultCategoryRules: () => Promise<void>;
 
   // SIP Rules
   addSIPRule: (rule: Omit<SIPRule, 'id'>) => void;
@@ -130,6 +147,25 @@ interface DataContextType {
   // Utility
   resetUserData: () => void;
   isDataLoaded: boolean;
+  indexes: {
+    categoriesById: Map<string, Category>;
+    bankAccountsById: Map<string, BankAccount>;
+    transactionsById: Map<string, Transaction>;
+    transactionsByAccountId: Map<string, Transaction[]>;
+    transactionsByCategoryId: Map<string, Transaction[]>;
+    transactionsByMonth: Map<string, Transaction[]>;
+  };
+
+  // Lazy loading functions
+  loadGoals: () => Promise<void>;
+  loadAssets: () => Promise<void>;
+  loadInsurance: () => Promise<void>;
+  loadLiabilities: () => Promise<void>;
+  loadRecurringTransactions: () => Promise<void>;
+  loadBills: () => Promise<void>;
+  loadSIPRules: () => Promise<void>;
+  loadMonthlyBudget: () => Promise<void>;
+  loadInitialTransactions: () => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -151,9 +187,6 @@ const getDefaultUserProfile = (): UserProfile => ({
     name: '',
     email: '',
     dateOfBirth: '',
-    spouseName: '',
-    spouseDateOfBirth: '',
-    children: [],
   },
   financialInfo: {
     monthlyIncome: 0,
@@ -182,6 +215,36 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   // User Profile
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const userProfileRef = useRef<UserProfile | null>(null);
+
+  useEffect(() => {
+    userProfileRef.current = userProfile;
+  }, [userProfile]);
+
+  const updateUserProfile = (profilePatch: Partial<UserProfile>) => {
+    if (!user) return;
+
+    const base = userProfileRef.current ?? getDefaultUserProfile();
+    const merged: UserProfile = {
+      ...base,
+      ...profilePatch,
+      personalInfo: {
+        ...base.personalInfo,
+        ...(profilePatch.personalInfo ?? {})
+      },
+      financialInfo: {
+        ...base.financialInfo,
+        ...(profilePatch.financialInfo ?? {})
+      }
+    };
+
+    setUserProfile(merged);
+
+    // Fire-and-forget; UI state updates immediately.
+    void FirebaseService.updateUserProfile(user.id, merged).catch(error => {
+      console.error('Error updating user profile:', error);
+    });
+  };
 
   // Financial Data
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -190,6 +253,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [licPolicies, setLicPolicies] = useState<LICPolicy[]>([]);
   const [monthlyBudget, setMonthlyBudget] = useState<MonthlyBudget>(getDefaultMonthlyBudget());
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactionsCursor, setTransactionsCursor] = useState<{ date: string; id: string } | null>(null);
+  const [hasMoreTransactions, setHasMoreTransactions] = useState(false);
+  const [isLoadingMoreTransactions, setIsLoadingMoreTransactions] = useState(false);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [liabilities, setLiabilities] = useState<Liability[]>([]);
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
@@ -199,7 +265,54 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [sipRules, setSipRules] = useState<SIPRule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
-  
+
+  const indexes = useMemo(() => {
+    const categoriesById = new Map<string, Category>();
+    categories.forEach(category => {
+      categoriesById.set(category.id, category);
+    });
+
+    const bankAccountsById = new Map<string, BankAccount>();
+    bankAccounts.forEach(account => {
+      bankAccountsById.set(account.id, account);
+    });
+
+    const transactionsById = new Map<string, Transaction>();
+    const transactionsByAccountId = new Map<string, Transaction[]>();
+    const transactionsByCategoryId = new Map<string, Transaction[]>();
+    const transactionsByMonth = new Map<string, Transaction[]>();
+
+    transactions.forEach(transaction => {
+      transactionsById.set(transaction.id, transaction);
+
+      if (transaction.bankAccountId) {
+        const list = transactionsByAccountId.get(transaction.bankAccountId) || [];
+        list.push(transaction);
+        transactionsByAccountId.set(transaction.bankAccountId, list);
+      }
+
+      if (transaction.category) {
+        const list = transactionsByCategoryId.get(transaction.category) || [];
+        list.push(transaction);
+        transactionsByCategoryId.set(transaction.category, list);
+      }
+
+      const monthKey = getMonthKey(transaction.date);
+      const list = transactionsByMonth.get(monthKey) || [];
+      list.push(transaction);
+      transactionsByMonth.set(monthKey, list);
+    });
+
+    return {
+      categoriesById,
+      bankAccountsById,
+      transactionsById,
+      transactionsByAccountId,
+      transactionsByCategoryId,
+      transactionsByMonth
+    };
+  }, [categories, bankAccounts, transactions]);
+
   // Track if SIP auto-update has run this session
   const sipAutoUpdateRan = useRef(false);
 
@@ -215,22 +328,22 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   // Auto-update SIP investments when data is loaded (runs once per session)
   useEffect(() => {
     if (!isDataLoaded || sipAutoUpdateRan.current || !user) return;
-    
+
     const processAutoSIP = async () => {
       sipAutoUpdateRan.current = true;
-      
+
       try {
         const { updates, results } = await SIPAutoUpdateService.processAllDueSIPs(assets, true);
-        
+
         if (results.length > 0) {
           console.log(`📊 SIP Auto-Update: Processing ${results.length} SIP(s)`);
-          
+
           // Apply updates to each asset
           for (const [assetId, update] of updates) {
             await FirebaseService.updateAsset(assetId, update);
             setAssets(prev => prev.map(a => a.id === assetId ? { ...a, ...update } : a));
           }
-          
+
           // Log summary
           const totalAdded = results.reduce((sum, r) => sum + r.addedAmount, 0);
           console.log(`✅ SIP Auto-Update complete: Added ₹${totalAdded.toLocaleString()} across ${results.length} SIP(s)`);
@@ -239,7 +352,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         console.error('SIP Auto-Update failed:', error);
       }
     };
-    
+
     processAutoSIP();
   }, [isDataLoaded, user, assets]);
 
@@ -271,173 +384,195 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         await FirebaseService.createUserProfile(userId, defaultProfile);
       }
 
-      // Load all financial data
+      // Load only essential data on login (minimal reads)
+      // Page-specific data will be loaded lazily when needed
+      console.log('[DataContext] Loading essential data for user:', userId);
       const [
-        assetsData,
-        insuranceData,
-        goalsData,
-        transactionsData,
-        budgetData,
         bankAccountsData,
-        liabilitiesData,
-        recurringTransactionsData,
-        billsData,
         categoryRulesData,
-        sipRulesData
       ] = await Promise.all([
-        FirebaseService.getAssets(userId),
-        FirebaseService.getInsurance(userId),
-        FirebaseService.getGoals(userId),
-        FirebaseService.getTransactions(userId),
-        FirebaseService.getMonthlyBudget(userId),
         FirebaseService.getBankAccounts(userId),
-        FirebaseService.getLiabilities(userId),
-        FirebaseService.getRecurringTransactions(userId),
-        FirebaseService.getBills(userId),
         FirebaseService.getCategoryRules(userId),
-        FirebaseService.getSIPRules(userId)
-        // FirebaseService.getCategories(userId) // TODO: add when method exists
       ]);
 
-      setAssets(assetsData);
-      setInsurance(insuranceData);
-
-      // Migrate goals to new format if needed
-      const migratedGoals = GoalMigrationService.migrateGoals(goalsData);
-      setGoals(migratedGoals);
-
-      setTransactions(transactionsData);
-      setMonthlyBudget(budgetData || getDefaultMonthlyBudget());
-      setLicPolicies([]); // TODO: Implement LIC policies if needed
-
-      // Load bank accounts and liabilities from Firebase
-      setBankAccounts(bankAccountsData);
-      setLiabilities(liabilitiesData);
-      setRecurringTransactions(recurringTransactionsData);
-      setBills(billsData);
-      setCategoryRules(categoryRulesData);
-      console.log('[DataContext] Loaded Category Rules:', categoryRulesData.length, categoryRulesData);
-      setSipRules(sipRulesData);
-
-      // Load categories (now that FirebaseService methods exist)
-      console.log('[DataContext] Loading categories for user:', userId);
-      let categoriesData: Category[];
-      try {
-        categoriesData = await FirebaseService.getCategories(userId);
-        console.log('[DataContext] Loaded categories from Firestore:', categoriesData.length, 'categories');
-        console.log('[DataContext] Categories:', categoriesData.map(c => ({ id: c.id, name: c.name, parentId: c.parentId })));
-      } catch (error) {
-        console.error('[DataContext] Error loading categories:', error);
-        categoriesData = [];
-      }
-
-      // Load tags
-      console.log('[DataContext] Loading tags for user:', userId);
-      let tagsData: Tag[];
-      try {
-        tagsData = await FirebaseService.getTags(userId);
-        console.log('[DataContext] Loaded tags from Firestore:', tagsData.length, 'tags');
-      } catch (error) {
-        console.error('[DataContext] Error loading tags:', error);
-        tagsData = [];
-      }
-
-      // Category migration: If Firestore is empty OR missing system categories, sync defaults
-      const { defaultCategories } = await import('../constants/categories');
-
-      // Calculate missing system categories AND missing core categories (like 'investment')
-      // that we want to ensure exist for everyone but remain editable (not system locked)
-      const coreCategoryIds = ['investment', 'mutual_funds', 'stocks', 'gold', 'insurance_inv', 'chit'];
-
-      const missingCategoriesToAdd = defaultCategories.filter(def => {
-        // 1. Must be added if it's a System category
-        if (def.isSystem) {
-          return !categoriesData.some(c => c.id === def.id);
-        }
-        // 2. OR if it's one of our core 'Investment' categories that we want to deploy to everyone
-        if (coreCategoryIds.includes(def.id)) {
-          return !categoriesData.some(c => c.id === def.id);
-        }
-        return false;
+      console.log('[DataContext] Loaded essential data:', {
+        bankAccounts: bankAccountsData.length,
+        categoryRules: categoryRulesData.length,
       });
 
-      if (categoriesData.length === 0 || missingCategoriesToAdd.length > 0) {
-        console.log('[DataContext] Categories missing or system/core categories incomplete, migrating...');
+      // Initialize empty collections - will be loaded lazily by respective pages
+      setAssets([]);
+      setInsurance([]);
+      setGoals([]);
+      setLiabilities([]);
+      setRecurringTransactions([]);
+      setBills([]);
+      setSipRules([]);
+      setMonthlyBudget(getDefaultMonthlyBudget());
+      setLicPolicies([]);
 
-        // If completely empty, add all defaults.
-        // If specific system/core cats missing, add just those.
-        const categoriesToAdd = categoriesData.length === 0 ? defaultCategories : missingCategoriesToAdd;
+      // Load bank accounts from Firebase
+      setBankAccounts(bankAccountsData);
+      setCategoryRules(categoryRulesData);
 
-        console.log(`[DataContext] Adding ${categoriesToAdd.length} categories...`);
+      // Don't load transactions on initial login - they'll be loaded by Transactions page
+      setTransactions([]);
+      setTransactionsCursor(null);
+      setHasMoreTransactions(false);
 
-        for (const def of categoriesToAdd) {
-          try {
-            await FirebaseService.addCategoryWithId(userId, def.id, {
-              name: def.name,
-              color: def.color,
-              icon: def.icon,
-              isCustom: false,
-              parentId: def.parentId,
-              order: def.order,
-              isSystem: def.isSystem
-            });
-          } catch (error) {
-            console.error(`[DataContext] Error migrating category ${def.id}:`, error);
-          }
-        }
+      // Load categories (use local defaults only, 0 reads)
+      console.log('[DataContext] Using local default categories (0 reads)');
+      const { defaultCategories } = await import('../constants/categories');
+      setCategories(defaultCategories);
 
-        // Reload migrated categories
-        console.log('[DataContext] Reloading categories after migration...');
-        categoriesData = await FirebaseService.getCategories(userId);
-        console.log('[DataContext] Migrated categories count:', categoriesData.length);
-      }
+      // No more category migration loop! Categories are now loaded from local defaults.
+      // User customizations can be added later if needed.
 
-      // Ensure 'Miscellaneous' group exists and reparent any children of system 'other' to 'misc'
-      try {
-        const hasMisc = categoriesData.some(c => c.id === 'misc');
-        if (!hasMisc) {
-          console.log('[DataContext] Creating Miscellaneous group (misc)');
-          await FirebaseService.addCategoryWithId(userId, 'misc', {
-            name: 'Miscellaneous',
-            color: '#6B7280',
-            icon: '📋',
-            isCustom: false,
-            order: 950
-          });
-          categoriesData = await FirebaseService.getCategories(userId);
-        }
-
-        // Reparent all non-system children under 'other' to 'misc'
-        const toMove = categoriesData.filter(c => c.parentId === 'other' && !c.isSystem);
-        if (toMove.length > 0) {
-          console.log(`[DataContext] Reparenting ${toMove.length} categories from 'other' to 'misc'`);
-          await Promise.all(toMove.map(c => FirebaseService.updateCategory(userId, c.id, { parentId: 'misc' })));
-          categoriesData = categoriesData.map(c => c.parentId === 'other' && !c.isSystem ? { ...c, parentId: 'misc' } : c);
-        }
-      } catch (error) {
-        console.error('[DataContext] Miscellaneous migration error:', error);
-      }
-
-      console.log('[DataContext] Setting categories to state:', categoriesData.length, 'categories');
-      setCategories(categoriesData);
-      setTags(tagsData);
+      setTags([]);
+      setCategoryRules(categoryRulesData);
       setIsDataLoaded(true);
     } catch (error) {
-      console.error('Error loading user data:', error);
-      resetUserData();
+      console.error('[DataContext] Error loading user data:', error);
+      setIsDataLoaded(true);
     }
   };
 
-  const updateUserProfile = async (profile: Partial<UserProfile>) => {
-    if (!user) return;
-
-    const updatedProfile = userProfile ? { ...userProfile, ...profile } : getDefaultUserProfile();
-    setUserProfile(updatedProfile);
-
+  // Lazy loading functions for page-specific data
+  const loadGoals = async () => {
+    if (!user || goals.length > 0) return; // Already loaded
     try {
-      await FirebaseService.updateUserProfile(user.id, updatedProfile);
+      const goalsData = await FirebaseService.getGoals(user.id);
+      const migratedGoals = GoalMigrationService.migrateGoals(goalsData);
+      setGoals(migratedGoals);
+      console.log('[DataContext] Lazy loaded goals:', migratedGoals.length);
     } catch (error) {
-      console.error('Error updating user profile:', error);
+      console.error('[DataContext] Error loading goals:', error);
+    }
+  };
+
+  const loadAssets = async () => {
+    if (!user || assets.length > 0) return; // Already loaded
+    try {
+      const assetsData = await FirebaseService.getAssets(user.id);
+      setAssets(assetsData);
+      console.log('[DataContext] Lazy loaded assets:', assetsData.length);
+    } catch (error) {
+      console.error('[DataContext] Error loading assets:', error);
+    }
+  };
+
+  const loadInsurance = async () => {
+    if (!user || insurance.length > 0) return; // Already loaded
+    try {
+      const insuranceData = await FirebaseService.getInsurance(user.id);
+      setInsurance(insuranceData);
+      console.log('[DataContext] Lazy loaded insurance:', insuranceData.length);
+    } catch (error) {
+      console.error('[DataContext] Error loading insurance:', error);
+    }
+  };
+
+  const loadLiabilities = async () => {
+    if (!user || liabilities.length > 0) return; // Already loaded
+    try {
+      const liabilitiesData = await FirebaseService.getLiabilities(user.id);
+      setLiabilities(liabilitiesData);
+      console.log('[DataContext] Lazy loaded liabilities:', liabilitiesData.length);
+    } catch (error) {
+      console.error('[DataContext] Error loading liabilities:', error);
+    }
+  };
+
+  const loadRecurringTransactions = async () => {
+    if (!user || recurringTransactions.length > 0) return; // Already loaded
+    try {
+      const data = await FirebaseService.getRecurringTransactions(user.id);
+      setRecurringTransactions(data);
+      console.log('[DataContext] Lazy loaded recurring transactions:', data.length);
+    } catch (error) {
+      console.error('[DataContext] Error loading recurring transactions:', error);
+    }
+  };
+
+  const loadBills = async () => {
+    if (!user || bills.length > 0) return; // Already loaded
+    try {
+      const data = await FirebaseService.getBills(user.id);
+      setBills(data);
+      console.log('[DataContext] Lazy loaded bills:', data.length);
+    } catch (error) {
+      console.error('[DataContext] Error loading bills:', error);
+    }
+  };
+
+  const loadSIPRules = async () => {
+    if (!user || sipRules.length > 0) return; // Already loaded
+    try {
+      const data = await FirebaseService.getSIPRules(user.id);
+      setSipRules(data);
+      console.log('[DataContext] Lazy loaded SIP rules:', data.length);
+    } catch (error) {
+      console.error('[DataContext] Error loading SIP rules:', error);
+    }
+  };
+
+  const loadMonthlyBudget = async () => {
+    if (!user) return;
+    try {
+      const budgetData = await FirebaseService.getMonthlyBudget(user.id);
+      setMonthlyBudget(budgetData || getDefaultMonthlyBudget());
+      console.log('[DataContext] Lazy loaded monthly budget');
+    } catch (error) {
+      console.error('[DataContext] Error loading monthly budget:', error);
+    }
+  };
+
+  const loadInitialTransactions = async () => {
+    if (!user || transactions.length > 0) return; // Already loaded
+    try {
+      console.log(`[DataContext] Lazy loading initial transactions`);
+      const initialPage = await FirebaseService.getTransactionsPage(user.id, {
+        pageSize: 50
+      });
+
+      setTransactions(initialPage.transactions);
+      setTransactionsCursor(initialPage.nextCursor ?? null);
+      setHasMoreTransactions(initialPage.hasMore);
+      console.log(`[DataContext] Loaded ${initialPage.transactions.length} transactions`);
+    } catch (error) {
+      console.error('[DataContext] Error loading transactions:', error);
+      setTransactions([]);
+      setTransactionsCursor(null);
+      setHasMoreTransactions(false);
+    }
+  };
+
+  const loadMoreTransactions = async () => {
+    if (!user || isLoadingMoreTransactions || !hasMoreTransactions) return;
+    if (!transactionsCursor) return;
+
+    setIsLoadingMoreTransactions(true);
+    try {
+      const page = await FirebaseService.getTransactionsPage(user.id, {
+        pageSize: 800,
+        cursor: transactionsCursor
+      });
+
+      if (page.transactions.length > 0) {
+        setTransactions(prev => {
+          const seen = new Set(prev.map(t => t.id));
+          const merged = [...prev];
+          for (const transaction of page.transactions) {
+            if (!seen.has(transaction.id)) merged.push(transaction);
+          }
+          return merged;
+        });
+      }
+
+      setTransactionsCursor(page.nextCursor ?? null);
+      setHasMoreTransactions(page.hasMore);
+    } finally {
+      setIsLoadingMoreTransactions(false);
     }
   };
 
@@ -543,34 +678,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const newTransaction: Transaction = { ...transaction, id };
       setTransactions(prev => [...prev, newTransaction]);
 
-      // Recalculate balance for the affected bank account
-      if (transaction.bankAccountId) {
-        const allTransactions = [...transactions, newTransaction];
-        const accountTransactions = allTransactions.filter(t => t.bankAccountId === transaction.bankAccountId);
-
-        setBankAccounts(prev => prev.map(account => {
-          if (account.id !== transaction.bankAccountId) return account;
-
-          const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
-            return sum + (t.type === 'income' ? t.amount : -t.amount);
-          }, 0);
-
-          const initialBalance = account.initialBalance ?? account.balance ?? 0;
-          const newBalance = initialBalance + totalTransactionAmount;
-
-          // Update in Firebase
-          FirebaseService.updateBankAccount(account.id, {
-            balance: newBalance,
-            initialBalance: account.initialBalance ?? account.balance ?? 0
-          });
-
-          return {
-            ...account,
-            balance: newBalance,
-            initialBalance: account.initialBalance ?? account.balance ?? 0
-          };
-        }));
-      }
+      // No need to update bank account balance - it's computed from initialBalance + transactions
     } catch (error) {
       console.error('Error adding transaction:', error);
       throw error;
@@ -579,85 +687,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const updateTransaction = async (id: string, transaction: Partial<Transaction>) => {
     try {
-      const oldTransaction = transactions.find(t => t.id === id);
-
       await FirebaseService.updateTransaction(id, transaction);
       setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...transaction } : t));
 
-      // Recalculate balance for affected bank account(s) ONLY if balance-affecting fields changed
-      if (oldTransaction) {
-        // Check if any balance-affecting fields changed
-        const balanceAffectingFieldsChanged =
-          transaction.amount !== undefined && transaction.amount !== oldTransaction.amount ||
-          transaction.type !== undefined && transaction.type !== oldTransaction.type ||
-          transaction.bankAccountId !== undefined && transaction.bankAccountId !== oldTransaction.bankAccountId;
-
-        if (balanceAffectingFieldsChanged) {
-          const affectedAccounts = new Set<string>();
-
-          // Add old account if it exists
-          if (oldTransaction.bankAccountId) {
-            affectedAccounts.add(oldTransaction.bankAccountId);
-          }
-
-          // Add new account if it changed
-          if (transaction.bankAccountId && transaction.bankAccountId !== oldTransaction.bankAccountId) {
-            affectedAccounts.add(transaction.bankAccountId);
-          }
-
-          if (affectedAccounts.size > 0) {
-            const updatedTransactions = transactions.map(t =>
-              t.id === id ? { ...t, ...transaction } : t
-            );
-
-            setBankAccounts(prev => prev.map(account => {
-              if (!affectedAccounts.has(account.id)) return account;
-
-              const accountTransactions = updatedTransactions.filter(
-                t => t.bankAccountId === account.id
-              );
-
-              const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
-                return sum + (t.type === 'income' ? t.amount : -t.amount);
-              }, 0);
-
-              // CRITICAL: Only set initialBalance if it doesn't exist yet
-              // Never overwrite it during recalculation to avoid double-counting
-              const currentInitialBalance = account.initialBalance;
-
-              let initialBalance = currentInitialBalance;
-              if (initialBalance === undefined) {
-                // If initialBalance is missing, derive it from current balance and OLD transactions
-                // This prevents double-counting when switching types or editing amounts
-                const currentBalance = account.balance ?? 0;
-
-                const oldAccountTransactions = transactions.filter(t => t.bankAccountId === account.id);
-                const oldTotalTransactionAmount = oldAccountTransactions.reduce((sum, t) => {
-                  return sum + (t.type === 'income' ? t.amount : -t.amount);
-                }, 0);
-
-                initialBalance = currentBalance - oldTotalTransactionAmount;
-              }
-
-              const newBalance = (initialBalance ?? 0) + totalTransactionAmount;
-
-              // Update in Firebase - only set initialBalance if it wasn't set before
-              const updateData: any = { balance: newBalance };
-              if (currentInitialBalance === undefined) {
-                updateData.initialBalance = initialBalance;
-              }
-
-              FirebaseService.updateBankAccount(account.id, updateData);
-
-              return {
-                ...account,
-                balance: newBalance,
-                initialBalance: initialBalance
-              };
-            }));
-          }
-        }
-      }
+      // No need to update bank account balance - it's computed from initialBalance + transactions
     } catch (error) {
       console.error('Error updating transaction:', error);
     }
@@ -665,8 +698,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const bulkUpdateTransactions = async (ids: string[], update: Partial<Transaction>) => {
     try {
-      // 1. Update in Firebase (Parallel)
-      await Promise.all(ids.map(id => FirebaseService.updateTransaction(id, update)));
+      // 1. Update in Firebase (Batch)
+      await FirebaseService.bulkUpdateTransactions(ids, update);
 
       // 2. Compute new state locally *once*
       const updatedTransactions = transactions.map(t =>
@@ -675,73 +708,34 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
       setTransactions(updatedTransactions);
 
-      // 3. Recalculate balances for ALL affected accounts *once*
-      const affectedAccounts = new Set<string>();
-
-      ids.forEach(id => {
-        const oldTransaction = transactions.find(t => t.id === id);
-        if (oldTransaction) {
-          // Add old account
-          if (oldTransaction.bankAccountId) affectedAccounts.add(oldTransaction.bankAccountId);
-          // Add new account if changed
-          if (update.bankAccountId && update.bankAccountId !== oldTransaction.bankAccountId) {
-            affectedAccounts.add(update.bankAccountId);
-          }
-        }
-      });
-
-      if (affectedAccounts.size > 0) {
-        setBankAccounts(prev => prev.map(account => {
-          if (!affectedAccounts.has(account.id)) return account;
-
-          // Recalculate balance using the FULL updated transactions list
-          const accountTransactions = updatedTransactions.filter(
-            t => t.bankAccountId === account.id
-          );
-
-          const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
-            return sum + (t.type === 'income' ? t.amount : -t.amount);
-          }, 0);
-
-          // Ensure initialBalance is set (reuse logic from updateTransaction)
-          const currentInitialBalance = account.initialBalance;
-          let initialBalance = currentInitialBalance;
-
-          if (initialBalance === undefined) {
-            const currentBalance = account.balance ?? 0;
-            // Use OLD transactions state to derive initial balance if missing
-            const oldAccountTransactions = transactions.filter(t => t.bankAccountId === account.id);
-            const oldTotalTransactionAmount = oldAccountTransactions.reduce((sum, t) => {
-              return sum + (t.type === 'income' ? t.amount : -t.amount);
-            }, 0);
-            initialBalance = currentBalance - oldTotalTransactionAmount;
-          }
-
-          const newBalance = (initialBalance ?? 0) + totalTransactionAmount;
-
-          // Update in Firebase
-          const updateData: any = { balance: newBalance };
-          if (currentInitialBalance === undefined) {
-            updateData.initialBalance = initialBalance;
-          }
-          FirebaseService.updateBankAccount(account.id, updateData);
-
-          return {
-            ...account,
-            balance: newBalance,
-            initialBalance: initialBalance
-          };
-        }));
-      }
+      // No need to update bank account balance - it's computed from initialBalance + transactions
 
     } catch (error) {
       console.error('Error bulk updating transactions:', error);
     }
   };
 
+  const bulkUpdateTransactionsById = async (updatesById: Record<string, Partial<Transaction>>) => {
+    try {
+      const ids = Object.keys(updatesById);
+      if (ids.length === 0) return;
+
+      await FirebaseService.bulkUpdateTransactionsById(updatesById);
+
+      const updatedTransactions = transactions.map(t =>
+        updatesById[t.id] ? { ...t, ...updatesById[t.id] } : t
+      );
+      setTransactions(updatedTransactions);
+
+      // No need to update bank account balance - it's computed from initialBalance + transactions
+    } catch (error) {
+      console.error('Error bulk updating transactions by ID:', error);
+    }
+  };
+
   const addTransactionsBulk = async (
     newTransactions: Omit<Transaction, 'id'>[],
-    options?: { isHistorical?: boolean }
+    options?: { isHistorical?: boolean; skipDuplicateCheck?: boolean }
   ): Promise<{ success: boolean; summary?: any; error?: string }> => {
     console.log('addTransactionsBulk called with', newTransactions.length, 'transactions');
     console.log('Current user:', user);
@@ -764,7 +758,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       let duplicateCheck: any = null;
 
       // Only check for duplicates if user has it enabled
-      if (duplicateSettings.enabled) {
+      if (duplicateSettings.enabled && !options?.skipDuplicateCheck) {
         const { default: duplicateDetectionService } = await import('../services/duplicateDetectionService');
 
         // Convert to full transactions for duplicate checking
@@ -800,21 +794,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         return cleaned as Omit<Transaction, 'id'>;
       });
 
-      await FirebaseService.bulkAddTransactions(user.id, cleanedTransactions);
-
-      // Update local state
-      // We need to fetch the new transactions to get their IDs
-      // But for immediate UI feedback, we can add them locally with temp IDs
-      // However, since we're bulk adding, it's better to refresh from server
-      // to ensure we have the correct IDs and data consistency
-
-      // Optimistic update (optional, skipping for now to ensure data integrity)
-      // const newTransactions = transactionsToImport.map(t => ({ ...t, id: 'temp-' + Date.now() + Math.random() })) as Transaction[];
-      // setTransactions(prev => [...prev, ...newTransactions]);
-
-      // Reload transactions to get the new ones with IDs
-      const updatedTransactions = await FirebaseService.getTransactions(user.id);
-      setTransactions(updatedTransactions);
+      const createdTransactions = await FirebaseService.bulkAddTransactions(user.id, cleanedTransactions);
+      const mergedTransactions = [...transactions, ...createdTransactions];
+      setTransactions(mergedTransactions);
 
       // Recalculate balance for affected bank accounts
       // Group transactions by bank account
@@ -825,7 +807,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           if (!accountsToUpdate.has(account.id)) return account;
 
           // Calculate new balance from initialBalance + all transactions
-          const accountTransactions = updatedTransactions.filter(t => t.bankAccountId === account.id);
+          const accountTransactions = mergedTransactions.filter(t => t.bankAccountId === account.id);
           const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
             return sum + (t.type === 'income' ? t.amount : -t.amount);
           }, 0);
@@ -844,19 +826,52 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           const newBalance = initialBalance + totalTransactionAmount;
 
           // Update both balance and initialBalance if not set
-          const updatedAccount = {
+          return {
             ...account,
             balance: newBalance,
             initialBalance: initialBalance
           };
+        }));
+      }
 
-          // Update in Firebase
-          FirebaseService.updateBankAccount(account.id, {
-            balance: newBalance,
-            initialBalance: initialBalance
+      if (accountsToUpdate.size > 0) {
+        const accountUpdates = bankAccounts
+          .filter(account => accountsToUpdate.has(account.id))
+          .map(account => {
+            const accountTransactions = mergedTransactions.filter(t => t.bankAccountId === account.id);
+            const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
+              return sum + (t.type === 'income' ? t.amount : -t.amount);
+            }, 0);
+
+            let initialBalance = account.initialBalance ?? 0;
+
+            if (options?.isHistorical) {
+              const importedForAccount = cleanedTransactions.filter(t => t.bankAccountId === account.id);
+              const netImported = importedForAccount.reduce((sum, t) => {
+                return sum + (t.type === 'income' ? t.amount : -t.amount);
+              }, 0);
+              initialBalance -= netImported;
+            }
+
+            const newBalance = initialBalance + totalTransactionAmount;
+
+            return {
+              id: account.id,
+              update: {
+                initialBalance
+              }
+            };
           });
 
-          return updatedAccount;
+        await FirebaseService.bulkUpdateBankAccounts(accountUpdates);
+
+        setBankAccounts(prev => prev.map(account => {
+          const updateEntry = accountUpdates.find(entry => entry.id === account.id);
+          if (!updateEntry) return account;
+          return {
+            ...account,
+            ...updateEntry.update
+          };
         }));
       }
 
@@ -879,42 +894,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const deleteTransaction = async (id: string) => {
     try {
-      // Get the transaction before deleting to know which account to update
-      const transactionToDelete = transactions.find(t => t.id === id);
-
       await FirebaseService.deleteTransaction(id);
       setTransactions(prev => prev.filter(t => t.id !== id));
 
-      // Recalculate balance for the affected bank account
-      if (transactionToDelete?.bankAccountId) {
-        const remainingTransactions = transactions.filter(t => t.id !== id);
-        const accountTransactions = remainingTransactions.filter(
-          t => t.bankAccountId === transactionToDelete.bankAccountId
-        );
-
-        setBankAccounts(prev => prev.map(account => {
-          if (account.id !== transactionToDelete.bankAccountId) return account;
-
-          const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
-            return sum + (t.type === 'income' ? t.amount : -t.amount);
-          }, 0);
-
-          const initialBalance = account.initialBalance ?? account.balance ?? 0;
-          const newBalance = initialBalance + totalTransactionAmount;
-
-          // Update in Firebase
-          FirebaseService.updateBankAccount(account.id, {
-            balance: newBalance,
-            initialBalance: account.initialBalance ?? account.balance ?? 0
-          });
-
-          return {
-            ...account,
-            balance: newBalance,
-            initialBalance: account.initialBalance ?? account.balance ?? 0
-          };
-        }));
-      }
+      // No need to update bank account balance - it's computed from initialBalance + transactions
     } catch (error) {
       console.error('Error deleting transaction:', error);
     }
@@ -922,66 +905,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const bulkDeleteTransactions = async (ids: string[]) => {
     try {
-      // 1. Delete from Firebase (Parallel)
-      await Promise.all(ids.map(id => FirebaseService.deleteTransaction(id)));
+      // 1. Delete from Firebase (Batch)
+      await FirebaseService.bulkDeleteTransactions(ids);
 
-      // 2. Compute new state locally *once*
-      // Need to keep the deleted transactions to know which accounts to update
-      const transactionsToDelete = transactions.filter(t => ids.includes(t.id));
+      // 2. Update local state
       setTransactions(prev => prev.filter(t => !ids.includes(t.id)));
 
-      // 3. Recalculate balances for ALL affected accounts *once*
-      const affectedAccounts = new Set<string>();
-      transactionsToDelete.forEach(t => {
-        if (t.bankAccountId) affectedAccounts.add(t.bankAccountId);
-      });
-
-      if (affectedAccounts.size > 0) {
-        // We need the *remaining* transactions for recalculation
-        const remainingTransactions = transactions.filter(t => !ids.includes(t.id));
-
-        setBankAccounts(prev => prev.map(account => {
-          if (!affectedAccounts.has(account.id)) return account;
-
-          // Recalculate balance using the REMAINING transactions
-          const accountTransactions = remainingTransactions.filter(
-            t => t.bankAccountId === account.id
-          );
-
-          const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
-            return sum + (t.type === 'income' ? t.amount : -t.amount);
-          }, 0);
-
-          // Ensure initialBalance is set (reuse logic)
-          const currentInitialBalance = account.initialBalance;
-          let initialBalance = currentInitialBalance;
-
-          if (initialBalance === undefined) {
-            const currentBalance = account.balance ?? 0;
-            // Here we use the list BEFORE deletion (which is `transactions`) because `currentBalance` includes the deleted ones
-            const oldAccountTransactions = transactions.filter(t => t.bankAccountId === account.id);
-            const oldTotalTransactionAmount = oldAccountTransactions.reduce((sum, t) => {
-              return sum + (t.type === 'income' ? t.amount : -t.amount);
-            }, 0);
-            initialBalance = currentBalance - oldTotalTransactionAmount;
-          }
-
-          const newBalance = (initialBalance ?? 0) + totalTransactionAmount;
-
-          // Update in Firebase
-          const updateData: any = { balance: newBalance };
-          if (currentInitialBalance === undefined) {
-            updateData.initialBalance = initialBalance;
-          }
-          FirebaseService.updateBankAccount(account.id, updateData);
-
-          return {
-            ...account,
-            balance: newBalance,
-            initialBalance: initialBalance
-          };
-        }));
-      }
+      // No need to update bank account balance - it's computed from initialBalance + transactions
 
     } catch (error) {
       console.error('Error bulk deleting transactions:', error);
@@ -1004,32 +934,28 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const updateBankAccount = async (id: string, account: Partial<BankAccount>) => {
     try {
-      let updateData = { ...account };
-
-      // If balance is being updated manually (e.g. from Settings), recalculate initialBalance
-      // to ensure the Current Balance matches what the user entered, accounting for existing transactions.
-      // Formula: CurrentBalance = InitialBalance + Sum(Transactions)
-      // Therefore: InitialBalance = CurrentBalance - Sum(Transactions)
-      if (typeof account.balance === 'number') {
-        const accountTransactions = transactions.filter(t => t.bankAccountId === id);
-        const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
-          return sum + (t.type === 'income' ? t.amount : -t.amount);
-        }, 0);
-
-        const newInitialBalance = account.balance - totalTransactionAmount;
-        updateData.initialBalance = newInitialBalance;
-        console.log(`Recalculating initial balance for account ${id}:`, {
-          targetBalance: account.balance,
-          totalTransactions: totalTransactionAmount,
-          newInitialBalance
-        });
-      }
+      // Only update the initialBalance field - balance is computed from transactions
+      const updateData = { ...account };
 
       await FirebaseService.updateBankAccount(id, updateData);
       setBankAccounts(prev => prev.map(a => a.id === id ? { ...a, ...updateData } : a));
     } catch (error) {
       console.error('Error updating bank account:', error);
     }
+  };
+
+  // Helper function to compute account balance from initialBalance + transactions
+  // Formula: currentBalance = initialBalance + sum(income) - sum(expenses)
+  const getAccountBalance = (accountId: string): number => {
+    const account = bankAccounts.find(a => a.id === accountId);
+    if (!account) return 0;
+
+    const accountTransactions = transactions.filter(t => t.bankAccountId === accountId);
+    const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
+      return sum + (t.type === 'income' ? t.amount : -t.amount);
+    }, 0);
+
+    return account.initialBalance + totalTransactionAmount;
   };
 
   const deleteBankAccount = async (id: string) => {
@@ -1346,7 +1272,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     try {
       await FirebaseService.deleteTag(user.id, id);
       setTags(prev => prev.filter(t => t.id !== id));
-      
+
       // Remove tag from all transactions
       const transactionsWithTag = transactions.filter(t => t.tags?.includes(id));
       for (const transaction of transactionsWithTag) {
@@ -1425,13 +1351,24 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       // We need a temp rule object for matching logic
       const tempRule: CategoryRule = { ...rule, id: 'temp' };
 
+      const updatesById: Record<string, Partial<Transaction>> = {};
       const matchCount = CategoryRuleService.applyRuleBulk(
         transactions,
         tempRule,
         (transactionId, updates) => {
-          updateTransaction(transactionId, updates);
+          updatesById[transactionId] = {
+            ...updatesById[transactionId],
+            ...updates
+          };
         }
       );
+
+      if (Object.keys(updatesById).length > 0) {
+        await FirebaseService.bulkUpdateTransactionsById(updatesById);
+        setTransactions(prev => prev.map(t =>
+          updatesById[t.id] ? { ...t, ...updatesById[t.id] } : t
+        ));
+      }
 
       // 2. Update rule stats
       const ruleWithStats = CategoryRuleService.updateRuleStats(tempRule, matchCount);
@@ -1466,21 +1403,63 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
-  const applyRuleToTransactions = (ruleId: string) => {
+  const applyRuleToTransactions = async (ruleId: string) => {
     const rule = categoryRules.find(r => r.id === ruleId);
     if (!rule) return;
 
+    const updatesById: Record<string, Partial<Transaction>> = {};
     const matchCount = CategoryRuleService.applyRuleBulk(
       transactions,
       rule,
       (transactionId, updates) => {
-        updateTransaction(transactionId, updates);
+        updatesById[transactionId] = {
+          ...updatesById[transactionId],
+          ...updates
+        };
       }
     );
+
+    if (Object.keys(updatesById).length > 0) {
+      await FirebaseService.bulkUpdateTransactionsById(updatesById);
+      setTransactions(prev => prev.map(t =>
+        updatesById[t.id] ? { ...t, ...updatesById[t.id] } : t
+      ));
+    }
 
     // Update rule stats
     const updatedRule = CategoryRuleService.updateRuleStats(rule, matchCount);
     updateCategoryRule(ruleId, updatedRule);
+  };
+
+  const initializeDefaultCategoryRules = async () => {
+    if (!user) return;
+
+    try {
+      console.log('[DataContext] Initializing default category rules...');
+      const { defaultCategoryRules } = await import('../constants/defaultCategoryRules');
+
+      const rulesWithIds: CategoryRule[] = defaultCategoryRules.map(rule => ({
+        ...rule,
+        id: Math.random().toString(36).substr(2, 9),
+        userId: user.id,
+        createdAt: new Date().toISOString(),
+      }));
+
+      // Use bulk add for efficiency and consistency
+      console.log('[DataContext] Bulk adding rules to Firebase...');
+      await FirebaseService.bulkAddCategoryRules(user.id, rulesWithIds);
+      console.log('[DataContext] Bulk add complete.');
+
+      // Reload from Firebase to ensure we have the exact server state (timestamps, etc.)
+      const freshRules = await FirebaseService.getCategoryRules(user.id);
+      setCategoryRules(freshRules);
+
+      console.log('[DataContext] Initialized', freshRules.length, 'default category rules');
+      alert(`Successfully added ${freshRules.length} default category rules.`);
+    } catch (error) {
+      console.error('Error initializing default category rules:', error);
+      alert('Failed to add default rules. Check console for details.');
+    }
   };
 
   const resetUserData = () => {
@@ -1491,6 +1470,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     setLicPolicies([]);
     setMonthlyBudget(getDefaultMonthlyBudget());
     setTransactions([]);
+    setTransactionsCursor(null);
+    setHasMoreTransactions(false);
+    setIsLoadingMoreTransactions(false);
     setBankAccounts([]);
     setLiabilities([]);
     setRecurringTransactions([]);
@@ -1508,6 +1490,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     licPolicies,
     monthlyBudget,
     transactions,
+    loadMoreTransactions,
+    hasMoreTransactions,
+    isLoadingMoreTransactions,
     bankAccounts,
     liabilities,
     recurringTransactions,
@@ -1529,6 +1514,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     addBankAccount,
     updateBankAccount,
     deleteBankAccount,
+    getAccountBalance,
     addLiability,
     updateLiability,
     deleteLiability,
@@ -1547,6 +1533,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     updateCategoryRule,
     deleteCategoryRule,
     applyRuleToTransactions,
+    initializeDefaultCategoryRules,
     sipRules,
     addSIPRule,
     updateSIPRule,
@@ -1575,8 +1562,21 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     // Utility
     resetUserData,
     isDataLoaded,
+    indexes,
     bulkUpdateTransactions,
-    bulkDeleteTransactions
+    bulkUpdateTransactionsById,
+    bulkDeleteTransactions,
+
+    // Lazy loading functions
+    loadGoals,
+    loadAssets,
+    loadInsurance,
+    loadLiabilities,
+    loadRecurringTransactions,
+    loadBills,
+    loadSIPRules,
+    loadMonthlyBudget,
+    loadInitialTransactions,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

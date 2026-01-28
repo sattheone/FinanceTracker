@@ -83,16 +83,6 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
     }
   }, [liability]);
 
-  const liabilityTypes = [
-    { value: 'home_loan', label: 'Home Loan', icon: '🏠' },
-    { value: 'personal_loan', label: 'Personal Loan', icon: '💰' },
-    { value: 'car_loan', label: 'Car Loan', icon: '🚗' },
-    { value: 'credit_card', label: 'Credit Card', icon: '💳' },
-    { value: 'education_loan', label: 'Education Loan', icon: '🎓' },
-    { value: 'business_loan', label: 'Business Loan', icon: '🏢' },
-    { value: 'other', label: 'Other', icon: '📋' },
-  ];
-
   // Calculate EMI using the standard formula
   const calculateEMI = () => {
     if (!formData.principalAmount || !formData.startDate || !formData.endDate) {
@@ -201,8 +191,6 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
       newErrors.principalAmount = 'Principal amount must be greater than 0';
     }
 
-
-
     if (formData.interestRate < 0 || formData.interestRate > 50) {
       newErrors.interestRate = 'Interest rate must be between 0% and 50%';
     }
@@ -214,13 +202,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
     if (!formData.startDate) {
       newErrors.startDate = 'Start date is required';
     }
-    if (formData.currentBalance < 0) {
-      newErrors.currentBalance = 'Current balance cannot be negative';
-    }
 
-    if (formData.currentBalance > formData.principalAmount) {
-      newErrors.currentBalance = 'Current balance cannot exceed principal amount';
-    }
     if (!formData.endDate) {
       newErrors.endDate = 'End date is required';
     }
@@ -248,7 +230,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
       name: formData.name.trim(),
       type: formData.type,
       principalAmount: formData.principalAmount,
-      currentBalance: formData.currentBalance,
+      currentBalance: formData.principalAmount, // Set to principal amount initially, will be calculated from transactions
       interestRate: formData.interestRate,
       emiAmount: formData.emiAmount,
       startDate: formData.startDate,
@@ -297,7 +279,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
   return (
     <form id="liability-form" onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
+        <div className="md:col-span-2">
           <label className="form-label">
             Liability Name *
           </label>
@@ -313,32 +295,15 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
 
         <div>
           <label className="form-label">
-            Liability Type *
-          </label>
-          <select
-            value={formData.type}
-            onChange={(e) => handleChange('type', e.target.value)}
-            className="input-field theme-input"
-          >
-            {liabilityTypes.map(type => (
-              <option key={type.value} value={type.value}>
-                {type.icon} {type.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="form-label">
             Principal Amount *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
             <input
               type="number"
               value={formData.principalAmount || ''}
               onChange={(e) => handleChange('principalAmount', Number(e.target.value))}
-              className={`input-field pl-8 theme-input ${errors.principalAmount ? 'border-red-500' : ''}`}
+              className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 ${errors.principalAmount ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-500'}`}
               placeholder="0"
               min="0"
               step="0.01"
@@ -347,39 +312,6 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Original loan amount</p>
           {errors.principalAmount && <p className="text-red-500 text-sm mt-1">{errors.principalAmount}</p>}
         </div>
-
-        <div>
-          <label className="form-label">
-            Current Outstanding Balance *
-          </label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
-            <input
-              type="number"
-              value={formData.currentBalance || ''}
-              onChange={(e) => handleChange('currentBalance', Number(e.target.value))}
-              className={`input-field pl-8 theme-input ${errors.currentBalance ? 'border-red-500' : ''}`}
-              placeholder="0"
-              min="0"
-              step="0.01"
-            />
-          </div>
-          <div className="flex justify-between items-center mt-1">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Current amount you still owe</p>
-            {formData.principalAmount > 0 && formData.startDate && formData.emiAmount > 0 && (
-              <button
-                type="button"
-                onClick={handleAutoCalculateBalance}
-                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 underline"
-              >
-                Calculate from Start Date
-              </button>
-            )}
-          </div>
-          {errors.currentBalance && <p className="text-red-500 text-sm mt-1">{errors.currentBalance}</p>}
-        </div>
-
-
 
         <div>
           <label className="form-label">
@@ -407,12 +339,12 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
             Monthly EMI *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
             <input
               type="number"
               value={formData.emiAmount || ''}
               onChange={(e) => handleChange('emiAmount', Number(e.target.value))}
-              className={`input-field pl-8 theme-input ${errors.emiAmount ? 'border-red-500' : ''}`}
+              className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 ${errors.emiAmount ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-500'}`}
               placeholder="0"
               min="0"
               step="0.01"

@@ -1,14 +1,17 @@
 import {
   collection,
   doc,
-  getDocs,
-  getDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  setDoc,
+  getDocs as firestoreGetDocs,
+  getDoc as firestoreGetDoc,
+  addDoc as firestoreAddDoc,
+  updateDoc as firestoreUpdateDoc,
+  deleteDoc as firestoreDeleteDoc,
+  setDoc as firestoreSetDoc,
   query,
   where,
+  orderBy,
+  limit,
+  startAfter,
   onSnapshot,
   writeBatch,
   serverTimestamp,
@@ -17,8 +20,64 @@ import {
 import { db } from '../config/firebase';
 import { Asset, Insurance, Goal, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, CategoryRule, SIPRule } from '../types';
 import { UserProfile } from '../types/user';
+import {
+  incrementFirestoreBatches,
+  incrementFirestoreReads,
+  incrementFirestoreWrites
+} from '../debug/firestoreUsageMonitor';
+
+const removeUndefined = <T extends Record<string, any>>(obj: T): Partial<T> => {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([_, value]) => value !== undefined)
+  ) as Partial<T>;
+};
+
+const getDoc = async (...args: Parameters<typeof firestoreGetDoc>) => {
+  const snapshot = await firestoreGetDoc(...args);
+  incrementFirestoreReads(1);
+  return snapshot;
+};
+
+const getDocs = async (...args: Parameters<typeof firestoreGetDocs>) => {
+  const snapshot = await firestoreGetDocs(...args);
+  incrementFirestoreReads(snapshot.size);
+  return snapshot;
+};
+
+const addDoc = async (...args: Parameters<typeof firestoreAddDoc>) => {
+  const docRef = await firestoreAddDoc(...args);
+  incrementFirestoreWrites(1);
+  return docRef;
+};
+
+// NOTE: firestore setDoc/updateDoc/deleteDoc are overloaded; Parameters<> picks only one overload.
+// These wrappers keep runtime behavior while avoiding TS overload issues.
+const setDoc: typeof firestoreSetDoc = (async (...args: any[]) => {
+  const result = await (firestoreSetDoc as any)(...args);
+  incrementFirestoreWrites(1);
+  return result;
+}) as any;
+
+const updateDoc: typeof firestoreUpdateDoc = (async (...args: any[]) => {
+  const result = await (firestoreUpdateDoc as any)(...args);
+  incrementFirestoreWrites(1);
+  return result;
+}) as any;
+
+const deleteDoc: typeof firestoreDeleteDoc = (async (...args: any[]) => {
+  const result = await (firestoreDeleteDoc as any)(...args);
+  incrementFirestoreWrites(1);
+  return result;
+}) as any;
 
 export class FirebaseService {
+  private static chunkArray<T>(items: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+    for (let i = 0; i < items.length; i += size) {
+      chunks.push(items.slice(i, i + size));
+    }
+    return chunks;
+  }
   // Collection names
   private static COLLECTIONS = {
     USERS: 'users',
@@ -64,20 +123,18 @@ export class FirebaseService {
       if (docSnap.exists()) {
         // Update existing document
         // Filter out undefined values as Firebase doesn't support them
-        const cleanProfile = Object.fromEntries(
-          Object.entries(profile).filter(([_, value]) => value !== undefined)
-        );
+        const cleanProfile = removeUndefined(profile as any);
 
         await updateDoc(docRef, {
           ...cleanProfile,
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp() as any
         });
       } else {
         // Create new document
         await setDoc(docRef, {
           ...profile,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
+          createdAt: serverTimestamp() as any,
+          updatedAt: serverTimestamp() as any
         });
       }
     } catch (error) {
@@ -91,8 +148,8 @@ export class FirebaseService {
       const docRef = doc(db, this.COLLECTIONS.USERS, userId);
       await setDoc(docRef, {
         ...profile,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        createdAt: serverTimestamp() as any,
+        updatedAt: serverTimestamp() as any
       });
     } catch (error) {
       console.error('Error creating user profile:', error);
@@ -112,7 +169,7 @@ export class FirebaseService {
       // Sort on client side temporarily until indexes are created
       const transactions = querySnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...(doc.data() as any)
       })) as Transaction[];
 
       return transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -122,18 +179,76 @@ export class FirebaseService {
     }
   }
 
+  static async getTransactionsPage(
+    userId: string,
+    options?: {
+      pageSize?: number;
+      startDate?: string;
+      cursor?: { date: string; id: string };
+    }
+  ): Promise<{
+    transactions: Transaction[];
+    nextCursor?: { date: string; id: string };
+    hasMore: boolean;
+  }> {
+    try {
+      const pageSize = options?.pageSize ?? 500;
+
+      // Simple query - no composite index needed
+      const constraints: any[] = [
+        where('userId', '==', userId),
+        limit(pageSize + 50)
+      ];
+
+      const q = query(collection(db, this.COLLECTIONS.TRANSACTIONS), ...constraints);
+      const querySnapshot = await getDocs(q);
+
+      let transactions = querySnapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...(docSnap.data() as any)
+      })) as Transaction[];
+
+      // Sort client-side by date descending (newest first)
+      transactions.sort((a, b) => {
+        const dateCompare = b.date.localeCompare(a.date);
+        if (dateCompare !== 0) return dateCompare;
+        return b.id.localeCompare(a.id);
+      });
+
+      // If we have a cursor, filter to only transactions before it
+      if (options?.cursor) {
+        transactions = transactions.filter(t =>
+          t.date < options.cursor!.date ||
+          (t.date === options.cursor!.date && t.id < options.cursor!.id)
+        );
+      }
+
+      // Trim to requested page size
+      const hasMore = transactions.length > pageSize;
+      if (hasMore) {
+        transactions = transactions.slice(0, pageSize);
+      }
+
+      const last = transactions[transactions.length - 1];
+      const nextCursor = hasMore && last?.date ? { date: last.date, id: last.id } : undefined;
+
+      return { transactions, nextCursor, hasMore };
+    } catch (error) {
+      console.error('Error getting transactions page:', error);
+      throw error;
+    }
+  }
+
   static async addTransaction(userId: string, transaction: Omit<Transaction, 'id'>): Promise<string> {
     try {
       // Filter out undefined values as Firebase doesn't support them
-      const cleanTransaction = Object.fromEntries(
-        Object.entries(transaction).filter(([_, value]) => value !== undefined)
-      );
+      const cleanTransaction = removeUndefined(transaction as any) as Record<string, any>;
 
       const docRef = await addDoc(collection(db, this.COLLECTIONS.TRANSACTIONS), {
         ...cleanTransaction,
         userId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        createdAt: serverTimestamp() as any,
+        updatedAt: serverTimestamp() as any
       });
       return docRef.id;
     } catch (error) {
@@ -145,14 +260,12 @@ export class FirebaseService {
   static async updateTransaction(transactionId: string, updates: Partial<Transaction>): Promise<void> {
     try {
       // Filter out undefined values as Firebase doesn't support them
-      const cleanUpdates = Object.fromEntries(
-        Object.entries(updates).filter(([_, value]) => value !== undefined)
-      );
+      const cleanUpdates = removeUndefined(updates as any);
 
       const docRef = doc(db, this.COLLECTIONS.TRANSACTIONS, transactionId);
       await updateDoc(docRef, {
         ...cleanUpdates,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp() as any
       });
     } catch (error) {
       console.error('Error updating transaction:', error);
@@ -174,21 +287,20 @@ export class FirebaseService {
     userId: string,
     transactions: Omit<Transaction, 'id'>[],
     onProgress?: (progress: number, total: number) => void
-  ): Promise<void> {
+  ): Promise<Transaction[]> {
     try {
       const BATCH_SIZE = 450; // Firestore limit is 500, keeping safety margin
       const total = transactions.length;
       let processed = 0;
+      const createdTransactions: Transaction[] = [];
+      const now = new Date().toISOString();
 
-      for (let i = 0; i < total; i += BATCH_SIZE) {
+      for (const chunk of this.chunkArray(transactions, BATCH_SIZE)) {
         const batch = writeBatch(db);
-        const chunk = transactions.slice(i, i + BATCH_SIZE);
 
         chunk.forEach(transaction => {
           // Filter out undefined values as Firebase doesn't support them
-          const cleanTransaction = Object.fromEntries(
-            Object.entries(transaction).filter(([_, value]) => value !== undefined)
-          );
+          const cleanTransaction = removeUndefined(transaction as any) as Record<string, any>;
 
           const docRef = doc(collection(db, this.COLLECTIONS.TRANSACTIONS));
           batch.set(docRef, {
@@ -197,9 +309,19 @@ export class FirebaseService {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
+
+          createdTransactions.push({
+            id: docRef.id,
+            ...transaction,
+            userId,
+            createdAt: now,
+            updatedAt: now
+          } as Transaction);
         });
 
         await batch.commit();
+        incrementFirestoreBatches(1);
+        incrementFirestoreWrites(chunk.length);
         processed += chunk.length;
 
         if (onProgress) {
@@ -211,9 +333,106 @@ export class FirebaseService {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
+      return createdTransactions;
     } catch (error) {
       console.error('Error bulk adding transactions:', error);
       throw error;
+    }
+  }
+
+  static async bulkUpdateTransactions(ids: string[], update: Partial<Transaction>): Promise<void> {
+    if (ids.length === 0) return;
+
+    const cleanUpdates = removeUndefined(update as any) as Record<string, any>;
+
+    if (!('updatedAt' in cleanUpdates)) {
+      cleanUpdates.updatedAt = serverTimestamp() as any;
+    }
+
+    const BATCH_SIZE = 450;
+    const chunks = this.chunkArray(ids, BATCH_SIZE);
+
+    for (const chunk of chunks) {
+      const batch = writeBatch(db);
+      chunk.forEach(id => {
+        const docRef = doc(db, this.COLLECTIONS.TRANSACTIONS, id);
+        batch.update(docRef, cleanUpdates);
+      });
+      await batch.commit();
+
+      // Count as 1 batch operation, not N writes
+      incrementFirestoreBatches(1);
+      // Don't count individual writes - batch pricing is flat
+      // incrementFirestoreWrites(chunk.length);
+    }
+  }
+
+  static async bulkUpdateTransactionsById(updatesById: Record<string, Partial<Transaction>>): Promise<void> {
+    const entries = Object.entries(updatesById);
+    if (entries.length === 0) return;
+
+    const BATCH_SIZE = 450;
+    const chunks = this.chunkArray(entries, BATCH_SIZE);
+
+    for (const chunk of chunks) {
+      const batch = writeBatch(db);
+      chunk.forEach(([id, updates]) => {
+        const cleanUpdates = removeUndefined(updates as any) as Record<string, any>;
+        if (!('updatedAt' in cleanUpdates)) {
+          cleanUpdates.updatedAt = serverTimestamp() as any;
+        }
+        const docRef = doc(db, this.COLLECTIONS.TRANSACTIONS, id);
+        batch.update(docRef, cleanUpdates);
+      });
+      await batch.commit();
+
+      // Count as 1 batch operation, not N writes (batches are same cost regardless of size)
+      incrementFirestoreBatches(1);
+      // Don't count individual writes - batch pricing is flat
+      // incrementFirestoreWrites(chunk.length);
+    }
+  }
+
+  static async bulkDeleteTransactions(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+
+    const BATCH_SIZE = 450;
+    const chunks = this.chunkArray(ids, BATCH_SIZE);
+
+    for (const chunk of chunks) {
+      const batch = writeBatch(db);
+      chunk.forEach(id => {
+        const docRef = doc(db, this.COLLECTIONS.TRANSACTIONS, id);
+        batch.delete(docRef);
+      });
+      await batch.commit();
+
+      // Count as 1 batch operation, not N deletes
+      incrementFirestoreBatches(1);
+      // Don't count individual deletes - batch pricing is flat
+      // incrementFirestoreWrites(chunk.length);
+    }
+  }
+
+  static async bulkUpdateBankAccounts(
+    updates: Array<{ id: string; update: Partial<BankAccount> }>
+  ): Promise<void> {
+    if (updates.length === 0) return;
+
+    const BATCH_SIZE = 450;
+    for (const chunk of this.chunkArray(updates, BATCH_SIZE)) {
+      const batch = writeBatch(db);
+      chunk.forEach(({ id, update }) => {
+        const cleanUpdates = removeUndefined(update as any) as Record<string, any>;
+        if (!('updatedAt' in cleanUpdates)) {
+          cleanUpdates.updatedAt = serverTimestamp() as any;
+        }
+        const docRef = doc(db, this.COLLECTIONS.BANK_ACCOUNTS, id);
+        batch.update(docRef, cleanUpdates);
+      });
+      await batch.commit();
+      incrementFirestoreBatches(1);
+      incrementFirestoreWrites(chunk.length);
     }
   }
 
@@ -229,7 +448,7 @@ export class FirebaseService {
       // Sort on client side temporarily until indexes are created
       const assets = querySnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...(doc.data() as any)
       })) as Asset[];
 
       return assets.sort((a, b) => a.name.localeCompare(b.name));
@@ -242,15 +461,13 @@ export class FirebaseService {
   static async addAsset(userId: string, asset: Omit<Asset, 'id'>): Promise<string> {
     try {
       // Filter out undefined values
-      const cleanAsset = Object.fromEntries(
-        Object.entries(asset).filter(([_, value]) => value !== undefined)
-      );
+      const cleanAsset = removeUndefined(asset as any) as Record<string, any>;
 
       const docRef = await addDoc(collection(db, this.COLLECTIONS.ASSETS), {
         ...cleanAsset,
         userId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        createdAt: serverTimestamp() as any,
+        updatedAt: serverTimestamp() as any
       });
       return docRef.id;
     } catch (error) {
@@ -262,14 +479,12 @@ export class FirebaseService {
   static async updateAsset(assetId: string, updates: Partial<Asset>): Promise<void> {
     try {
       // Filter out undefined values as Firebase doesn't support them
-      const cleanUpdates = Object.fromEntries(
-        Object.entries(updates).filter(([_, value]) => value !== undefined)
-      );
+      const cleanUpdates = removeUndefined(updates as any) as Record<string, any>;
 
       const docRef = doc(db, this.COLLECTIONS.ASSETS, assetId);
       await updateDoc(docRef, {
         ...cleanUpdates,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp() as any
       });
     } catch (error) {
       console.error('Error updating asset:', error);
@@ -299,7 +514,7 @@ export class FirebaseService {
       // Sort on client side temporarily until indexes are created
       const insurance = querySnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...(doc.data() as any)
       })) as Insurance[];
 
       return insurance.sort((a, b) => a.policyName.localeCompare(b.policyName));
@@ -312,15 +527,13 @@ export class FirebaseService {
   static async addInsurance(userId: string, insurance: Omit<Insurance, 'id'>): Promise<string> {
     try {
       // Filter out undefined values as Firebase doesn't support them
-      const cleanInsurance = Object.fromEntries(
-        Object.entries(insurance).filter(([_, value]) => value !== undefined)
-      );
+      const cleanInsurance = removeUndefined(insurance as any) as Record<string, any>;
 
       const docRef = await addDoc(collection(db, this.COLLECTIONS.INSURANCE), {
         ...cleanInsurance,
         userId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        createdAt: serverTimestamp() as any,
+        updatedAt: serverTimestamp() as any
       });
       return docRef.id;
     } catch (error) {
@@ -332,14 +545,12 @@ export class FirebaseService {
   static async updateInsurance(insuranceId: string, updates: Partial<Insurance>): Promise<void> {
     try {
       // Filter out undefined values as Firebase doesn't support them
-      const cleanUpdates = Object.fromEntries(
-        Object.entries(updates).filter(([_, value]) => value !== undefined)
-      );
+      const cleanUpdates = removeUndefined(updates as any) as Record<string, any>;
 
       const docRef = doc(db, this.COLLECTIONS.INSURANCE, insuranceId);
       await updateDoc(docRef, {
         ...cleanUpdates,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp() as any
       });
     } catch (error) {
       console.error('Error updating insurance:', error);
@@ -369,7 +580,7 @@ export class FirebaseService {
       // Sort on client side temporarily until indexes are created
       const goals = querySnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...(doc.data() as any)
       })) as Goal[];
 
       return goals.sort((a, b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime());
@@ -382,15 +593,13 @@ export class FirebaseService {
   static async addGoal(userId: string, goal: Omit<Goal, 'id'>): Promise<string> {
     try {
       // Filter out undefined values as Firebase doesn't support them
-      const cleanGoal = Object.fromEntries(
-        Object.entries(goal).filter(([_, value]) => value !== undefined)
-      );
+      const cleanGoal = removeUndefined(goal as any) as Record<string, any>;
 
       const docRef = await addDoc(collection(db, this.COLLECTIONS.GOALS), {
         ...cleanGoal,
         userId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        createdAt: serverTimestamp() as any,
+        updatedAt: serverTimestamp() as any
       });
       return docRef.id;
     } catch (error) {
@@ -402,14 +611,12 @@ export class FirebaseService {
   static async updateGoal(goalId: string, updates: Partial<Goal>): Promise<void> {
     try {
       // Filter out undefined values as Firebase doesn't support them
-      const cleanUpdates = Object.fromEntries(
-        Object.entries(updates).filter(([_, value]) => value !== undefined)
-      );
+      const cleanUpdates = removeUndefined(updates as any) as Record<string, any>;
 
       const docRef = doc(db, this.COLLECTIONS.GOALS, goalId);
       await updateDoc(docRef, {
         ...cleanUpdates,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp() as any
       });
     } catch (error) {
       console.error('Error updating goal:', error);
@@ -499,7 +706,7 @@ export class FirebaseService {
 
       const accounts = querySnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...(doc.data() as any)
       })) as BankAccount[];
 
       return accounts.sort((a, b) => a.bank.localeCompare(b.bank));
@@ -568,7 +775,7 @@ export class FirebaseService {
 
       const liabilities = querySnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...(doc.data() as any)
       })) as Liability[];
 
       return liabilities.sort((a, b) => a.name.localeCompare(b.name));
@@ -634,9 +841,10 @@ export class FirebaseService {
     );
 
     return onSnapshot(q, (querySnapshot) => {
+      incrementFirestoreReads(querySnapshot.size);
       const transactions = querySnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...(doc.data() as any)
       })) as Transaction[];
 
       // Sort on client side temporarily until indexes are created
@@ -654,9 +862,10 @@ export class FirebaseService {
     );
 
     return onSnapshot(q, (querySnapshot) => {
+      incrementFirestoreReads(querySnapshot.size);
       const assets = querySnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...(doc.data() as any)
       })) as Asset[];
 
       // Sort on client side temporarily until indexes are created
@@ -706,7 +915,7 @@ export class FirebaseService {
         where('userId', '==', userId)
       );
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RecurringTransaction));
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as RecurringTransaction));
     } catch (error) {
       console.error('Error getting recurring transactions:', error);
       throw error;
@@ -769,7 +978,7 @@ export class FirebaseService {
         where('userId', '==', userId)
       );
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Bill));
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as Bill));
     } catch (error) {
       console.error('Error getting bills:', error);
       throw error;
@@ -862,6 +1071,8 @@ export class FirebaseService {
       });
 
       await batch.commit();
+      incrementFirestoreBatches(1);
+      incrementFirestoreWrites(querySnapshot.size);
       console.log(`✅ Deleted ${querySnapshot.size} transactions`);
       return querySnapshot.size;
     } catch (error) {
@@ -890,6 +1101,8 @@ export class FirebaseService {
       });
 
       await batch.commit();
+      incrementFirestoreBatches(1);
+      incrementFirestoreWrites(querySnapshot.size);
       console.log(`✅ Deleted ${querySnapshot.size} bank accounts`);
       return querySnapshot.size;
     } catch (error) {
@@ -918,6 +1131,8 @@ export class FirebaseService {
       });
 
       await batch.commit();
+      incrementFirestoreBatches(1);
+      incrementFirestoreWrites(querySnapshot.size);
       console.log(`✅ Deleted ${querySnapshot.size} assets`);
       return querySnapshot.size;
     } catch (error) {
@@ -946,6 +1161,8 @@ export class FirebaseService {
       });
 
       await batch.commit();
+      incrementFirestoreBatches(1);
+      incrementFirestoreWrites(querySnapshot.size);
       console.log(`✅ Deleted ${querySnapshot.size} liabilities`);
       return querySnapshot.size;
     } catch (error) {
@@ -974,6 +1191,8 @@ export class FirebaseService {
       });
 
       await batch.commit();
+      incrementFirestoreBatches(1);
+      incrementFirestoreWrites(querySnapshot.size);
       console.log(`✅ Deleted ${querySnapshot.size} goals`);
       return querySnapshot.size;
     } catch (error) {
@@ -1002,6 +1221,8 @@ export class FirebaseService {
       });
 
       await batch.commit();
+      incrementFirestoreBatches(1);
+      incrementFirestoreWrites(querySnapshot.size);
       console.log(`✅ Deleted ${querySnapshot.size} insurance policies`);
       return querySnapshot.size;
     } catch (error) {
@@ -1030,6 +1251,8 @@ export class FirebaseService {
       });
 
       await batch.commit();
+      incrementFirestoreBatches(1);
+      incrementFirestoreWrites(querySnapshot.size);
       console.log(`✅ Deleted ${querySnapshot.size} recurring transactions`);
       return querySnapshot.size;
     } catch (error) {
@@ -1058,6 +1281,8 @@ export class FirebaseService {
       });
 
       await batch.commit();
+      incrementFirestoreBatches(1);
+      incrementFirestoreWrites(querySnapshot.size);
       console.log(`✅ Deleted ${querySnapshot.size} bills`);
       return querySnapshot.size;
     } catch (error) {
@@ -1108,6 +1333,8 @@ export class FirebaseService {
 
       // Commit all deletions
       await batch.commit();
+      incrementFirestoreBatches(1);
+      incrementFirestoreWrites(deletedCount);
       console.log(`✅ Successfully deleted ${deletedCount} documents for user:`, userId);
     } catch (error) {
       console.error('❌ Error deleting user data:', error);
@@ -1126,7 +1353,7 @@ export class FirebaseService {
 
       return querySnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...(doc.data() as any)
       })) as CategoryRule[];
     } catch (error) {
       console.error('Error getting category rules:', error);
@@ -1184,6 +1411,48 @@ export class FirebaseService {
     }
   }
 
+  static async bulkAddCategoryRules(
+    userId: string,
+    rules: CategoryRule[]
+  ): Promise<void> {
+    try {
+      const BATCH_SIZE = 450;
+      const chunks = this.chunkArray(rules, BATCH_SIZE);
+      const now = serverTimestamp();
+
+      for (const chunk of chunks) {
+        const batch = writeBatch(db);
+
+        chunk.forEach(rule => {
+          // Use the provided ID for the document
+          const docRef = doc(db, this.COLLECTIONS.CATEGORY_RULES, rule.id);
+
+          // Remove ID from data payload since it's the doc key
+          const { id, ...ruleData } = rule;
+
+          // Filter out undefined values
+          const cleanRuleData = Object.fromEntries(
+            Object.entries(ruleData).filter(([_, value]) => value !== undefined)
+          );
+
+          batch.set(docRef, {
+            ...cleanRuleData,
+            userId,
+            createdAt: now,
+            updatedAt: now
+          });
+        });
+
+        await batch.commit();
+        incrementFirestoreBatches(1);
+        incrementFirestoreWrites(chunk.length);
+      }
+    } catch (error) {
+      console.error('Error bulk adding category rules:', error);
+      throw error;
+    }
+  }
+
   // SIP Rules Operations
   static async getSIPRules(userId: string): Promise<SIPRule[]> {
     try {
@@ -1192,7 +1461,7 @@ export class FirebaseService {
         where('userId', '==', userId)
       );
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SIPRule));
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) } as SIPRule));
     } catch (error) {
       console.error('Error getting SIP rules:', error);
       throw error;
@@ -1249,13 +1518,56 @@ export class FirebaseService {
 
   // ==================== Category Operations ====================
 
-  static async getCategories(userId: string): Promise<any[]> {
+  // Get default categories from consolidated config document (1 read instead of 50+)
+  static async getDefaultCategories(): Promise<any[]> {
+    try {
+      const docRef = doc(db, 'config', 'categories');
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        return data.categories || [];
+      }
+
+      // Fallback: if config doc doesn't exist, return empty (will use local defaults)
+      console.warn('[FirebaseService] Config categories document not found, using local defaults');
+      return [];
+    } catch (error) {
+      console.error('Error getting default categories:', error);
+      return [];
+    }
+  }
+
+  // Get user's custom categories only (separate from defaults)
+  static async getUserCustomCategories(userId: string): Promise<any[]> {
     try {
       const q = query(
         collection(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.CATEGORIES)
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+    } catch (error) {
+      console.error('Error getting user categories:', error);
+      throw error;
+    }
+  }
+
+  // Legacy method - now combines default + custom categories
+  static async getCategories(userId: string): Promise<any[]> {
+    try {
+      const [defaultCats, customCats] = await Promise.all([
+        this.getDefaultCategories(),
+        this.getUserCustomCategories(userId)
+      ]);
+
+      // Merge: defaults + user custom categories (user can override defaults by ID)
+      const customIds = new Set(customCats.map(c => c.id));
+      const merged = [
+        ...defaultCats.filter(c => !customIds.has(c.id)),
+        ...customCats
+      ];
+
+      return merged;
     } catch (error) {
       console.error('Error getting categories:', error);
       throw error;
@@ -1333,7 +1645,7 @@ export class FirebaseService {
         collection(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.TAGS)
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
     } catch (error) {
       console.error('Error getting tags:', error);
       throw error;

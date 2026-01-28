@@ -21,6 +21,7 @@
     "emojibase-data": "^17.0.0",
     "firebase": "^12.3.0",
     "html-to-image": "^1.11.13",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.263.1",
     "papaparse": "^5.5.3",
     "pdfjs-dist": "^5.4.449",
@@ -33,6 +34,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/jszip": "^3.4.0",
     "@types/papaparse": "^5.3.16",
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",

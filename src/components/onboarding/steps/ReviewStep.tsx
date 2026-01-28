@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, User, DollarSign, TrendingUp, Target, Shield } from 'lucide-react';
+import { CheckCircle, DollarSign, TrendingUp, Target, Shield } from 'lucide-react';
 import { useData } from '../../../contexts/DataContext';
 import { formatCurrency, formatLargeNumber } from '../../../utils/formatters';
 
@@ -28,45 +28,19 @@ const ReviewStep: React.FC = () => {
         </p>
       </div>
 
-      {/* Personal Information Summary */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-          <User className="w-5 h-5 mr-2" />
-          Personal Information
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-gray-600 dark:text-gray-300">Name</p>
-            <p className="font-medium text-gray-900 dark:text-white">{userProfile?.personalInfo.name}</p>
-          </div>
-          <div>
-            <p className="text-gray-600 dark:text-gray-300">Email</p>
-            <p className="font-medium text-gray-900 dark:text-white">{userProfile?.personalInfo.email}</p>
-          </div>
-          {userProfile?.personalInfo.spouseName && (
-            <div>
-              <p className="text-gray-600 dark:text-gray-300">Spouse</p>
-              <p className="font-medium text-gray-900 dark:text-white">{userProfile.personalInfo.spouseName}</p>
-            </div>
-          )}
-          {userProfile?.personalInfo.children && userProfile.personalInfo.children.length > 0 && (
-            <div>
-              <p className="text-gray-600 dark:text-gray-300">Children</p>
-              <p className="font-medium text-gray-900 dark:text-white">
-                {userProfile.personalInfo.children.length} {userProfile.personalInfo.children.length === 1 ? 'child' : 'children'}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Financial Overview */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
           <DollarSign className="w-5 h-5 mr-2" />
           Financial Overview
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="text-center p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
+            <p className="text-sm text-gray-600 dark:text-gray-300">Current Age</p>
+            <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+              {userProfile?.financialInfo.currentAge || 'N/A'} yrs
+            </p>
+          </div>
           <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
             <p className="text-sm text-gray-600 dark:text-gray-300">Monthly Income</p>
             <p className="text-xl font-bold text-green-600 dark:text-green-400">

@@ -128,12 +128,12 @@ const InsuranceStep: React.FC = () => {
                 Coverage Amount
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
                 <input
                   type="number"
                   value={newInsurance.coverAmount || ''}
                   onChange={(e) => setNewInsurance({ ...newInsurance, coverAmount: Number(e.target.value) })}
-                  className="input-field pl-8 theme-input"
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                   placeholder="0"
                   min="0"
                 />
@@ -144,12 +144,12 @@ const InsuranceStep: React.FC = () => {
                 Premium Amount
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
                 <input
                   type="number"
                   value={newInsurance.premiumAmount || ''}
                   onChange={(e) => setNewInsurance({ ...newInsurance, premiumAmount: Number(e.target.value) })}
-                  className="input-field pl-8 theme-input"
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                   placeholder="0"
                   min="0"
                 />
@@ -187,12 +187,12 @@ const InsuranceStep: React.FC = () => {
                     Maturity Amount (Optional)
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
                     <input
                       type="number"
                       value={newInsurance.maturityAmount || ''}
                       onChange={(e) => setNewInsurance({ ...newInsurance, maturityAmount: Number(e.target.value) })}
-                      className="input-field pl-8 theme-input"
+                      className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                       placeholder="0"
                       min="0"
                     />

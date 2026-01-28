@@ -181,12 +181,12 @@ const GoalsStep: React.FC = () => {
                 Target Amount
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
                 <input
                   type="number"
                   value={newGoal.targetAmount || ''}
                   onChange={(e) => setNewGoal({ ...newGoal, targetAmount: Number(e.target.value) })}
-                  className="input-field pl-8 theme-input"
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                   placeholder="0"
                   min="0"
                 />
@@ -197,12 +197,12 @@ const GoalsStep: React.FC = () => {
                 Current Amount
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
                 <input
                   type="number"
                   value={newGoal.currentAmount || ''}
                   onChange={(e) => setNewGoal({ ...newGoal, currentAmount: Number(e.target.value) })}
-                  className="input-field pl-8 theme-input"
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                   placeholder="0"
                   min="0"
                 />
@@ -225,12 +225,12 @@ const GoalsStep: React.FC = () => {
                 Monthly SIP
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
                 <input
                   type="number"
                   value={newGoal.monthlyContribution || ''}
                   onChange={(e) => setNewGoal({ ...newGoal, monthlyContribution: Number(e.target.value) })}
-                  className="input-field pl-8 theme-input"
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                   placeholder="0"
                   min="0"
                 />

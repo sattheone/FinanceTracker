@@ -3,16 +3,18 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DataProvider } from './contexts/DataContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { DebugProvider } from './contexts/DebugContext';
 import AuthPage from './components/auth/AuthPage';
 import OnboardingWizard from './components/onboarding/OnboardingWizard';
 import Layout from './components/Layout';
+import FirestoreUsageHud from './components/debug/FirestoreUsageHud';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import Calendar from './pages/Calendar';
 import RecurringTransactions from './pages/RecurringTransactions';
 
 // Import test utility for development
-if (process.env.NODE_ENV === 'development') {
+if (import.meta.env.DEV) {
   import('./utils/testDuplicateDetection');
 }
 import Assets from './pages/Assets';
@@ -47,7 +49,7 @@ const AppContent: React.FC = () => {
   const bypassOnboarding = localStorage.getItem('bypassOnboarding') === 'true';
 
   // Log for debugging
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     console.log('Onboarding check:', {
       onboardingCompleted: user?.onboardingCompleted,
       bypassOnboarding,
@@ -93,7 +95,10 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <DataProvider>
-            <AppContent />
+            <DebugProvider>
+              <AppContent />
+              <FirestoreUsageHud />
+            </DebugProvider>
           </DataProvider>
         </AuthProvider>
       </ThemeProvider>

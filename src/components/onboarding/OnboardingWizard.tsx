@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import PersonalInfoStep from './steps/PersonalInfoStep';
-import FinancialInfoStep from './steps/FinancialInfoStep';
+
 import BankAccountStep from './steps/BankAccountStep';
 import AssetsStep from './steps/AssetsStep';
 import LiabilitiesStep from './steps/LiabilitiesStep';
@@ -15,14 +14,12 @@ const OnboardingWizard: React.FC = () => {
   const { user, updateUser } = useAuth();
 
   const steps = [
-    { id: 0, title: 'Personal Information', component: PersonalInfoStep },
-    { id: 1, title: 'Financial Overview', component: FinancialInfoStep },
-    { id: 2, title: 'Bank Accounts', component: BankAccountStep },
-    { id: 3, title: 'Assets & Investments', component: AssetsStep },
-    { id: 4, title: 'Liabilities & Debts', component: LiabilitiesStep },
-    { id: 5, title: 'Financial Goals', component: GoalsStep },
-    { id: 6, title: 'Insurance Policies', component: InsuranceStep },
-    { id: 7, title: 'Review & Complete', component: ReviewStep },
+    { id: 0, title: 'Bank Accounts', component: BankAccountStep },
+    { id: 1, title: 'Assets & Investments', component: AssetsStep },
+    { id: 2, title: 'Liabilities & Debts', component: LiabilitiesStep },
+    { id: 3, title: 'Financial Goals', component: GoalsStep },
+    { id: 4, title: 'Insurance Policies', component: InsuranceStep },
+    { id: 5, title: 'Review & Complete', component: ReviewStep },
   ];
 
   const handleNext = () => {
@@ -43,19 +40,6 @@ const OnboardingWizard: React.FC = () => {
         ...user,
         onboardingCompleted: true,
       });
-    }
-  };
-
-  const handleSkip = () => {
-    if (window.confirm('Are you an existing user? Skip onboarding and go to dashboard?')) {
-      localStorage.setItem('bypassOnboarding', 'true');
-      if (user) {
-        updateUser({
-          ...user,
-          onboardingCompleted: true,
-        });
-      }
-      window.location.reload();
     }
   };
 
@@ -86,13 +70,12 @@ const OnboardingWizard: React.FC = () => {
               <React.Fragment key={step.id}>
                 <div className="flex items-center">
                   <div
-                    className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-                      index < currentStep
+                    className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all ${index < currentStep
                         ? 'bg-green-500 border-green-500 text-white'
                         : index === currentStep
-                        ? 'bg-primary-500 border-primary-500 text-white'
-                        : 'bg-white border-gray-300 text-gray-400'
-                    }`}
+                          ? 'bg-blue-600 dark:bg-blue-500 border-blue-600 dark:border-blue-500 text-white shadow-lg shadow-blue-500/50'
+                          : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-500 text-gray-400 dark:text-gray-500'
+                      }`}
                   >
                     {index < currentStep ? (
                       <Check className="w-4 h-4" />
@@ -101,18 +84,20 @@ const OnboardingWizard: React.FC = () => {
                     )}
                   </div>
                   <span
-                    className={`ml-2 text-sm font-medium ${
-                      index <= currentStep ? 'text-gray-900' : 'text-gray-400'
-                    }`}
+                    className={`ml-2 text-sm font-medium transition-colors ${index < currentStep
+                        ? 'text-gray-700 dark:text-gray-300'
+                        : index === currentStep
+                          ? 'text-blue-600 dark:text-blue-400'
+                          : 'text-gray-400 dark:text-gray-500'
+                      }`}
                   >
                     {step.title}
                   </span>
                 </div>
                 {index < steps.length - 1 && (
                   <div
-                    className={`flex-1 h-0.5 mx-4 ${
-                      index < currentStep ? 'bg-green-500' : 'bg-gray-200'
-                    }`}
+                    className={`flex-1 h-0.5 mx-4 transition-colors ${index < currentStep ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-600'
+                      }`}
                   />
                 )}
               </React.Fragment>
@@ -138,12 +123,7 @@ const OnboardingWizard: React.FC = () => {
             Previous
           </button>
 
-          <button
-            onClick={handleSkip}
-            className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline"
-          >
-            Already have an account? Skip to Dashboard
-          </button>
+          <div></div>
 
           {currentStep === steps.length - 1 ? (
             <button

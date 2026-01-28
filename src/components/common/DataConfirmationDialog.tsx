@@ -5,6 +5,7 @@ import { Category } from '../../constants/categories';
 import InlineCategoryEditor from '../transactions/InlineCategoryEditor';
 import InlineAccountPicker from '../transactions/InlineAccountPicker';
 import { BankAccount } from '../../types';
+import AutoCategorizationService from '../../services/autoCategorization';
 
 interface DataConfirmationDialogProps {
   isOpen: boolean;
@@ -18,6 +19,8 @@ interface DataConfirmationDialogProps {
   accounts?: BankAccount[];
   selectedAccountId?: string;
   onAccountChange?: (accountId: string) => void;
+  onCategoryChange?: (item: any, newCategory: string) => void;
+  lastCreatedRule?: any;
 }
 
 const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
@@ -30,7 +33,9 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
   categories = [],
   accounts = [],
   selectedAccountId = '',
-  onAccountChange
+  onAccountChange,
+  onCategoryChange,
+  lastCreatedRule
 }) => {
   const [editableData, setEditableData] = useState(data);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(
@@ -45,6 +50,31 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
     setEditableData(data);
     setSelectedItems(new Set(data.map((_, index) => index)));
   }, [data]);
+
+  // Apply last created rule to all matching items
+  React.useEffect(() => {
+    if (lastCreatedRule && type === 'transactions') {
+      setEditableData(prev => {
+        let hasChanges = false;
+        const newData = prev.map(item => {
+          if (AutoCategorizationService.matchesRule(lastCreatedRule, item.description)) {
+            // Apply category
+            if (item.category !== lastCreatedRule.categoryId) {
+              hasChanges = true;
+              return { ...item, category: lastCreatedRule.categoryId };
+            }
+          }
+          return item;
+        });
+
+        if (hasChanges) {
+          console.log('Applied new rule to extracted transactions');
+          return newData;
+        }
+        return prev;
+      });
+    }
+  }, [lastCreatedRule]);
 
   if (!isOpen) return null;
 
@@ -85,6 +115,12 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
     setEditableData(prev => {
       const newData = [...prev];
       newData[index] = { ...newData[index], [field]: value };
+
+      // Trigger callback for category changes
+      if (field === 'category' && onCategoryChange) {
+        onCategoryChange(newData[index], value);
+      }
+
       return newData;
     });
   };
@@ -103,7 +139,8 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
             type="checkbox"
             checked={selectedItems.has(index)}
             onChange={() => handleItemToggle(index)}
-            className="mr-3 h-4 w-4 text-primary-600 rounded"
+            className="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 transition duration-150 ease-in-out cursor-pointer"
+            style={{ width: '1rem', height: '1rem' }}
           />
           <div className="flex items-center">
             {item.confidence < 0.7 && (
@@ -206,164 +243,284 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
   };
 
   const renderTransactionTable = () => (
-    <div className="overflow-x-auto ring-1 ring-gray-200 dark:ring-gray-700 rounded-lg">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed">
-        <thead className="bg-gray-50 dark:bg-gray-800">
-          <tr>
-            <th className="px-3 py-3 text-left w-12">
-              <input
-                type="checkbox"
-                checked={selectedItems.size === editableData.length}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setSelectedItems(new Set(editableData.map((_, i) => i)));
-                  } else {
-                    setSelectedItems(new Set());
-                  }
-                }}
-                className="h-4 w-4 text-primary-600 rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:ring-primary-500"
-              />
-            </th>
-            <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">
-              <div className="flex items-center">
-                <Calendar className="w-4 h-4 mr-1" />
-                Date
-              </div>
-            </th>
-            <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Description
-              <span className="text-gray-400 dark:text-gray-500 font-normal normal-case ml-1 text-xs">(hover for full)</span>
-            </th>
-            <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">
-              <div className="flex items-center">
-                <DollarSign className="w-4 h-4 mr-1" />
-                Amount
-              </div>
-            </th>
-            <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">
-              Type
-            </th>
-            <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-40">
-              <div className="flex items-center">
-                <Tag className="w-4 h-4 mr-1" />
-                Category
-              </div>
-            </th>
-            <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
-              Confidence
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
-          {editableData.map((item, index) => (
-            <tr key={index} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${selectedItems.has(index) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
-              <td className="px-3 py-2">
+    <div className="space-y-4">
+      {/* Mobile Card View (visible on small screens) */}
+      <div className="md:hidden space-y-4">
+        {/* Select All Checkbox for Mobile */}
+        <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+          <label className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              checked={selectedItems.size === editableData.length}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setSelectedItems(new Set(editableData.map((_, i) => i)));
+                } else {
+                  setSelectedItems(new Set());
+                }
+              }}
+              className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 transition duration-150 ease-in-out cursor-pointer"
+              style={{ width: '1rem', height: '1rem' }}
+            />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Select All Transactions</span>
+          </label>
+        </div>
+
+        {editableData.map((item, index) => (
+          <div
+            key={index}
+            className={`bg-white dark:bg-gray-800 rounded-lg border shadow-sm p-4 space-y-3 transition-colors ${selectedItems.has(index)
+              ? 'border-blue-300 dark:border-blue-700 ring-1 ring-blue-300 dark:ring-blue-700'
+              : 'border-gray-200 dark:border-gray-700'
+              }`}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-3">
                 <input
                   type="checkbox"
                   checked={selectedItems.has(index)}
-                  onClick={(e) => handleItemCheckboxClick(index, e)}
-                  className="h-4 w-4 text-primary-600 rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:ring-primary-500"
+                  onChange={() => handleItemToggle(index)}
+                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 transition duration-150 ease-in-out cursor-pointer"
+                  style={{ width: '1rem', height: '1rem' }}
                 />
-              </td>
-              <td className="px-3 py-2">
+                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">#{index + 1}</span>
+              </div>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${item.confidence >= 0.8 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                item.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                }`}>
+                {Math.round(item.confidence * 100)}%
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <div>
+                <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">Description</label>
                 <input
-                  type="date"
-                  value={item.date}
-                  onChange={(e) => handleFieldChange(index, 'date', e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm dark:[color-scheme:dark]"
+                  type="text"
+                  value={item.description}
+                  onChange={(e) => handleFieldChange(index, 'description', e.target.value)}
+                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 transition-colors"
+                  placeholder="Description"
                 />
-              </td>
-              <td className="px-3 py-2">
-                <div className="relative group">
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">Date</label>
                   <input
-                    type="text"
-                    value={item.description}
-                    onChange={(e) => handleFieldChange(index, 'description', e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 truncate transition-colors shadow-sm"
-                    placeholder="Transaction description"
-                    title={item.description} // Native tooltip as fallback
+                    type="date"
+                    value={item.date}
+                    onChange={(e) => handleFieldChange(index, 'date', e.target.value)}
+                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:[color-scheme:dark]"
                   />
-                  {item.description && item.description.length > 40 && (
-                    <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-gray-900 dark:bg-black text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 max-w-md whitespace-normal pointer-events-none border border-gray-700">
-                      {item.description}
-                      <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-black"></div>
-                    </div>
-                  )}
                 </div>
-              </td>
-              <td className="px-3 py-2">
-                <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 text-xs">₹</span>
+                <div>
+                  <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">Amount</label>
                   <input
                     type="number"
                     value={item.amount}
                     onChange={(e) => handleFieldChange(index, 'amount', Number(e.target.value))}
-                    className="w-full pl-5 pr-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm"
-                    min="0"
-                    step="0.01"
+                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-              </td>
-              <td className="px-3 py-2">
-                <select
-                  value={item.type}
-                  onChange={(e) => {
-                    const newType = e.target.value;
-                    handleFieldChange(index, 'type', newType);
+              </div>
 
-                    if (categories.length > 0) {
-                      // Default to Uncategorized when changing types to avoid incorrect guesses
-                      const defaultCatId = 'uncategorized';
-                      handleFieldChange(index, 'category', defaultCatId);
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">Type</label>
+                  <select
+                    value={item.type}
+                    onChange={(e) => handleFieldChange(index, 'type', e.target.value)}
+                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="expense">Expense</option>
+                    <option value="income">Income</option>
+                    <option value="investment">Investment</option>
+                    <option value="insurance">Insurance</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">Category</label>
+                  {/* Simplified category dropdown for mobile or reuse existing editor component if simple enough */}
+                  <select
+                    value={item.category}
+                    onChange={(e) => handleFieldChange(index, 'category', e.target.value)}
+                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
+                  >
+                    {getCategoryOptions(item.type).map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop Table View (hidden on mobile) */}
+      <div className="hidden md:block overflow-x-auto ring-1 ring-gray-200 dark:ring-gray-700 rounded-lg">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed">
+          <thead className="bg-gray-50 dark:bg-gray-800">
+            <tr>
+              <th className="px-3 py-3 text-left w-12">
+                <input
+                  type="checkbox"
+                  checked={selectedItems.size === editableData.length}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedItems(new Set(editableData.map((_, i) => i)));
                     } else {
-                      // Legacy mode
-                      const options = getCategoryOptions(newType);
-                      if (options.length > 0) {
-                        handleFieldChange(index, 'category', options[0]);
-                      }
+                      setSelectedItems(new Set());
                     }
                   }}
-                  className={`w-full px-2 py-1.5 text-sm border rounded shadow-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium ${getTypeColor(item.type)}`}
-                >
-                  <option value="income">Income</option>
-                  <option value="expense">Expense</option>
-                  <option value="investment">Investment</option>
-                  <option value="insurance">Insurance</option>
-                </select>
-              </td>
-              <td className="px-3 py-2">
-                <InlineCategoryEditor
-                  currentCategory={item.category || 'uncategorized'}
-                  onSave={(categoryId) => handleFieldChange(index, 'category', categoryId)}
-                  renderTrigger={(onClick) => {
-                    const category = categories.find(c => c.id === item.category);
-                    return (
-                      <button
-                        type="button"
-                        onClick={onClick}
-                        className="w-full flex items-center justify-between px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-colors"
-                      >
-                        <span className="flex items-center truncate">
-                          {category?.icon || '❓'} <span className="ml-1 truncate">{category?.name || 'Uncategorized'}</span>
-                        </span>
-                        <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-1" />
-                      </button>
-                    );
-                  }}
+                  className="h-4 w-4 text-blue-600 rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:ring-blue-500 cursor-pointer"
+                  style={{ width: '1rem', height: '1rem' }}
                 />
-              </td>
-              <td className="px-3 py-2 text-center">
-                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${item.confidence >= 0.8 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' :
-                  item.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300' :
-                    'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                  }`}>
-                  {Math.round(item.confidence * 100)}%
-                </span>
-              </td>
+              </th>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">
+                <div className="flex items-center">
+                  <Calendar className="w-4 h-4 mr-1" />
+                  Date
+                </div>
+              </th>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Description
+                <span className="text-gray-400 dark:text-gray-500 font-normal normal-case ml-1 text-xs">(hover for full)</span>
+              </th>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">
+                <div className="flex items-center">
+                  <DollarSign className="w-4 h-4 mr-1" />
+                  Amount
+                </div>
+              </th>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">
+                Type
+              </th>
+              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-40">
+                <div className="flex items-center">
+                  <Tag className="w-4 h-4 mr-1" />
+                  Category
+                </div>
+              </th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
+                Confidence
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
+            {editableData.map((item, index) => (
+              <tr key={index} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${selectedItems.has(index) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                <td className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedItems.has(index)}
+                    onClick={(e) => handleItemCheckboxClick(index, e)}
+                    className="h-4 w-4 text-blue-600 rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:ring-blue-500 cursor-pointer"
+                    style={{ width: '1rem', height: '1rem' }}
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <input
+                    type="date"
+                    value={item.date}
+                    onChange={(e) => handleFieldChange(index, 'date', e.target.value)}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm dark:[color-scheme:dark]"
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <div className="relative group">
+                    <input
+                      type="text"
+                      value={item.description}
+                      onChange={(e) => handleFieldChange(index, 'description', e.target.value)}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 truncate transition-colors shadow-sm"
+                      placeholder="Transaction description"
+                      title={item.description} // Native tooltip as fallback
+                    />
+                    {item.description && item.description.length > 40 && (
+                      <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-gray-900 dark:bg-black text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 max-w-md whitespace-normal pointer-events-none border border-gray-700">
+                        {item.description}
+                        <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-black"></div>
+                      </div>
+                    )}
+                  </div>
+                </td>
+                <td className="px-3 py-2">
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 text-xs">₹</span>
+                    <input
+                      type="number"
+                      value={item.amount}
+                      onChange={(e) => handleFieldChange(index, 'amount', Number(e.target.value))}
+                      className="w-full pl-5 pr-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                </td>
+                <td className="px-3 py-2">
+                  <select
+                    value={item.type}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      handleFieldChange(index, 'type', newType);
+
+                      if (categories.length > 0) {
+                        // Default to Uncategorized when changing types to avoid incorrect guesses
+                        const defaultCatId = 'uncategorized';
+                        handleFieldChange(index, 'category', defaultCatId);
+                      } else {
+                        // Legacy mode
+                        const options = getCategoryOptions(newType);
+                        if (options.length > 0) {
+                          handleFieldChange(index, 'category', options[0]);
+                        }
+                      }
+                    }}
+                    className={`w-full px-2 py-1.5 text-sm border rounded shadow-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium ${getTypeColor(item.type)}`}
+                  >
+                    <option value="income">Income</option>
+                    <option value="expense">Expense</option>
+                    <option value="investment">Investment</option>
+                    <option value="insurance">Insurance</option>
+                  </select>
+                </td>
+                <td className="px-3 py-2">
+                  <InlineCategoryEditor
+                    currentCategory={item.category || 'uncategorized'}
+                    onSave={(categoryId) => handleFieldChange(index, 'category', categoryId)}
+                    renderTrigger={(onClick) => {
+                      const category = categories.find(c => c.id === item.category);
+                      return (
+                        <button
+                          type="button"
+                          onClick={onClick}
+                          className="w-full flex items-center justify-between px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-colors"
+                        >
+                          <span className="flex items-center truncate">
+                            {category?.icon || '❓'} <span className="ml-1 truncate">{category?.name || 'Uncategorized'}</span>
+                          </span>
+                          <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-1" />
+                        </button>
+                      );
+                    }}
+                  />
+                </td>
+                <td className="px-3 py-2 text-center">
+                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${item.confidence >= 0.8 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' :
+                    item.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300' :
+                      'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                    }`}>
+                    {Math.round(item.confidence * 100)}%
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 
@@ -375,7 +532,8 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
             type="checkbox"
             checked={selectedItems.has(index)}
             onChange={() => handleItemToggle(index)}
-            className="mr-3 h-4 w-4 text-primary-600 rounded"
+            className="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 transition duration-150 ease-in-out cursor-pointer"
+            style={{ width: '1rem', height: '1rem' }}
           />
           <div className="flex items-center">
             {item.confidence < 0.7 && (
@@ -461,7 +619,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-7xl w-full max-h-[95vh] overflow-hidden shadow-2xl">
+      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-7xl w-full max-h-[95vh] flex flex-col shadow-2xl">
         <div className="p-6 border-b border-gray-200 dark:border-gray-600">
           <div className="flex items-center justify-between">
             <div>
@@ -509,7 +667,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
           </div>
         </div>
 
-        <div className="overflow-y-auto max-h-[70vh]">
+        <div className="flex-1 overflow-y-auto min-h-0">
           {editableData.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
               <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
@@ -587,7 +745,8 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                   type="checkbox"
                   checked={isHistorical}
                   onChange={(e) => setIsHistorical(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                  style={{ width: '1rem', height: '1rem' }}
                 />
                 <span>Historical Data (Keep current balance unchanged)</span>
               </label>
@@ -603,7 +762,7 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
             <button
               onClick={handleConfirm}
               disabled={selectedItems.size === 0 || (type === 'transactions' && !accountId)}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors shadow-sm"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors shadow-sm whitespace-nowrap"
             >
               <Check className="w-4 h-4 mr-2" />
               Add {selectedItems.size} {selectedItems.size === 1 ? 'Transaction' : 'Transactions'}

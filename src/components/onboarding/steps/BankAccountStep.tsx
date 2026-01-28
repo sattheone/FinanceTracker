@@ -10,7 +10,7 @@ interface BankAccountStepProps {
 }
 
 const BankAccountStep: React.FC<BankAccountStepProps> = ({ onNext }) => {
-  const { bankAccounts, addBankAccount, updateBankAccount, deleteBankAccount } = useData();
+  const { bankAccounts, addBankAccount, updateBankAccount, deleteBankAccount, getAccountBalance } = useData();
   const [showForm, setShowForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
 
@@ -45,12 +45,6 @@ const BankAccountStep: React.FC<BankAccountStepProps> = ({ onNext }) => {
     setEditingAccount(null);
   };
 
-
-
-  const handleContinue = () => {
-    if (onNext) onNext();
-  };
-
   if (showForm) {
     return (
       <div className="space-y-6">
@@ -82,7 +76,7 @@ const BankAccountStep: React.FC<BankAccountStepProps> = ({ onNext }) => {
         </p>
       </div>
 
-      {bankAccounts.length > 0 ? (
+      {bankAccounts.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Bank Accounts</h3>
           <div className="grid gap-4">
@@ -100,7 +94,7 @@ const BankAccountStep: React.FC<BankAccountStepProps> = ({ onNext }) => {
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                    ₹{account.balance.toLocaleString()}
+                    ₹{getAccountBalance(account.id).toLocaleString()}
                   </span>
                   <button
                     onClick={() => handleEditAccount(account)}
@@ -121,16 +115,6 @@ const BankAccountStep: React.FC<BankAccountStepProps> = ({ onNext }) => {
             ))}
           </div>
         </div>
-      ) : (
-        <div className="text-center py-8">
-          <div className="text-gray-400 mb-4">
-            <CreditCard className="h-16 w-16 mx-auto" />
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No bank accounts added</h3>
-          <p className="text-gray-500 dark:text-gray-400 mb-6">
-            Add your first bank account to start tracking your finances
-          </p>
-        </div>
       )}
 
       <div className="flex justify-center">
@@ -142,17 +126,6 @@ const BankAccountStep: React.FC<BankAccountStepProps> = ({ onNext }) => {
           Add Bank Account
         </button>
       </div>
-
-      {bankAccounts.length > 0 && (
-        <div className="flex justify-end pt-6 border-t border-gray-200 dark:border-gray-600">
-          <button
-            onClick={handleContinue}
-            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            Continue with {bankAccounts.length} account{bankAccounts.length !== 1 ? 's' : ''}
-          </button>
-        </div>
-      )}
     </div>
   );
 };

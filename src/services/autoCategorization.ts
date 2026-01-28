@@ -65,7 +65,7 @@ class AutoCategorizationService {
     return { categoryId: 'other' };
   }
 
-  private static matchesRule(rule: CategoryRule, description: string): boolean {
+  public static matchesRule(rule: Omit<CategoryRule, 'id'> | CategoryRule, description: string): boolean {
     const descLower = description.toLowerCase().trim();
     const pattern = rule.name.toLowerCase().trim();
 

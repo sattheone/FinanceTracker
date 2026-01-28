@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CreditCard, TrendingDown, Calendar, DollarSign, Plus, Edit3, Trash2, AlertCircle } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, formatDate, formatLargeNumber } from '../utils/formatters';
@@ -9,11 +9,16 @@ import { calculateAmortizationDetails, generateAmortizationSchedule } from '../u
 import RepaymentScheduleModal from '../components/liabilities/RepaymentScheduleModal';
 
 const Liabilities: React.FC = () => {
-  const { liabilities, addLiability, updateLiability, deleteLiability } = useData();
+  const { liabilities, addLiability, updateLiability, deleteLiability, loadLiabilities } = useData();
   const [showLiabilityForm, setShowLiabilityForm] = useState(false);
   const [editingLiability, setEditingLiability] = useState<Liability | null>(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [selectedLiabilityForSchedule, setSelectedLiabilityForSchedule] = useState<Liability | null>(null);
+
+  // Lazy load liabilities data when page mounts
+  useEffect(() => {
+    loadLiabilities();
+  }, []);
 
   const getLiabilityIcon = (type: string) => {
     switch (type) {

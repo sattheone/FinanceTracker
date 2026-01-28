@@ -45,7 +45,7 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
   const [formData, setFormData] = useState({
     bank: account?.bank || '',
     accountNumber: account?.number ? account.number.replace('xx', '') : '',
-    balance: account?.balance || 0,
+    initialBalance: account?.initialBalance || 0,
     logo: account?.logo || '🏦',
   });
 
@@ -87,7 +87,7 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
       accountType,
       bank: formData.bank,
       number: maskedNumber,
-      balance: formData.balance,
+      initialBalance: formData.initialBalance,
       logo: formData.logo,
       userId: user?.id || '',
     });
@@ -268,25 +268,25 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
         </div>
       )}
 
-      {/* Current Balance */}
+      {/* Initial Balance */}
       <div>
         <label className="form-label">
-          {accountType === 'credit_card' ? 'Outstanding Balance' : 'Current Balance'}
+          {accountType === 'credit_card' ? 'Initial Outstanding Balance' : 'Initial Balance'}
         </label>
         <input
           type="number"
           step="0.01"
-          value={formData.balance}
-          onChange={(e) => setFormData(prev => ({ ...prev, balance: parseFloat(e.target.value) || 0 }))}
+          value={formData.initialBalance === 0 ? '' : formData.initialBalance}
+          onChange={(e) => setFormData(prev => ({ ...prev, initialBalance: parseFloat(e.target.value) || 0 }))}
           className="input-field theme-input"
           placeholder="0.00"
         />
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           {accountType === 'credit_card' 
-            ? 'Enter your current outstanding balance (amount you owe).' 
+            ? 'Enter your starting outstanding balance. Current balance will be calculated from transactions.' 
             : accountType === 'cash'
-            ? 'Enter the amount of cash you currently have.'
-            : 'Enter your current account balance. You can update this anytime.'}
+            ? 'Enter your starting cash amount. Current balance will be calculated from transactions.'
+            : 'Enter your starting account balance. Current balance will be calculated from transactions.'}
         </p>
       </div>
 

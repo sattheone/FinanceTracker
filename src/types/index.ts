@@ -193,8 +193,7 @@ export interface BankAccount {
   accountType: AccountType;
   bank: string;
   number: string;
-  balance: number;
-  initialBalance?: number; // Starting balance for calculated balance approach
+  initialBalance: number; // Starting balance - current balance computed from transactions
   logo: string;
   userId: string;
   createdAt?: any;

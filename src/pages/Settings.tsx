@@ -32,6 +32,7 @@ import EmailDiagnostics from '../components/settings/EmailDiagnostics';
 import GmailImportSettings from '../components/settings/GmailImportSettings';
 import DuplicateDetectionSettings from '../components/settings/DuplicateDetectionSettings';
 import DataDeletionSettings from '../components/settings/DataDeletionSettings';
+import { CategoryConfigInit } from '../components/admin/CategoryConfigInit';
 
 const CategoriesWithMigration: React.FC = () => {
   return (
@@ -55,7 +56,7 @@ const CategoriesWithMigration: React.FC = () => {
 
 const Settings: React.FC = () => {
   const { user, deleteAccount } = useAuth();
-  const { userProfile, bankAccounts } = useData();
+  const { userProfile, bankAccounts, getAccountBalance } = useData();
   const { theme, setTheme } = useTheme();
 
 
@@ -113,6 +114,7 @@ const Settings: React.FC = () => {
     { id: 'display', label: 'Display & Interface', icon: Palette },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'data', label: 'Data & Privacy', icon: Download },
+    { id: 'developer', label: 'Developer Tools', icon: SettingsIcon },
   ];
 
   const handleSettingChange = (key: string, value: any) => {
@@ -161,19 +163,32 @@ Type "DELETE" to confirm:`;
       return;
     }
 
+    // Prompt for password to re-authenticate
+    const password = prompt('For security reasons, please enter your password to confirm account deletion:');
+    if (!password) {
+      alert('Account deletion cancelled. Password is required.');
+      return;
+    }
+
     try {
       console.log('🗑️ Starting account deletion...');
-      const success = await deleteAccount();
+      const success = await deleteAccount(password);
 
       if (success) {
         alert('✅ Your account has been permanently deleted. You will now be redirected to the login page.');
         // The user will be automatically redirected due to auth state change
-      } else {
-        alert('❌ Failed to delete account. Please try again or contact support.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting account:', error);
-      alert('❌ An error occurred while deleting your account. Please try again or contact support.');
+
+      // Show specific error message based on error code
+      if (error?.code === 'auth/wrong-password') {
+        alert('❌ Incorrect password. Account deletion cancelled.');
+      } else if (error?.code === 'auth/too-many-requests') {
+        alert('❌ Too many failed attempts. Please try again later.');
+      } else {
+        alert('❌ An error occurred while deleting your account. Please try again or contact support.');
+      }
     }
   };
 
@@ -184,8 +199,8 @@ Type "DELETE" to confirm:`;
           <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center">
             <User className="w-8 h-8 text-gray-400" />
           </div>
-          <button className="absolute bottom-0 right-0 p-1 bg-blue-600 text-white rounded-full hover:bg-blue-700">
-            <Camera className="w-3 h-3" />
+          <button className="absolute bottom-0 right-0 h-8 w-8 flex items-center justify-center bg-blue-600 text-white rounded-full hover:bg-blue-700 shadow-sm border-2 border-white dark:border-gray-800 transition-all">
+            <Camera className="w-4 h-4" />
           </button>
         </div>
         <div>
@@ -362,13 +377,12 @@ Type "DELETE" to confirm:`;
                 <div className="flex items-center gap-2">
                   <h4 className="font-medium text-gray-900 dark:text-white">{account.bank}</h4>
                   {account.accountType && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      account.accountType === 'credit_card' 
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${account.accountType === 'credit_card'
                         ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
                         : account.accountType === 'cash'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                    }`}>
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                      }`}>
                       {account.accountType === 'credit_card' ? 'Credit Card' : account.accountType === 'cash' ? 'Cash' : 'Bank'}
                     </span>
                   )}
@@ -378,7 +392,7 @@ Type "DELETE" to confirm:`;
             </div>
             <div className="flex items-center space-x-2">
               <span className={`text-lg font-semibold ${account.accountType === 'credit_card' ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
-                {account.accountType === 'credit_card' ? '-' : ''}₹{account.balance.toLocaleString()}
+                {account.accountType === 'credit_card' ? '-' : ''}₹{getAccountBalance(account.id).toLocaleString()}
               </span>
               <button className="p-2 text-gray-400 hover:text-blue-600 dark:text-blue-400">
                 <SettingsIcon className="w-4 h-4" />
@@ -584,6 +598,7 @@ Type "DELETE" to confirm:`;
       case 'display': return renderDisplaySettings();
       case 'security': return renderSecuritySettings();
       case 'data': return renderDataSettings();
+      case 'developer': return <CategoryConfigInit />;
       default: return renderProfileSettings();
     }
   };

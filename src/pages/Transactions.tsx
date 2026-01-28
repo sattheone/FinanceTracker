@@ -8,6 +8,7 @@ import { formatCurrency } from '../utils/formatters';
 import ImageUploader from '../components/common/ImageUploader';
 import FileUploader from '../components/common/FileUploader';
 import DataConfirmationDialog from '../components/common/DataConfirmationDialog';
+
 import TransactionFilters from '../components/transactions/TransactionFilters';
 import TagPopover from '../components/transactions/TagPopover';
 import TagSettingsOverlay from '../components/transactions/TagSettingsOverlay';
@@ -45,12 +46,17 @@ const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'
 const Transactions: React.FC = () => {
   const {
     transactions,
+    loadInitialTransactions,
+    loadMoreTransactions,
+    hasMoreTransactions,
+    isLoadingMoreTransactions,
     updateTransaction,
     deleteTransaction,
     bankAccounts,
     addBankAccount,
     updateBankAccount,
     deleteBankAccount,
+    getAccountBalance,
     addCategoryRule,
     categories,
     tags,
@@ -58,8 +64,17 @@ const Transactions: React.FC = () => {
     addRecurringTransaction,
     addTransaction,
     addTransactionsBulk,
-    addTag
+    addTag,
+    bulkUpdateTransactions,
+    bulkUpdateTransactionsById,
+    bulkDeleteTransactions,
+    isDataLoaded
   } = useData();
+
+  // Lazy load transactions when page mounts
+  useEffect(() => {
+    loadInitialTransactions();
+  }, []);
 
   const formRef = useRef<SimpleTransactionFormHandle>(null);
 
@@ -75,6 +90,16 @@ const Transactions: React.FC = () => {
       transaction
     });
   };
+
+  const handleImportClick = (type: 'image' | 'file') => {
+    if (type === 'image') {
+      setShowImageUploader(true);
+    } else {
+      setShowFileUploader(true);
+    }
+  };
+
+
 
   const handleMakeRecurring = async (transaction: Transaction) => {
     // Simple prompt for MVP
@@ -133,6 +158,7 @@ const Transactions: React.FC = () => {
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicateSummary, setDuplicateSummary] = useState<any>(null);
   const [pendingImportData, setPendingImportData] = useState<any[]>([]);
+  const [lastCreatedRule, setLastCreatedRule] = useState<any>(null); // Using any to avoid complex type issues with Omit/full rule
 
   // Delete confirmation modal state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -442,11 +468,8 @@ const Transactions: React.FC = () => {
         updatedAt: new Date().toISOString()
       }));
 
-      // Bypass duplicate detection by calling Firebase directly
       try {
-        const { default: FirebaseService } = await import('../services/firebaseService');
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        await FirebaseService.bulkAddTransactions(user.id, transactionsToAdd);
+        await addTransactionsBulk(transactionsToAdd, { skipDuplicateCheck: true });
         alert(`⚠️ Force imported ${transactionsToAdd.length} transactions (including duplicates).`);
       } catch (error) {
         alert(`❌ Force import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -460,9 +483,7 @@ const Transactions: React.FC = () => {
 
       if (newTransactions.length > 0) {
         try {
-          const { default: FirebaseService } = await import('../services/firebaseService');
-          const user = JSON.parse(localStorage.getItem('user') || '{}');
-          await FirebaseService.bulkAddTransactions(user.id, newTransactions);
+          await addTransactionsBulk(newTransactions, { skipDuplicateCheck: true });
           alert(`✅ Successfully imported ${newTransactions.length} new transactions!`);
         } catch (error) {
           alert(`❌ Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -516,17 +537,22 @@ const Transactions: React.FC = () => {
         const fixedTransactions = CategoryMigrationService.fixTransactionCategories(transactions);
 
         // Update each transaction that was fixed
+        const updatesById: Record<string, Partial<Transaction>> = {};
         fixedTransactions.forEach((transaction, index) => {
           if (transaction.category !== transactions[index].category) {
-            updateTransaction(transaction.id, transaction);
+            updatesById[transaction.id] = { category: transaction.category };
           }
         });
+
+        if (Object.keys(updatesById).length > 0) {
+          bulkUpdateTransactionsById(updatesById);
+        }
 
         console.log(`✅ Category migration completed for ${stats.needsMigration} transactions`);
         localStorage.setItem(migrationKey, 'true');
       }
     }
-  }, [transactions, updateTransaction]);
+  }, [transactions, bulkUpdateTransactionsById]);
 
   const handleDeleteTransaction = (transactionId: string) => {
     setDeleteTarget({ type: 'transaction', id: transactionId });
@@ -614,12 +640,7 @@ const Transactions: React.FC = () => {
 
   const handleBulkCategoryChange = () => {
     if (bulkCategory) {
-      selectedTransactions.forEach(id => {
-        const transaction = transactions.find(t => t.id === id);
-        if (transaction) {
-          updateTransaction(id, { ...transaction, category: bulkCategory });
-        }
-      });
+      bulkUpdateTransactions(Array.from(selectedTransactions), { category: bulkCategory });
       setSelectedTransactions(new Set());
       setShowBulkActions(false);
       setBulkCategory('');
@@ -628,12 +649,7 @@ const Transactions: React.FC = () => {
 
   const handleBulkTypeChange = () => {
     if (bulkType) {
-      selectedTransactions.forEach(id => {
-        const transaction = transactions.find(t => t.id === id);
-        if (transaction) {
-          updateTransaction(id, { ...transaction, type: bulkType as any });
-        }
-      });
+      bulkUpdateTransactions(Array.from(selectedTransactions), { type: bulkType as any });
       setSelectedTransactions(new Set());
       setShowBulkActions(false);
       setBulkType('expense');
@@ -642,16 +658,18 @@ const Transactions: React.FC = () => {
 
   const handleBulkTagChange = () => {
     if (bulkTagId) {
+      const updatesById: Record<string, Partial<Transaction>> = {};
       selectedTransactions.forEach(id => {
         const transaction = transactions.find(t => t.id === id);
-        if (transaction) {
-          const existingTags = transaction.tags || [];
-          const updatedTags = existingTags.includes(bulkTagId)
-            ? existingTags
-            : [...existingTags, bulkTagId];
-          updateTransaction(id, { tags: updatedTags });
-        }
+        if (!transaction) return;
+        const existingTags = transaction.tags || [];
+        const updatedTags = existingTags.includes(bulkTagId)
+          ? existingTags
+          : [...existingTags, bulkTagId];
+        updatesById[id] = { tags: updatedTags };
       });
+
+      bulkUpdateTransactionsById(updatesById);
       setSelectedTransactions(new Set());
       setShowBulkActions(false);
       setBulkTagId('');
@@ -686,6 +704,7 @@ const Transactions: React.FC = () => {
 
   // Toggle tag across selected transactions
   const handleBulkToggleTag = (tagId: string, shouldAdd: boolean) => {
+    const updatesById: Record<string, Partial<Transaction>> = {};
     selectedTransactions.forEach(id => {
       const transaction = transactions.find(t => t.id === id);
       if (!transaction) return;
@@ -693,8 +712,10 @@ const Transactions: React.FC = () => {
       const updated = shouldAdd
         ? (existing.includes(tagId) ? existing : [...existing, tagId])
         : existing.filter(tid => tid !== tagId);
-      updateTransaction(id, { tags: updated });
+      updatesById[id] = { tags: updated };
     });
+
+    bulkUpdateTransactionsById(updatesById);
   };
 
   // Delete confirmation handler
@@ -712,7 +733,7 @@ const Transactions: React.FC = () => {
           setSelectedAccount(remainingAccounts[0].id);
         }
       } else if (deleteTarget.type === 'bulk') {
-        await Promise.all(Array.from(selectedTransactions).map(id => deleteTransaction(id)));
+        await bulkDeleteTransactions(Array.from(selectedTransactions));
         setSelectedTransactions(new Set());
         setShowBulkActions(false);
       }
@@ -736,7 +757,7 @@ const Transactions: React.FC = () => {
       accountType: 'bank',
       bank: 'All Accounts',
       number: `${bankAccounts.length} Accounts`,
-      balance: bankAccounts.reduce((sum, acc) => sum + acc.balance, 0),
+      initialBalance: bankAccounts.reduce((sum, acc) => sum + acc.initialBalance, 0),
       logo: '🏦',
       type: 'checking',
       userId: 'current_user'
@@ -745,21 +766,8 @@ const Transactions: React.FC = () => {
 
   const accountLast4 = currentAccount?.number ? currentAccount.number.slice(-4) : '';
 
-  // Calculate account-specific balance based on transactions
-  const accountTransactions = transactions.filter(t =>
-    selectedAccount === 'all_accounts' ? true : t.bankAccountId === selectedAccount
-  );
-
-  const totalIncome = accountTransactions
-    .filter(t => t.type === 'income' && t.category !== 'transfer')
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const totalExpenses = accountTransactions
-    .filter(t => t.type === 'expense' && t.category !== 'transfer')
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  // Show the user-set balance as the current balance
-  const calculatedBalance = currentAccount ? currentAccount.balance : 0;
+  // Calculate account-specific balance from initialBalance + transactions
+  const calculatedBalance = currentAccount ? getAccountBalance(currentAccount.id) : 0;
 
   // Generate month options for the last 12 months
   const generateMonthOptions = () => {
@@ -928,6 +936,38 @@ const Transactions: React.FC = () => {
   const expenseCount = currentMonthTransactions.filter(t => t.type === 'expense').length;
   const investmentCount = currentMonthTransactions.filter(t => t.type === 'investment').length;
 
+  // Calculation for Account Overview
+  const accountTransactions = useMemo(() => {
+    if (selectedAccount === 'all_accounts') {
+      return transactions.filter(t => !t.isSplitParent);
+    }
+    return transactions.filter(t => t.bankAccountId === selectedAccount && !t.isSplitParent);
+  }, [transactions, selectedAccount]);
+
+  const totalIncome = useMemo(() =>
+    accountTransactions
+      .filter(t => t.type === 'income' && t.category !== 'transfer')
+      .reduce((sum, t) => sum + t.amount, 0),
+    [accountTransactions]);
+
+  const totalExpenses = useMemo(() =>
+    accountTransactions
+      .filter(t => t.type === 'expense' && t.category !== 'transfer')
+      .reduce((sum, t) => sum + t.amount, 0),
+    [accountTransactions]);
+
+  // Show loading state while data is being loaded
+  if (!isDataLoaded) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   // If no bank accounts exist, show empty state
   if (bankAccounts.length === 0) {
     return (
@@ -1041,7 +1081,7 @@ const Transactions: React.FC = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-700 dark:bg-gray-900 -m-4 lg:-m-6">
       {/* Compact Top Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 px-4 sm:px-6 py-2">
-        <div className="grid grid-cols-3 items-center">
+        <div className="grid grid-cols-1 gap-y-3 sm:grid-cols-3 items-center">
           {/* Left: Account Dropdown */}
           <div className="relative" ref={accountDropdownRef}>
             <button
@@ -1060,11 +1100,10 @@ const Transactions: React.FC = () => {
                       setSelectedAccount('all_accounts');
                       setShowAccountDropdown(false);
                     }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                      selectedAccount === 'all_accounts'
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
-                        : 'text-gray-700 dark:text-gray-200'
-                    }`}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${selectedAccount === 'all_accounts'
+                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
+                      : 'text-gray-700 dark:text-gray-200'
+                      }`}
                   >
                     All Accounts
                   </button>
@@ -1076,11 +1115,10 @@ const Transactions: React.FC = () => {
                       setSelectedAccount(account.id);
                       setShowAccountDropdown(false);
                     }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                      selectedAccount === account.id
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
-                        : 'text-gray-700 dark:text-gray-200'
-                    }`}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${selectedAccount === account.id
+                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
+                      : 'text-gray-700 dark:text-gray-200'
+                      }`}
                   >
                     {account.bank} (...{account.number.slice(-4)})
                   </button>
@@ -1094,17 +1132,15 @@ const Transactions: React.FC = () => {
             <div className="bg-gray-100 dark:bg-gray-700 rounded-full p-1 flex gap-1">
               <button
                 onClick={() => setActiveTab('transactions')}
-                className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
-                  activeTab === 'transactions' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'
-                }`}
+                className={`px-3 py-1.5 text-sm rounded-full transition-colors ${activeTab === 'transactions' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'
+                  }`}
               >
                 Transactions
               </button>
               <button
                 onClick={() => setActiveTab('summary')}
-                className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
-                  activeTab === 'summary' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'
-                }`}
+                className={`px-3 py-1.5 text-sm rounded-full transition-colors ${activeTab === 'summary' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'
+                  }`}
               >
                 Summary
               </button>
@@ -1116,7 +1152,7 @@ const Transactions: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => setShowFileUploader(true)}
+              onClick={() => handleImportClick('file')}
               leftIcon={<FileSpreadsheet className="h-4 w-4" />}
             >
               Import
@@ -1124,7 +1160,9 @@ const Transactions: React.FC = () => {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => setShowManualAddModal(true)}
+              onClick={() => {
+                setShowManualAddModal(true);
+              }}
               leftIcon={<Plus className="h-4 w-4" />}
             >
               Add
@@ -1599,90 +1637,90 @@ const Transactions: React.FC = () => {
                   const mo = selectedTransactionMonth.split('-')[1];
                   return mo === '12';
                 })() && (
-                  <div className="w-full">
-                    <div className="flex items-center justify-between rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 px-3 py-2">
-                      <div className="flex-1 mr-3">
-                        <div className="text-sm font-semibold">Your {selectedTransactionMonth.split('-')[0]} Year in Review is ready!</div>
-                        <div className="text-xs text-blue-700 dark:text-blue-300">Check out your spending highlights and insights</div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const year = parseInt(selectedTransactionMonth.split('-')[0], 10);
-                          // Compute basic year stats
-                          const yearTxns = transactions.filter(t => !t.isSplitParent && new Date(t.date).getFullYear() === year);
-                          const totalTransactions = yearTxns.length;
-                          const avgDaily = totalTransactions / 365;
-                          const prevYearTxns = transactions.filter(t => !t.isSplitParent && new Date(t.date).getFullYear() === (year - 1));
-                          const deltaPercent = prevYearTxns.length > 0 ? ((totalTransactions - prevYearTxns.length) / prevYearTxns.length) * 100 : undefined;
-                          // Top categories by expense amount
-                          const categoryMap: Record<string, number> = {};
-                          yearTxns.filter(t => t.type === 'expense' && t.category !== 'transfer').forEach(t => {
-                            const key = String(t.category);
-                            categoryMap[key] = (categoryMap[key] || 0) + t.amount;
-                          });
-                          const topCategories = Object.entries(categoryMap)
-                            .map(([id, amount]) => ({ id, name: categories.find(c => c.id === id)?.name || id, amount }))
-                            .sort((a, b) => b.amount - a.amount)
-                            .slice(0, 7);
-                          setYearReviewStats({ year, totalTransactions, avgDaily, deltaPercent, topCategories });
-                          // Build full spendings list (include zeros)
-                          const expenseCategories = categories.filter(c => c.id !== 'transfer' && c.id !== 'adjustment');
-                          const spendings = expenseCategories.map(c => {
-                            const amount = categoryMap[c.id] || 0;
-                            return { id: c.id, name: c.name, icon: <span>{c.icon}</span>, color: c.color as string, amount };
-                          }).sort((a, b) => b.amount - a.amount);
-                          setYearSpendings(spendings);
+                    <div className="w-full">
+                      <div className="flex items-center justify-between rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 px-3 py-2">
+                        <div className="flex-1 mr-3">
+                          <div className="text-sm font-semibold">Your {selectedTransactionMonth.split('-')[0]} Year in Review is ready!</div>
+                          <div className="text-xs text-blue-700 dark:text-blue-300">Check out your spending highlights and insights</div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const year = parseInt(selectedTransactionMonth.split('-')[0], 10);
+                            // Compute basic year stats
+                            const yearTxns = transactions.filter(t => !t.isSplitParent && new Date(t.date).getFullYear() === year);
+                            const totalTransactions = yearTxns.length;
+                            const avgDaily = totalTransactions / 365;
+                            const prevYearTxns = transactions.filter(t => !t.isSplitParent && new Date(t.date).getFullYear() === (year - 1));
+                            const deltaPercent = prevYearTxns.length > 0 ? ((totalTransactions - prevYearTxns.length) / prevYearTxns.length) * 100 : undefined;
+                            // Top categories by expense amount
+                            const categoryMap: Record<string, number> = {};
+                            yearTxns.filter(t => t.type === 'expense' && t.category !== 'transfer').forEach(t => {
+                              const key = String(t.category);
+                              categoryMap[key] = (categoryMap[key] || 0) + t.amount;
+                            });
+                            const topCategories = Object.entries(categoryMap)
+                              .map(([id, amount]) => ({ id, name: categories.find(c => c.id === id)?.name || id, amount }))
+                              .sort((a, b) => b.amount - a.amount)
+                              .slice(0, 7);
+                            setYearReviewStats({ year, totalTransactions, avgDaily, deltaPercent, topCategories });
+                            // Build full spendings list (include zeros)
+                            const expenseCategories = categories.filter(c => c.id !== 'transfer' && c.id !== 'adjustment');
+                            const spendings = expenseCategories.map(c => {
+                              const amount = categoryMap[c.id] || 0;
+                              return { id: c.id, name: c.name, icon: <span>{c.icon}</span>, color: c.color as string, amount };
+                            }).sort((a, b) => b.amount - a.amount);
+                            setYearSpendings(spendings);
 
-                          // Compute overview totals and monthly flows
-                          const months: YearInReviewOverviewData['monthly'] = Array.from({ length: 12 }, (_, m) => {
-                            const monthTxns = yearTxns.filter(t => new Date(t.date).getMonth() === m);
-                            const income = monthTxns.filter(t => t.type === 'income' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
-                            const expense = monthTxns.filter(t => t.type === 'expense' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
-                            const invest = monthTxns.filter(t => t.type === 'investment' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
-                            return { income, expense, invest };
-                          });
-                          const totals = months.reduce((acc, m) => ({
-                            income: acc.income + m.income,
-                            expense: acc.expense + m.expense,
-                            invest: acc.invest + m.invest,
-                          }), { income: 0, expense: 0, invest: 0 });
-                          // Previous year totals for deltas
-                          const prevYearMonths = Array.from({ length: 12 }, (_, m) => {
-                            const pmTxns = prevYearTxns.filter(t => new Date(t.date).getMonth() === m);
-                            const income = pmTxns.filter(t => t.type === 'income' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
-                            const expense = pmTxns.filter(t => t.type === 'expense' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
-                            const invest = pmTxns.filter(t => t.type === 'investment' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
-                            return { income, expense, invest };
-                          });
-                          const prevTotals = prevYearMonths.reduce((acc, m) => ({
-                            income: acc.income + m.income,
-                            expense: acc.expense + m.expense,
-                            invest: acc.invest + m.invest,
-                          }), { income: 0, expense: 0, invest: 0 });
-                          const deltas: YearInReviewOverviewData['deltas'] = {
-                            income: prevTotals.income > 0 ? ((totals.income - prevTotals.income) / prevTotals.income) * 100 : 0,
-                            expense: prevTotals.expense > 0 ? ((totals.expense - prevTotals.expense) / prevTotals.expense) * 100 : 0,
-                            invest: prevTotals.invest > 0 ? ((totals.invest - prevTotals.invest) / prevTotals.invest) * 100 : 0,
-                          };
-                          const peakIncomeIdx = months.reduce((maxIdx, m, idx, arr) => m.income > arr[maxIdx].income ? idx : maxIdx, 0);
-                          const overview: YearInReviewOverviewData = {
-                            year,
-                            totals,
-                            deltas,
-                            monthly: months,
-                            peakIncome: { monthIndex: peakIncomeIdx, amount: months[peakIncomeIdx].income },
-                          };
-                          setYearOverviewData(overview);
-                          setShowYearReview(true);
-                          setYearReviewCardIndex(0);
-                        }}
-                        className="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                      >
-                        View Now
-                      </button>
+                            // Compute overview totals and monthly flows
+                            const months: YearInReviewOverviewData['monthly'] = Array.from({ length: 12 }, (_, m) => {
+                              const monthTxns = yearTxns.filter(t => new Date(t.date).getMonth() === m);
+                              const income = monthTxns.filter(t => t.type === 'income' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
+                              const expense = monthTxns.filter(t => t.type === 'expense' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
+                              const invest = monthTxns.filter(t => t.type === 'investment' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
+                              return { income, expense, invest };
+                            });
+                            const totals = months.reduce((acc, m) => ({
+                              income: acc.income + m.income,
+                              expense: acc.expense + m.expense,
+                              invest: acc.invest + m.invest,
+                            }), { income: 0, expense: 0, invest: 0 });
+                            // Previous year totals for deltas
+                            const prevYearMonths = Array.from({ length: 12 }, (_, m) => {
+                              const pmTxns = prevYearTxns.filter(t => new Date(t.date).getMonth() === m);
+                              const income = pmTxns.filter(t => t.type === 'income' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
+                              const expense = pmTxns.filter(t => t.type === 'expense' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
+                              const invest = pmTxns.filter(t => t.type === 'investment' && t.category !== 'transfer').reduce((s, t) => s + t.amount, 0);
+                              return { income, expense, invest };
+                            });
+                            const prevTotals = prevYearMonths.reduce((acc, m) => ({
+                              income: acc.income + m.income,
+                              expense: acc.expense + m.expense,
+                              invest: acc.invest + m.invest,
+                            }), { income: 0, expense: 0, invest: 0 });
+                            const deltas: YearInReviewOverviewData['deltas'] = {
+                              income: prevTotals.income > 0 ? ((totals.income - prevTotals.income) / prevTotals.income) * 100 : 0,
+                              expense: prevTotals.expense > 0 ? ((totals.expense - prevTotals.expense) / prevTotals.expense) * 100 : 0,
+                              invest: prevTotals.invest > 0 ? ((totals.invest - prevTotals.invest) / prevTotals.invest) * 100 : 0,
+                            };
+                            const peakIncomeIdx = months.reduce((maxIdx, m, idx, arr) => m.income > arr[maxIdx].income ? idx : maxIdx, 0);
+                            const overview: YearInReviewOverviewData = {
+                              year,
+                              totals,
+                              deltas,
+                              monthly: months,
+                              peakIncome: { monthIndex: peakIncomeIdx, amount: months[peakIncomeIdx].income },
+                            };
+                            setYearOverviewData(overview);
+                            setShowYearReview(true);
+                            setYearReviewCardIndex(0);
+                          }}
+                          className="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                        >
+                          View Now
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
                 {/* Search, Filters, Month */}
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-center">
                   <div className="flex-1 w-full">
@@ -1729,34 +1767,51 @@ const Transactions: React.FC = () => {
 
                 {/* Transaction Count */}
                 <div className="flex items-center justify-between">
-                  <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
+                  <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 flex items-center flex-wrap gap-2">
                     {(() => {
                       const totalIncome = filteredTransactions
                         .filter(t => t.type === 'income' && t.category !== 'transfer')
                         .reduce((sum, t) => sum + t.amount, 0);
-                      
+
                       const totalExpenses = filteredTransactions
                         .filter(t => t.type === 'expense' && t.category !== 'transfer')
                         .reduce((sum, t) => sum + t.amount, 0);
-                      
+
                       const monthLabel = monthOptions.find(m => m.value === selectedTransactionMonth)?.label;
-                      
-                      let summary = `${filteredTransactions.length} txn${filteredTransactions.length !== 1 ? 's' : ''} • ${monthLabel}`;
-                      
-                      if (totalIncome > 0 || totalExpenses > 0) {
-                        summary += ' • ';
-                        if (totalIncome > 0) {
-                          summary += `Income: ${formatCurrency(totalIncome)}`;
-                        }
-                        if (totalIncome > 0 && totalExpenses > 0) {
-                          summary += ' • ';
-                        }
-                        if (totalExpenses > 0) {
-                          summary += `Spent: ${formatCurrency(totalExpenses)}`;
-                        }
-                      }
-                      
-                      return summary;
+
+                      return (
+                        <>
+                          <span>{filteredTransactions.length} txn{filteredTransactions.length !== 1 ? 's' : ' '} • {monthLabel}</span>
+
+                          {(totalIncome > 0 || totalExpenses > 0) && (
+                            <>
+                              <span className="text-gray-400 mx-1">•</span>
+                              {totalIncome > 0 && (
+                                <span className="flex items-center text-green-600 dark:text-green-400">
+                                  <TrendingUp className="h-3 w-3 mr-1" />
+                                  {formatCurrency(totalIncome)}
+                                </span>
+                              )}
+
+                              {totalIncome > 0 && totalExpenses > 0 && (
+                                <span className="text-gray-400 mx-1">•</span>
+                              )}
+
+                              {totalExpenses > 0 && (
+                                <span className="flex items-center text-red-600 dark:text-red-400">
+                                  <TrendingDown className="h-3 w-3 mr-1" />
+                                  {formatCurrency(totalExpenses)}
+                                </span>
+                              )}
+                            </>
+                          )}
+
+                          <span className="text-gray-400 mx-1">•</span>
+                          <span className="font-medium text-gray-900 dark:text-white">
+                            Current Balance: {formatCurrency(calculatedBalance)}
+                          </span>
+                        </>
+                      );
                     })()}
                   </div>
                 </div>
@@ -1781,58 +1836,73 @@ const Transactions: React.FC = () => {
                       </button>
                     </div>
                   ) : (
-                    <TransactionTable
-                      transactions={filteredTransactions}
-                      selectedTransactions={selectedTransactions}
-                      onSelectTransaction={handleSelectTransaction}
-                      onSelectTransactionsRange={handleSelectTransactionRange}
-                      onSelectAll={handleSelectAll}
-                      onClearSelection={() => setSelectedTransactions(new Set())}
-                      onTransactionClick={(t) => {
-                        setSelectedTransactionForDetail(t);
-                        setShowDetailModal(true);
-                      }}
-                      onDeleteTransaction={handleDeleteTransaction}
-                      onUpdateTransaction={(id, updates) => {
-                        const transaction = transactions.find(t => t.id === id);
-                        if (!transaction) return;
+                    <>
+                      <TransactionTable
+                        transactions={filteredTransactions}
+                        selectedTransactions={selectedTransactions}
+                        onSelectTransaction={handleSelectTransaction}
+                        onSelectTransactionsRange={handleSelectTransactionRange}
+                        onSelectAll={handleSelectAll}
+                        onClearSelection={() => setSelectedTransactions(new Set())}
+                        onTransactionClick={(t) => {
+                          setSelectedTransactionForDetail(t);
+                          setShowDetailModal(true);
+                        }}
+                        onDeleteTransaction={handleDeleteTransaction}
+                        onUpdateTransaction={(id, updates) => {
+                          const transaction = transactions.find(t => t.id === id);
+                          if (!transaction) return;
 
-                        // Handle specific fields with rule prompts
-                        if (updates.category && updates.category !== transaction.category) {
-                          handleCategoryChangeWithRulePrompt(transaction, updates.category);
-                        }
-                        if (updates.type && updates.type !== transaction.type) {
-                          handleTypeChangeWithRulePrompt(transaction, updates.type);
-                        }
+                          // Handle specific fields with rule prompts
+                          if (updates.category && updates.category !== transaction.category) {
+                            handleCategoryChangeWithRulePrompt(transaction, updates.category);
+                          }
+                          if (updates.type && updates.type !== transaction.type) {
+                            handleTypeChangeWithRulePrompt(transaction, updates.type);
+                          }
 
-                        // Apply generic updates ignoring already handled fields
-                        const otherUpdates = { ...updates };
-                        delete otherUpdates.category;
-                        delete otherUpdates.type;
+                          // Apply generic updates ignoring already handled fields
+                          const otherUpdates = { ...updates };
+                          delete otherUpdates.category;
+                          delete otherUpdates.type;
 
-                        if (Object.keys(otherUpdates).length > 0) {
-                          updateTransaction(id, { ...transaction, ...otherUpdates });
-                        }
-                      }}
-                      onContextMenu={handleContextMenu}
-                      onTagClick={(t, anchor) => {
-                        setTagPopoverTransaction(t);
-                        setTagPopoverAnchor(anchor);
-                        setShowTagPopover(true);
-                      }}
-                      onBulkCategoryClick={(anchorEl) => {
-                        openBulkCategoryPopover(anchorEl as HTMLElement);
-                      }}
-                      onBulkTypeClick={() => {
-                        setBulkActionType('type');
-                        setShowBulkActions(true);
-                      }}
-                      onBulkTagClick={(anchor) => {
-                        setBulkTagPopoverAnchor(anchor as HTMLElement);
-                        setShowBulkTagPopover(true);
-                      }}
-                      onBulkDelete={handleBulkDelete}
-                    />
+                          if (Object.keys(otherUpdates).length > 0) {
+                            updateTransaction(id, { ...transaction, ...otherUpdates });
+                          }
+                        }}
+                        onContextMenu={handleContextMenu}
+                        onTagClick={(t, anchor) => {
+                          setTagPopoverTransaction(t);
+                          setTagPopoverAnchor(anchor);
+                          setShowTagPopover(true);
+                        }}
+                        onBulkCategoryClick={(anchorEl) => {
+                          openBulkCategoryPopover(anchorEl as HTMLElement);
+                        }}
+                        onBulkTypeClick={() => {
+                          setBulkActionType('type');
+                          setShowBulkActions(true);
+                        }}
+                        onBulkTagClick={(anchor) => {
+                          setBulkTagPopoverAnchor(anchor as HTMLElement);
+                          setShowBulkTagPopover(true);
+                        }}
+                        onBulkDelete={handleBulkDelete}
+                      />
+
+                      {hasMoreTransactions && (
+                        <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex justify-center">
+                          <button
+                            type="button"
+                            onClick={loadMoreTransactions}
+                            disabled={isLoadingMoreTransactions}
+                            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isLoadingMoreTransactions ? 'Loading…' : 'Load more'}
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -1901,88 +1971,86 @@ const Transactions: React.FC = () => {
       </div >
 
       {/* Bulk Action Modal */}
-      {
-        showBulkActions && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 border border-gray-200 dark:border-gray-600 dark:border-gray-600">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white mb-4">
-                {bulkActionType === 'category' && 'Change Category'}
-                {bulkActionType === 'type' && 'Change Type'}
-                {bulkActionType === 'tag' && 'Edit Tags'}
-                {' '}for {selectedTransactions.size} transactions
-              </h3>
+      {showBulkActions && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 border border-gray-200 dark:border-gray-600">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              {bulkActionType === 'category' && 'Change Category'}
+              {bulkActionType === 'type' && 'Change Type'}
+              {bulkActionType === 'tag' && 'Edit Tags'}
+              {' '}for {selectedTransactions.size} transactions
+            </h3>
 
-              {bulkActionType === 'category' && (
-                <div className="space-y-4">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Select New Category</label>
-                  <div className="p-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50 flex justify-center">
-                    <InlineCategoryEditor
-                      currentCategory={bulkCategory}
-                      onSave={(id) => setBulkCategory(id)}
-                    />
-                  </div>
+            {bulkActionType === 'category' && (
+              <div className="space-y-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Select New Category</label>
+                <div className="p-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50 flex justify-center">
+                  <InlineCategoryEditor
+                    currentCategory={bulkCategory}
+                    onSave={(id) => setBulkCategory(id)}
+                  />
                 </div>
-              )}
-
-              {bulkActionType === 'type' && (
-                <div className="space-y-4">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Select New Type</label>
-                  <select
-                    value={bulkType}
-                    onChange={(e) => setBulkType(e.target.value as 'income' | 'expense' | 'investment' | 'insurance' | '')}
-                    className="theme-input"
-                  >
-                    <option value="">Select a type...</option>
-                    <option value="income">Income</option>
-                    <option value="expense">Expense</option>
-                    <option value="investment">Investment</option>
-                    <option value="insurance">Insurance</option>
-                  </select>
-                </div>
-              )}
-
-              {bulkActionType === 'tag' && (
-                <div className="space-y-4">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Select Tag</label>
-                  <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto">
-                    {tags.map((t) => (
-                      <button
-                        key={t.id}
-                        onClick={() => setBulkTagId(t.id)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${bulkTagId === t.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700'} text-left`}
-                      >
-                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: t.color }} />
-                        <span className="text-sm text-gray-900 dark:text-white">{t.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  onClick={() => {
-                    setShowBulkActions(false);
-                    setBulkActionType(null);
-                    setBulkCategory('');
-                    setBulkType('');
-                  }}
-                  className="px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={bulkActionType === 'category' ? handleBulkCategoryChange : bulkActionType === 'type' ? handleBulkTypeChange : handleBulkTagChange}
-                  disabled={bulkActionType === 'category' ? !bulkCategory : bulkActionType === 'type' ? !bulkType : !bulkTagId}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Apply Changes
-                </button>
               </div>
+            )}
+
+            {bulkActionType === 'type' && (
+              <div className="space-y-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Select New Type</label>
+                <select
+                  value={bulkType}
+                  onChange={(e) => setBulkType(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                >
+                  <option value="">Select type</option>
+                  <option value="income">Income</option>
+                  <option value="expense">Expense</option>
+                  <option value="investment">Investment</option>
+                  <option value="insurance">Insurance</option>
+                </select>
+              </div>
+            )}
+
+            {bulkActionType === 'tag' && (
+              <div className="space-y-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Add Tag</label>
+                <select
+                  value={bulkTagId}
+                  onChange={(e) => setBulkTagId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                >
+                  <option value="">Select tag</option>
+                  {tags.map(tag => (
+                    <option key={tag.id} value={tag.id}>{tag.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => setShowBulkActions(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (bulkActionType === 'category') handleBulkCategoryChange();
+                  if (bulkActionType === 'type') handleBulkTypeChange();
+                  if (bulkActionType === 'tag') handleBulkTagChange();
+                }}
+                disabled={
+                  (bulkActionType === 'category' && !bulkCategory) ||
+                  (bulkActionType === 'type' && !bulkType) ||
+                  (bulkActionType === 'tag' && !bulkTagId)
+                }
+              >
+                Apply Changes
+              </Button>
             </div>
           </div>
-        )
-      }
+        </div>
+      )}
       {/* Bulk Category Popover */}
       {showBulkCategoryPopover && (
         <CategoryPopover
@@ -1992,10 +2060,7 @@ const Transactions: React.FC = () => {
           currentCategory={''}
           onSelect={(id) => {
             // apply selection immediately to all selected transactions
-            Array.from(selectedTransactions).forEach(txId => {
-              const transaction = transactions.find(t => t.id === txId);
-              if (transaction) updateTransaction(txId, { ...transaction, category: id });
-            });
+            bulkUpdateTransactions(Array.from(selectedTransactions), { category: id });
             setSelectedTransactions(new Set());
             closeBulkCategoryPopover();
           }}
@@ -2062,7 +2127,34 @@ const Transactions: React.FC = () => {
         categories={categories}
         accounts={bankAccounts}
         selectedAccountId={selectedAccount !== 'all_accounts' ? selectedAccount : ''}
+        onCategoryChange={(item, newCategory) => {
+          // Construct a temporary transaction object to pass to rule prompt
+          // We need a dummy ID since it's not saved yet
+          const tempTransaction: Transaction = {
+            id: 'temp-import-' + Date.now(),
+            description: item.description,
+            amount: item.amount,
+            date: item.date instanceof Date ? item.date.toISOString() : item.date,
+            type: item.type,
+            category: newCategory,
+            bankAccountId: item.bankAccountId || '',
+            tags: []
+          };
+
+          const category = categories.find(c => c.id === newCategory);
+          if (category) {
+            setRulePromptData({
+              transaction: tempTransaction,
+              newCategoryId: newCategory,
+              newCategoryName: category.name
+            });
+            setShowRulePrompt(true);
+          }
+        }}
+        lastCreatedRule={lastCreatedRule}
       />
+
+
 
       {/* Duplicate Confirmation Dialog */}
       {
@@ -2209,6 +2301,7 @@ const Transactions: React.FC = () => {
               categories={categories}
               onCreateRule={(rule) => {
                 addCategoryRule(rule);
+                setLastCreatedRule(rule);
                 setShowRuleDialog(false);
                 setRulePromptData(null);
               }}
@@ -2236,7 +2329,7 @@ const Transactions: React.FC = () => {
       }
       {/* Modals */}
       {renderManualAddModal()}
-      
+
       <BulkAddTransactionsModal
         isOpen={showBulkAddModal}
         onClose={() => setShowBulkAddModal(false)}
@@ -2327,7 +2420,7 @@ const Transactions: React.FC = () => {
           }
         }}
       />
-      
+
       {/* ... other modals ... */}
     </div >
   );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, Heart, User, Calendar, Plus, Edit3, Trash2, Copy } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, formatDate, formatLargeNumber } from '../utils/formatters';
@@ -7,9 +7,15 @@ import InsuranceForm from '../components/forms/InsuranceForm';
 import type { Insurance } from '../types';
 
 const Insurance: React.FC = () => {
-  const { insurance, addInsurance, updateInsurance, deleteInsurance } = useData();
+  const { insurance, addInsurance, updateInsurance, deleteInsurance, loadInsurance } = useData();
   const [showInsuranceForm, setShowInsuranceForm] = useState(false);
   const [editingInsurance, setEditingInsurance] = useState<Insurance | null>(null);
+
+  // Lazy load insurance data when page mounts
+  useEffect(() => {
+    loadInsurance();
+  }, []);
+
   const totalCover = insurance.reduce((sum, policy) => sum + policy.coverAmount, 0);
 
   // Calculate total annual premiums by normalizing all frequencies to yearly

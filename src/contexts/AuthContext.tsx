@@ -6,6 +6,8 @@ import {
   onAuthStateChanged,
   updateProfile,
   deleteUser,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
   User as FirebaseUser
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
@@ -18,7 +20,7 @@ interface AuthContextType extends AuthState {
   register: (email: string, password: string, name: string) => Promise<boolean>;
   logout: () => void;
   updateUser: (user: User) => void;
-  deleteAccount: () => Promise<boolean>;
+  deleteAccount: (password: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -135,9 +137,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           name,
           email,
           dateOfBirth: '',
-          spouseName: '',
-          spouseDateOfBirth: '',
-          children: [],
         },
         financialInfo: {
           monthlyIncome: 0,
@@ -193,14 +192,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const deleteAccount = async (): Promise<boolean> => {
+  const deleteAccount = async (password: string): Promise<boolean> => {
     try {
       const currentUser = auth.currentUser;
-      if (!currentUser) {
+      if (!currentUser || !currentUser.email) {
         throw new Error('No user is currently signed in');
       }
 
       console.log('🗑️ Starting account deletion process...');
+      
+      // Re-authenticate user before deletion (Firebase security requirement)
+      console.log('🔐 Re-authenticating user...');
+      const credential = EmailAuthProvider.credential(currentUser.email, password);
+      await reauthenticateWithCredential(currentUser, credential);
+      console.log('✅ Re-authentication successful');
       
       // First, delete all user data from Firestore
       await FirebaseService.deleteAllUserData(currentUser.uid);
@@ -219,7 +224,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return true;
     } catch (error) {
       console.error('❌ Error deleting account:', error);
-      return false;
+      throw error; // Propagate error so UI can show appropriate message
     }
   };
 

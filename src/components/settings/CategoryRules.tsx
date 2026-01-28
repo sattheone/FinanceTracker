@@ -9,7 +9,7 @@ import AutoCategorizationService from '../../services/autoCategorization';
 
 const CategoryRules: React.FC = () => {
     const theme = useThemeClasses();
-    const { categoryRules, deleteCategoryRule, updateCategoryRule, addCategoryRule, transactions, categories: contextCategories, updateTransaction } = useData();
+    const { categoryRules, deleteCategoryRule, updateCategoryRule, addCategoryRule, transactions, categories: contextCategories, bulkUpdateTransactionsById } = useData();
     const [searchTerm, setSearchTerm] = useState('');
     // Use categories from context
     const categories = contextCategories || [];
@@ -76,6 +76,7 @@ const CategoryRules: React.FC = () => {
                         <Sparkles className="w-4 h-4" />
                         <span>Suggestions</span>
                     </button>
+
                     <button
                         onClick={async () => {
                             if (!window.confirm('This will scan all past transactions and apply your active rules. Existing categories might be overwritten if a rule matches. Continue?')) return;
@@ -112,21 +113,7 @@ const CategoryRules: React.FC = () => {
                             });
 
                             if (updatedCount > 0) {
-                                // Process updates (Bulk update not directly available as object map in context, need loop or specialized bulk)
-                                // Context provides bulkUpdateTransactions(ids[], update). But we have DIFFERENT updates per ID.
-                                // So we must use single updates or improved bulk.
-                                // Actually dataContext has `updateTransaction`.
-                                // For performance, maybe chunked? 
-                                // Let's use Promise.all with chunking to avoid overwhelming Firestore.
-                                let processed = 0;
-                                const transactionIds = Object.keys(updates);
-                                const BATCH_SIZE = 50;
-
-                                for (let i = 0; i < transactionIds.length; i += BATCH_SIZE) {
-                                    const batch = transactionIds.slice(i, i + BATCH_SIZE);
-                                    await Promise.all(batch.map(id => updateTransaction(id, updates[id])));
-                                    processed += batch.length;
-                                }
+                                await bulkUpdateTransactionsById(updates);
                                 alert(`Successfully updated ${updatedCount} transactions.`);
                             } else {
                                 alert('No transactions matched new rules.');

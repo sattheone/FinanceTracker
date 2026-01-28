@@ -13,12 +13,6 @@ export interface UserProfile {
     email: string;
     phone?: string;
     dateOfBirth: string;
-    spouseName?: string;
-    spouseDateOfBirth?: string;
-    children: Array<{
-      name: string;
-      dateOfBirth: string;
-    }>;
   };
   financialInfo: {
     monthlyIncome: number;

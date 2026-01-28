@@ -160,12 +160,12 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
             Target Amount *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
             <input
               type="number"
               value={formData.targetAmount || ''}
               onChange={(e) => handleChange('targetAmount', Number(e.target.value))}
-              className={`input-field theme-input pl-8 ${errors.targetAmount ? 'border-red-500' : ''}`}
+              className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 ${errors.targetAmount ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-500'}`}
               placeholder="0"
               min="0"
               step="1000"

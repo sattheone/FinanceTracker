@@ -1,5 +1,5 @@
 import { Asset, SIPTransaction } from '../types';
-import PriceService from './priceService';
+import MarketDataService from './marketDataService';
 
 interface SIPUpdateResult {
   assetId: string;
@@ -61,8 +61,8 @@ class SIPAutoUpdateService {
    * Get all SIP assets that need processing this month
    */
   static getSIPAssetsDue(assets: Asset[]): Asset[] {
-    return assets.filter(asset => 
-      asset.isSIP && 
+    return assets.filter(asset =>
+      asset.isSIP &&
       (asset.category === 'mutual_funds' || asset.category === 'epf') &&
       this.isSIPDueThisMonth(asset)
     );
@@ -79,7 +79,7 @@ class SIPAutoUpdateService {
     const today = new Date();
     const sipDay = asset.sipDate || 1;
     const sipDate = new Date(today.getFullYear(), today.getMonth(), sipDay);
-    
+
     const previousInvested = asset.investedValue || 0;
     const previousValue = asset.currentValue || 0;
     const addedAmount = asset.sipAmount;
@@ -93,18 +93,18 @@ class SIPAutoUpdateService {
     // Try to fetch NAV for mutual funds if scheme code is available
     if (fetchNav && asset.category === 'mutual_funds' && asset.schemeCode) {
       try {
-        const mfPrice = await PriceService.getMutualFundPrice(asset.schemeCode);
+        const mfPrice = await MarketDataService.getLatestNAV(asset.schemeCode);
         if (mfPrice && mfPrice.nav > 0) {
           nav = mfPrice.nav;
           navDate = mfPrice.date;
-          
+
           // Calculate units purchased with this SIP amount
           unitsAdded = addedAmount / nav;
-          
+
           // Calculate new total units
           const previousUnits = asset.quantity || 0;
           const newTotalUnits = previousUnits + unitsAdded;
-          
+
           // Update current value based on NAV
           newValue = newTotalUnits * nav;
         }
@@ -231,7 +231,7 @@ class SIPAutoUpdateService {
 
     for (const asset of mfAssets) {
       try {
-        const mfPrice = await PriceService.getMutualFundPrice(asset.schemeCode!);
+        const mfPrice = await MarketDataService.getLatestNAV(asset.schemeCode!);
         if (mfPrice && mfPrice.nav > 0) {
           const quantity = asset.quantity || 0;
           const newValue = quantity > 0 ? quantity * mfPrice.nav : asset.currentValue;

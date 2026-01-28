@@ -1,15 +1,482 @@
 import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { TrendingUp, Target, Filter } from 'lucide-react';
+import { TrendingUp, Target, Filter, Settings, DollarSign, Calculator } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, formatLargeNumber } from '../utils/formatters';
 import Modal from '../components/common/Modal';
 
 const Forecast: React.FC = () => {
-  const { goals, monthlyBudget, assets, userProfile } = useData();
+  const [activeTab, setActiveTab] = useState<'overview' | 'simulator'>('overview');
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Financial Forecast</h1>
+          <p className="text-gray-600 dark:text-gray-300 mt-1">
+            Wealth projection based on your actual asset mix and growth rates.
+          </p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200 dark:border-gray-700">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`${activeTab === 'overview'
+              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
+          >
+            <Target className="w-4 h-4 mr-2" />
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('simulator')}
+            className={`${activeTab === 'simulator'
+              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
+          >
+            <Calculator className="w-4 h-4 mr-2" />
+            Invest & Drawdown Simulator
+          </button>
+        </nav>
+      </div>
+
+      {activeTab === 'overview' ? (
+        <ForecastOverview />
+      ) : (
+        <DrawdownSimulator />
+      )}
+    </div>
+  );
+};
+
+const DrawdownSimulator: React.FC = () => {
+  const { assets, monthlyBudget, userProfile, transactions } = useData();
+
+  // Initial Defaults
+  const defaultCorpus = assets.reduce((sum, a) => sum + a.currentValue, 0);
+  const defaultMonthlySIP = monthlyBudget.surplus;
+  const defaultAge = userProfile?.financialInfo.currentAge || 30;
+  const defaultRetirementAge = userProfile?.financialInfo.retirementAge || 60;
+
+  // Pre-calculate actual investments by year from transactions
+  const actualInvestmentsByYear = React.useMemo(() => {
+    const investments: Record<number, number> = {};
+    if (!transactions) return investments;
+
+    transactions.forEach(t => {
+      if (t.type === 'investment') {
+        const year = new Date(t.date).getFullYear();
+        investments[year] = (investments[year] || 0) + t.amount;
+      }
+    });
+    return investments;
+  }, [transactions]);
+
+  // State for Simulation
+  const [corpus, setCorpus] = useState(defaultCorpus);
+  const [monthlySIP, setMonthlySIP] = useState(defaultMonthlySIP);
+  const [stepUpRate, setStepUpRate] = useState(5);
+  const [preRetirementReturn, setPreRetirementReturn] = useState(12);
+  const [postRetirementReturn, setPostRetirementReturn] = useState(8);
+  const [inflationRate, setInflationRate] = useState(6);
+  const [monthlyExpenses, setMonthlyExpenses] = useState(monthlyBudget.expenses.household);
+  const [currentAge, setCurrentAge] = useState(defaultAge);
+  const [retirementAge, setRetirementAge] = useState(defaultRetirementAge);
+  const [lifeExpectancy, setLifeExpectancy] = useState(90);
+
+  // Sync state with defaults when data loads (if state is effectively empty)
+  React.useEffect(() => {
+    // Only update if the current state seems "uninitialized" (e.g. 0 corpus/SIP/expenses) 
+    // AND the new defaults are meaningful.
+    // Or simpler: Just update all provided the user hasn't heavily customized?
+    // Let's go with: Update if the internal state matches the "previous default" (hard to track)
+    // OR: Just update if the current values are 0 (likely uninitialized).
+    if (corpus === 0 && defaultCorpus > 0) setCorpus(defaultCorpus);
+    if (monthlySIP === 0 && defaultMonthlySIP > 0) setMonthlySIP(defaultMonthlySIP);
+    if (monthlyExpenses === 0 && monthlyBudget.expenses.household > 0) setMonthlyExpenses(monthlyBudget.expenses.household);
+
+    // Also sync ages if they were defaults
+    // This is tricky. Let's just trust the user's manual reset if they want full sync.
+    // But for the specific "Empty Columns" bug, it's definitely because monthlySIP/Expenses were 0 initially.
+  }, [defaultCorpus, defaultMonthlySIP, monthlyBudget.expenses.household]);
+
+  // Return Overrides: Record<Age, ReturnRate>
+  const [returnOverrides, setReturnOverrides] = useState<Record<number, number>>({});
+
+  const handleReturnOverride = (age: number, value: string) => {
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue)) {
+      setReturnOverrides(prev => ({ ...prev, [age]: numValue }));
+    } else {
+      // If empty or invalid, remove the override to revert to default
+      const newOverrides = { ...returnOverrides };
+      delete newOverrides[age];
+      setReturnOverrides(newOverrides);
+    }
+  };
+
+  // Investment Overrides: Record<Age, InvestmentAmount>
+  const [investmentOverrides, setInvestmentOverrides] = useState<Record<number, number>>({});
+
+  const handleInvestmentOverride = (age: number, value: string) => {
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue)) {
+      setInvestmentOverrides(prev => ({ ...prev, [age]: numValue }));
+    } else {
+      // If empty or invalid, remove the override to revert to default
+      const newOverrides = { ...investmentOverrides };
+      delete newOverrides[age];
+      setInvestmentOverrides(newOverrides);
+    }
+  };
+
+  const handleReset = () => {
+    setCorpus(defaultCorpus);
+    setMonthlySIP(defaultMonthlySIP);
+    setStepUpRate(5);
+    setPreRetirementReturn(12);
+    setPostRetirementReturn(8);
+    setInflationRate(6);
+    setMonthlyExpenses(monthlyBudget.expenses.household);
+    setCurrentAge(defaultAge);
+    setRetirementAge(defaultRetirementAge);
+    setLifeExpectancy(90);
+    setReturnOverrides({});
+    setInvestmentOverrides({});
+  };
+
+  // Calculation Logic
+  const simulationData = React.useMemo(() => {
+    const data = [];
+    let currentCorpus = corpus;
+    let currentSIP = monthlySIP;
+
+    for (let age = currentAge; age <= lifeExpectancy; age++) {
+      const isRetired = age >= retirementAge;
+      const yearIndex = age - currentAge;
+      const currentYear = new Date().getFullYear() + yearIndex;
+
+      // Calculate annual expenses with inflation applied from year 0
+      const annualExpenses = (monthlyExpenses * 12) * Math.pow(1 + inflationRate / 100, yearIndex);
+
+      const openingBalance = currentCorpus;
+      let yearlyInvestment = 0;
+      let yearlyWithdrawal = 0;
+
+      // Determine Return Rate (Override > Phase Default)
+      // Note: User can override any year.
+      const defaultRate = isRetired ? postRetirementReturn : preRetirementReturn;
+      const returnRate = returnOverrides[age] !== undefined ? returnOverrides[age] : defaultRate;
+
+      let calculatedYearlyInvestment = 0;
+      if (!isRetired) {
+        // Accumulation Phase
+        calculatedYearlyInvestment = currentSIP * 12;
+        // annualSIP removed
+        // yearlyWithdrawal removed
+
+        // SIP update moved to end of loop
+      } else {
+        // Decumulation Phase
+        calculatedYearlyInvestment = 0;
+        // yearlyWithdrawal removed
+      }
+
+
+      // Check for user override
+      if (investmentOverrides[age] !== undefined) {
+        yearlyInvestment = investmentOverrides[age];
+      } else {
+        // Fallback: Check for actual transaction data
+        const actuals = actualInvestmentsByYear[currentYear];
+        if (actuals && actuals > 0) {
+          yearlyInvestment = actuals;
+        } else {
+          yearlyInvestment = calculatedYearlyInvestment;
+        }
+      }
+
+      // Determine Withdrawal (Expense)
+      if (isRetired) {
+        yearlyWithdrawal = annualExpenses;
+      } else {
+        yearlyWithdrawal = 0;
+      }
+
+      // Growth Calculation
+      // Assumption: 
+      // - Opening Balance grows for full year
+      // - Investment is spread out (avg 6 months growth)
+      // - Withdrawal is spread out (avg 6 months loss of growth opportunities, or taken at start?)
+      // Standard approximation: (Opening + Inv/2 - Wdl/2) * rate ?? 
+      // Let's stick to the previous simple logic but robust:
+      // Growth = (Opening * rate) + (Inv * rate * 0.5) - (Wdl * rate * 0.5)
+
+      // Let's refine based on "End of Year" logic user might expect from a simple spreadsheet:
+      // Spreadsheet usually: (Opening + Inv - Wdl) * rate? No that's inconsistent.
+      // Let's use:
+      // Growth on Opening: Opening * rate
+      // Growth on SIP: SIP * rate * 0.5 (mid-year avg)
+      // Growth lost on Wdl: Wdl * rate * 0.5 (mid-year avg)
+
+      // However, if corpus goes negative during the year, we should handle that.
+
+      let growthEstimate = (openingBalance * (returnRate / 100)) +
+        (yearlyInvestment * (returnRate / 100) * 0.5) -
+        (yearlyWithdrawal * (returnRate / 100) * 0.5);
+
+      // Prevent growth on negative balance if logic allows
+      if (openingBalance + yearlyInvestment - yearlyWithdrawal < 0) {
+        // Simplified: if we run out, growth is just 0 or negative math applies 
+        // (debt interest?). Let's clamp for simulator visuals to avoid confusing negative spirals unless intended.
+      }
+
+      let closingBalance = openingBalance + yearlyInvestment - yearlyWithdrawal + growthEstimate;
+
+      if (closingBalance < 0) closingBalance = 0;
+
+      data.push({
+        age,
+        year: currentYear,
+        isRetired,
+        openingBalance,
+        investment: yearlyInvestment,
+        expenses: Math.round(annualExpenses), // Show the inflated expense requirement
+        returnRate, // The rate actually used
+        growth: Math.round(growthEstimate),
+        closingBalance: Math.round(closingBalance),
+        hasActuals: !!actualInvestmentsByYear[currentYear]
+      });
+
+      currentCorpus = closingBalance;
+
+      // Step up SIP for next year (only if in accumulation phase)
+      if (!isRetired) {
+        currentSIP = currentSIP * (1 + stepUpRate / 100);
+      }
+    }
+    return data;
+  }, [corpus, monthlySIP, stepUpRate, preRetirementReturn, postRetirementReturn, inflationRate, monthlyExpenses, currentAge, retirementAge, lifeExpectancy, returnOverrides, investmentOverrides, actualInvestmentsByYear]);
+
+  const corpusAtRetirement = simulationData.find(d => d.age === retirementAge)?.openingBalance || 0;
+  const zeroBalanceYear = simulationData.find(d => d.closingBalance === 0 && d.age >= retirementAge);
+
+  return (
+    <div className="space-y-8 mt-6">
+      {/* Configuration Panel */}
+      <div className="card bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
+            <Settings className="w-5 h-5 mr-2 text-blue-600" />
+            Simulation Parameters
+          </h2>
+          <button
+            onClick={handleReset}
+            className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium"
+          >
+            Reset to Defaults
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Starting Point</h3>
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Current Corpus</label>
+                <button
+                  onClick={() => setCorpus(defaultCorpus)}
+                  className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium flex items-center"
+                  title={`Sync to Total Assets: ${formatCurrency(defaultCorpus)}`}
+                >
+                  Sync ({formatLargeNumber(defaultCorpus)})
+                </button>
+              </div>
+              <input type="number" value={corpus} onChange={e => setCorpus(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Monthly SIP</label>
+              <input type="number" value={monthlySIP} onChange={e => setMonthlySIP(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Growth Assumptions</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Step-up SIP (%)</label>
+              <input type="number" value={stepUpRate} onChange={e => setStepUpRate(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pre-Retirement Return (%)</label>
+              <input type="number" value={preRetirementReturn} onChange={e => setPreRetirementReturn(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Retirement Phase</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Post-Retirement Return (%)</label>
+              <input type="number" value={postRetirementReturn} onChange={e => setPostRetirementReturn(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Monthly Expenses (Today's Value)</label>
+              <input type="number" value={monthlyExpenses} onChange={e => setMonthlyExpenses(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Timeline</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Age</label>
+                <input type="number" value={currentAge} onChange={e => setCurrentAge(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Retirement Age</label>
+                <input type="number" value={retirementAge} onChange={e => setRetirementAge(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Life Expectancy</label>
+                <input type="number" value={lifeExpectancy} onChange={e => setLifeExpectancy(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Inflation (%)</label>
+                <input type="number" value={inflationRate} onChange={e => setInflationRate(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="card bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+          <h3 className="text-sm font-medium text-green-800 dark:text-green-200">Corpus at Retirement ({retirementAge})</h3>
+          <p className="text-2xl font-bold text-green-900 dark:text-green-100">{formatLargeNumber(corpusAtRetirement)}</p>
+        </div>
+        <div className={`card ${zeroBalanceYear ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'}`}>
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Money Lasts Until Age</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            {zeroBalanceYear ? zeroBalanceYear.age : `${lifeExpectancy}+`}
+          </p>
+          {zeroBalanceYear && <p className="text-xs text-red-600 dark:text-red-400 mt-1">Run out of funds in {zeroBalanceYear.year}</p>}
+        </div>
+        <div className="card">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Monthly Expense at 80 (Projected)</h3>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            {formatCurrency((monthlyExpenses) * Math.pow(1 + inflationRate / 100, 80 - currentAge))}
+          </p>
+        </div>
+      </div>
+
+      {/* Interactive Table */}
+      <div className="card overflow-hidden">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Year-wise Projection</h3>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Age</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Year</th>
+                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Expenses (Yr)</th>
+                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">Invest (Yr)</th>
+                <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">Return %</th>
+                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Corpus (Accum)</th>
+                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Corpus (Decum)</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {simulationData.map((row) => (
+                <tr key={row.age} className={`
+                  ${row.age === retirementAge ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''} 
+                  ${row.closingBalance === 0 ? 'bg-red-50 dark:bg-red-900/10' : ''}
+                  hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors
+                `}>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                    {row.age}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {row.year}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">
+                    {formatLargeNumber(row.expenses)}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right text-green-600 dark:text-green-400 font-medium">
+                    <input
+                      type="number"
+                      className={`w-24 px-1 py-0.5 text-right border border-gray-300 dark:border-gray-600 rounded bg-transparent text-sm ${row.hasActuals && investmentOverrides[row.age] === undefined ? 'border-dashed border-blue-400' : ''}`}
+                      value={investmentOverrides[row.age] !== undefined ? investmentOverrides[row.age] : Math.round(row.investment)}
+                      placeholder={String(Math.round(row.investment))}
+                      title={row.hasActuals && investmentOverrides[row.age] === undefined ? 'Based on actual transactions' : 'Projected'}
+                      onChange={(e) => handleInvestmentOverride(row.age, e.target.value)}
+                    />
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                    <input
+                      type="number"
+                      className="w-16 px-1 py-0.5 text-center border border-gray-300 dark:border-gray-600 rounded bg-transparent text-sm"
+                      value={returnOverrides[row.age] !== undefined ? returnOverrides[row.age] : row.returnRate}
+                      placeholder={String(row.returnRate)}
+                      onChange={(e) => handleReturnOverride(row.age, e.target.value)}
+                    />
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-bold text-gray-900 dark:text-white">
+                    {!row.isRetired ? formatLargeNumber(row.closingBalance) : '-'}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-bold text-gray-900 dark:text-white">
+                    {row.isRetired ? formatLargeNumber(row.closingBalance) : '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ForecastOverview: React.FC = () => {
+  const { goals, monthlyBudget, assets, userProfile, updateUserProfile, updateMonthlyBudget } = useData();
   const [inflationRate, setInflationRate] = useState(6);
   const [forecastYears, setForecastYears] = useState(10);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+
+  const handleFinancialChange = (field: string, value: number) => {
+    if (!userProfile) return;
+    updateUserProfile({
+      financialInfo: {
+        ...userProfile.financialInfo,
+        [field]: value,
+      },
+    });
+
+    // Update monthly budget based on income and expenses
+    if (field === 'monthlyIncome' || field === 'monthlyExpenses') {
+      const income = field === 'monthlyIncome' ? value : (userProfile?.financialInfo.monthlyIncome || 0);
+      const expenses = field === 'monthlyExpenses' ? value : (userProfile?.financialInfo.monthlyExpenses || 0);
+
+      updateMonthlyBudget({
+        income,
+        expenses: {
+          household: expenses,
+          insurance: monthlyBudget.expenses.insurance,
+          loans: monthlyBudget.expenses.loans,
+          investments: monthlyBudget.expenses.investments,
+          other: monthlyBudget.expenses.other,
+        },
+        surplus: income - (expenses + monthlyBudget.expenses.insurance + monthlyBudget.expenses.loans + monthlyBudget.expenses.investments + monthlyBudget.expenses.other),
+      });
+    }
+  };
 
   // Asset Exclusion State with Persistence
   const [excludedAssetIds, setExcludedAssetIds] = useState<Set<string>>(() => {
@@ -139,23 +606,21 @@ const Forecast: React.FC = () => {
   }, [assets]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Financial Forecast</h1>
-          <p className="text-gray-600 dark:text-gray-300 mt-1">
-            Wealth projection based on your actual asset mix and growth rates.
-          </p>
-        </div>
-      </div>
-
+    <>
       {/* Financial Independence Analysis Dashboard */}
-      <div className="card bg-white dark:bg-gray-800 overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
-        <div className="border-b border-gray-100 dark:border-gray-700 pb-4 mb-4">
+      <div className="card bg-white dark:bg-gray-800 overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm mt-6">
+        <div className="border-b border-gray-100 dark:border-gray-700 pb-4 mb-4 flex justify-between items-center">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Target className="h-6 w-6 text-blue-600" />
             Financial Independence Analysis
           </h2>
+          <button
+            onClick={() => setIsSettingsModalOpen(true)}
+            className="flex items-center space-x-2 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+          >
+            <Settings className="w-4 h-4 mr-1" />
+            Edit Profile
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
@@ -253,7 +718,7 @@ const Forecast: React.FC = () => {
       </div>
 
       {/* Forecast Controls / Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
         <div className="card bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
           <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">Portfolio Avg Return</h3>
           <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{weightedReturnRate.toFixed(1)}%</p>
@@ -288,7 +753,7 @@ const Forecast: React.FC = () => {
       </div>
 
       {/* Wealth Projection Chart */}
-      <div className="card">
+      <div className="card mt-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Wealth Projection Over Time</h3>
         <ResponsiveContainer width="100%" height={400}>
           <LineChart data={forecastData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
@@ -310,7 +775,7 @@ const Forecast: React.FC = () => {
       </div>
 
       {/* Financial Independence Analysis */}
-      <div className="card">
+      <div className="card mt-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Projection Details</h3>
         <div className="text-sm text-gray-600 dark:text-gray-300">
           <p>This projection assumes your <span className="font-semibold text-gray-900 dark:text-white">included assets ({formatLargeNumber(currentRetirementCorpus)})</span> grow at rates specific to their category (Equity ~12%, Debt ~7-8%, Gold ~6%).</p>
@@ -329,16 +794,16 @@ const Forecast: React.FC = () => {
         onClose={() => setIsAssetModalOpen(false)}
         title="Asset Inclusion for FI Corpus"
         size="lg"
-          footer={(
-            <div className="flex justify-end">
-              <button
-                onClick={() => setIsAssetModalOpen(false)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-              >
-                Done
-              </button>
-            </div>
-          )}
+        footer={(
+          <div className="flex justify-end">
+            <button
+              onClick={() => setIsAssetModalOpen(false)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        )}
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-300">
@@ -351,7 +816,6 @@ const Forecast: React.FC = () => {
             <span className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatLargeNumber(currentRetirementCorpus)}</span>
           </div>
 
-          {/* Scroll container holding asset grid + sticky footer */}
           <div className="mt-4 pr-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {Object.entries(assetsByCategory).map(([category, categoryAssets]) => (
@@ -404,13 +868,110 @@ const Forecast: React.FC = () => {
                 </div>
               ))}
             </div>
-
-            {/* Sticky footer keeps the action button visible while scrolling */}
-            {/* Removed sticky footer */}
           </div>
         </div>
       </Modal>
-    </div>
+
+      {/* Financial Profile Settings Modal */}
+      <Modal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        title="Financial Profile Settings"
+      >
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Income & Expenses */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                <DollarSign className="w-5 h-5 mr-2" />
+                Monthly Cash Flow
+              </h3>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                  Monthly Income (Take-home)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
+                  <input
+                    type="number"
+                    value={userProfile?.financialInfo.monthlyIncome || ''}
+                    onChange={(e) => handleFinancialChange('monthlyIncome', Number(e.target.value))}
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+                    placeholder="e.g., 75000"
+                    min="0"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                  Monthly Expenses (Needs)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
+                  <input
+                    type="number"
+                    value={userProfile?.financialInfo.monthlyExpenses || ''}
+                    onChange={(e) => handleFinancialChange('monthlyExpenses', Number(e.target.value))}
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+                    placeholder="e.g., 45000"
+                    min="0"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Retirement Planning */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                <Target className="w-5 h-5 mr-2" />
+                Planning Horizon
+              </h3>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                  Current Age
+                </label>
+                <input
+                  type="number"
+                  value={userProfile?.financialInfo?.currentAge || ''}
+                  onChange={(e) => handleFinancialChange('currentAge', Number(e.target.value))}
+                  className="input-field theme-input"
+                  placeholder="e.g., 30"
+                  min="18"
+                  max="100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                  Target Retirement Age
+                </label>
+                <input
+                  type="number"
+                  value={userProfile?.financialInfo?.retirementAge || 60}
+                  onChange={(e) => handleFinancialChange('retirementAge', Number(e.target.value))}
+                  className="input-field theme-input"
+                  placeholder="60"
+                  min={(userProfile?.financialInfo?.currentAge || 18) + 1}
+                  max="80"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <button
+              onClick={() => setIsSettingsModalOpen(false)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 };
 
