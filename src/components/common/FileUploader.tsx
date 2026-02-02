@@ -136,11 +136,11 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         try {
           console.log('🖼️ Processing image file with AI:', file.name);
           const extractedTransactions = await aiService.extractTransactionsFromImage(file);
-          
+
           if (extractedTransactions.length === 0) {
             throw new Error('No transactions could be extracted from the image. Please ensure the image clearly shows transaction details.');
           }
-          
+
           // Convert extracted transactions to ParsedTransaction format
           transactions = extractedTransactions.map(t => {
             // Map AI extracted types to ParsedTransaction types
@@ -151,7 +151,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
               // Map 'expense', 'investment', 'insurance', 'transfer' all to 'expense'
               type = 'expense';
             }
-            
+
             return {
               date: t.date,
               description: t.description,
@@ -161,7 +161,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
               confidence: t.confidence
             };
           });
-          
+
           console.log('✅ AI extracted', transactions.length, 'transactions from image');
         } catch (err: any) {
           console.error('Image AI parsing error:', err);
@@ -260,6 +260,12 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     const file = acceptedFiles[0];
     if (!file) return;
 
+    console.log('📂 File Drop Detected:', {
+      name: file.name,
+      size: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+      type: file.type
+    });
+
     setUploadedFile(file);
     setIsPasswordProtected(false);
     setPassword('');
@@ -275,6 +281,15 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    onDropRejected: (fileRejections) => {
+      console.log('🚫 File Drop Rejected:', fileRejections);
+      fileRejections.forEach(rejection => {
+        rejection.errors.forEach(error => {
+          console.error(`File rejected: ${error.code} - ${error.message}`);
+          setError(`File rejected: ${error.message}`);
+        });
+      });
+    },
     accept: {
       'application/vnd.ms-excel': ['.xls'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
@@ -285,7 +300,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       'image/webp': ['.webp']
     },
     maxFiles: 1,
-    maxSize: 10 * 1024 * 1024, // 10MB
+    maxSize: 50 * 1024 * 1024, // 50MB
   });
 
   const clearFile = () => {

@@ -3,11 +3,12 @@ export interface Transaction {
   date: string;
   description: string;
   category: string;
-  type: 'income' | 'expense' | 'investment' | 'insurance';
+  type: 'income' | 'expense' | 'investment' | 'insurance' | 'transfer';
   amount: number;
   paymentMethod?: string;
   bankAccountId?: string; // Link to bank account
   recurringTransactionId?: string; // Link to recurring transaction if auto-generated
+  notes?: string; // Additional notes/remarks for the transaction
   tags?: string[]; // User-defined tags for better categorization
   isLinked?: boolean;
   autoLinked?: boolean;
@@ -198,6 +199,7 @@ export interface BankAccount {
   userId: string;
   createdAt?: any;
   updatedAt?: any;
+  balance?: number; // Calculated balance (dynamic)
 }
 
 export interface RecurringTransaction {
@@ -205,7 +207,7 @@ export interface RecurringTransaction {
   name: string;
   description: string;
   category: string;
-  type: 'income' | 'expense' | 'investment' | 'insurance';
+  type: 'income' | 'expense' | 'investment' | 'insurance' | 'transfer';
   amount: number;
   frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
   interval?: number; // e.g., 2 for "every 2 weeks"
@@ -276,7 +278,7 @@ export interface CategoryRule {
   id: string;
   name: string; // Transaction description pattern to match
   categoryId: string; // Target category to apply
-  transactionType?: 'income' | 'expense' | 'investment' | 'insurance'; // Optional target transaction type
+  transactionType?: 'income' | 'expense' | 'investment' | 'insurance' | 'transfer'; // Optional target transaction type
   matchType: 'exact' | 'partial'; // Exact match or contains
   createdAt: string;
   lastUsed?: string; // Last time this rule was applied

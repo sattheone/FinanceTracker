@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { Transaction, MonthlyBudget } from '../../types';
 import { Category } from '../../constants/categories';
@@ -19,7 +19,10 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
     const theme = useThemeClasses();
     const today = new Date();
     const currentYear = today.getFullYear();
-    const currentMonthIndex = today.getMonth();
+    const currentRealMonthIndex = today.getMonth(); // The actual current month
+
+    // State for the selected month filter (default to current month)
+    const [selectedMonthIndex, setSelectedMonthIndex] = useState(currentRealMonthIndex);
 
     // 1. Filter Expenses
     const expenses = useMemo(() =>
@@ -28,7 +31,7 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
 
     // 2. Metrics Calculation
     const metrics = useMemo(() => {
-        let spentDec = 0; // Current Month
+        let spentSelectedMonth = 0;
         let spentYear = 0;
         let monthsWithSpend = new Set<string>();
 
@@ -38,28 +41,28 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                 spentYear += t.amount;
                 monthsWithSpend.add(`${date.getMonth()}`);
 
-                if (date.getMonth() === currentMonthIndex) {
-                    spentDec += t.amount;
+                if (date.getMonth() === selectedMonthIndex) {
+                    spentSelectedMonth += t.amount;
                 }
             }
         });
 
-        // Simple average based on months passed so far (or 12?)
-        // Better: Average over months that have passed in the current year
-        const avgMonthly = currentMonthIndex === 0 ? spentYear : spentYear / (currentMonthIndex + 1);
+        // Average based on months passed so far in current year (YTD)
+        // We divide by (currentRealMonthIndex + 1) because if it's Feb (index 1), we have 2 months of data potentially
+        const avgMonthly = currentRealMonthIndex === 0 ? spentYear : spentYear / (currentRealMonthIndex + 1);
 
-        return { spentDec, spentYear, avgMonthly };
-    }, [expenses, currentYear, currentMonthIndex]);
+        return { spentSelectedMonth, spentYear, avgMonthly };
+    }, [expenses, currentYear, currentRealMonthIndex, selectedMonthIndex]);
 
-    // 3. Chart Data (Last 12 Months or Current Year?)
-    // Screenshot implies "J F M A M J J A S O N D" - so Current Year Jan-Dec
+    // 3. Chart Data (Current Year Jan-Dec)
     const chartData = useMemo(() => {
         const data = Array(12).fill(0).map((_, i) => ({
             name: new Date(currentYear, i, 1).toLocaleString('default', { month: 'narrow' }),
             fullMonth: new Date(currentYear, i, 1).toLocaleString('default', { month: 'short' }),
             monthIndex: i,
             amount: 0,
-            isCurrent: i === currentMonthIndex
+            isCurrent: i === currentRealMonthIndex,
+            isSelected: i === selectedMonthIndex
         }));
 
         expenses.forEach(t => {
@@ -70,14 +73,14 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
         });
 
         return data;
-    }, [expenses, currentYear, currentMonthIndex]);
+    }, [expenses, currentYear, currentRealMonthIndex, selectedMonthIndex]);
 
-    // 4. Top Categories Pill Data (Current Month)
+    // 4. Top Categories Pill Data (Selected Month)
     const topCategories = useMemo(() => {
         const catMap = new Map<string, number>();
         expenses.forEach(t => {
             const date = new Date(t.date);
-            if (date.getFullYear() === currentYear && date.getMonth() === currentMonthIndex) {
+            if (date.getFullYear() === currentYear && date.getMonth() === selectedMonthIndex) {
                 catMap.set(t.category, (catMap.get(t.category) || 0) + t.amount);
             }
         });
@@ -94,10 +97,10 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                     icon: cat?.icon
                 };
             });
-    }, [expenses, categories, currentYear, currentMonthIndex]);
+    }, [expenses, categories, currentYear, selectedMonthIndex]);
 
 
-    // 5. Grouped Categories Data
+    // 5. Grouped Categories Data (Selected Month)
     const groupedData = useMemo(() => {
         // Map to store grouped data: ParentID -> { parent details, children: [] }
         const groups: Record<string, {
@@ -107,11 +110,11 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
             categories: any[]
         }> = {};
 
-        // Aggregate spend per category for current month
+        // Aggregate spend per category for SELECTED month
         const categorySpend: Record<string, number> = {};
         expenses.forEach(t => {
             const date = new Date(t.date);
-            if (date.getFullYear() === currentYear && date.getMonth() === currentMonthIndex) {
+            if (date.getFullYear() === currentYear && date.getMonth() === selectedMonthIndex) {
                 categorySpend[t.category] = (categorySpend[t.category] || 0) + t.amount;
             }
         });
@@ -174,7 +177,7 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
             .filter(g => g.totalSpent > 0 || g.categories.some(c => c.budget > 0))
             .sort((a, b) => b.totalSpent - a.totalSpent);
 
-    }, [categories, expenses, currentYear, currentMonthIndex, monthlyBudget]);
+    }, [categories, expenses, currentYear, selectedMonthIndex, monthlyBudget]);
 
 
     const CustomTooltip = ({ active, payload }: any) => {
@@ -185,10 +188,17 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                     <p className="text-blue-600 dark:text-blue-400 font-bold">
                         {formatCurrency(payload[0].value)}
                     </p>
+                    <p className="text-xs text-gray-400 mt-1">Click to filter</p>
                 </div>
             );
         }
         return null;
+    };
+
+    const handleBarClick = (data: any) => {
+        if (data && data.monthIndex !== undefined) {
+            setSelectedMonthIndex(data.monthIndex);
+        }
     };
 
     return (
@@ -214,10 +224,10 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                 </div>
                 <div className="text-right">
                     <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">
-                        Spent in {new Date().toLocaleString('default', { month: 'short' })}
+                        Spent in {new Date(currentYear, selectedMonthIndex, 1).toLocaleString('default', { month: 'short' })}
                     </p>
                     <p className={cn(theme.textPrimary, "text-3xl font-bold")}>
-                        {formatCurrency(metrics.spentDec)}
+                        {formatCurrency(metrics.spentSelectedMonth)}
                     </p>
                     {monthlyBudget && (
                         <p className="text-xs text-gray-400 mt-1">
@@ -230,7 +240,11 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
             {/* Chart Section */}
             <div className="h-48 w-full mt-4">
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
+                    <BarChart data={chartData} onClick={(data) => {
+                        if (data && data.activePayload && data.activePayload.length > 0) {
+                            handleBarClick(data.activePayload[0].payload);
+                        }
+                    }}>
                         <XAxis
                             dataKey="name"
                             axisLine={false}
@@ -240,14 +254,21 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                         />
                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
                         <Bar dataKey="amount" radius={[4, 4, 4, 4]} barSize={12}>
-                            {chartData.map((_, index) => (
+                            {chartData.map((entry, index) => (
                                 <Cell
                                     key={`cell-${index}`}
-                                    fill={index > currentMonthIndex ? '#e2e8f0' : '#22c55e'}
+                                    fill={
+                                        entry.isSelected
+                                            ? '#22c55e' // Selected: Green
+                                            : index > currentRealMonthIndex
+                                                ? '#e2e8f0' // Future: Gray
+                                                : '#cbd5e1' // Past/Other: Darker Gray
+                                    }
                                     className={cn(
-                                        "transition-all duration-300 hover:opacity-80",
-                                        index <= currentMonthIndex && "dark:fill-green-500/80", // Unified dark mode color
-                                        index > currentMonthIndex && "dark:fill-gray-700" // Future months
+                                        "transition-all duration-300 cursor-pointer hover:opacity-80",
+                                        entry.isSelected && "dark:fill-green-500", // Selected Dark Mode
+                                        !entry.isSelected && index <= currentRealMonthIndex && "dark:fill-gray-600", // Past Dark Mode
+                                        index > currentRealMonthIndex && "dark:fill-gray-800" // Future Dark Mode
                                     )}
                                 />
                             ))}
@@ -287,49 +308,54 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                 </div>
 
                 <div className="space-y-4">
-                    {groupedData.map((group) => (
-                        <div key={group.id} className="relative">
-                            {/* Group Header - Implicitly shows the grouping */}
-                            <div className="flex items-center py-1.5 px-2 bg-gray-50 dark:bg-gray-800/80 rounded-lg mb-1">
-                                <div className="flex items-center gap-2 flex-1">
-                                    <span className="text-base">{group.icon || '📁'}</span>
-                                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{group.name}</span>
-                                </div>
-                                <div className="flex gap-8 text-xs font-semibold text-gray-500 dark:text-gray-400 opacity-75">
-                                    <span className="w-24 text-right">{formatCurrency(group.totalSpent)}</span>
-                                    <span className="w-24 text-right">-</span>
-                                    <span className="w-24 text-right">-</span>
-                                </div>
-                            </div>
-
-                            {/* Sub-categories (Indented) */}
-                            <div className="space-y-0.5">
-                                {group.categories.map((cat: any) => (
-                                    <div key={cat.id} className="flex items-center justify-between py-1 pl-9 pr-2 hover:bg-gray-50 dark:hover:bg-gray-800/30 rounded cursor-pointer transition-colors group/row">
-                                        <div className="flex items-center gap-2">
-                                            {/* Small indicator dot or just text */}
-                                            <div className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600 group-hover/row:bg-blue-400"></div>
-                                            <span className={cn(theme.textPrimary, "text-sm", cat.id === group.id && "italic text-gray-500")}>
-                                                {cat.name}
-                                            </span>
-                                        </div>
-
-                                        <div className="flex gap-8 text-sm">
-                                            <span className={cn(theme.textPrimary, "w-24 text-right font-medium text-xs")}>
-                                                {formatCurrency(cat.spent)}
-                                            </span>
-                                            <span className="w-24 text-right text-gray-500 font-medium text-xs hidden md:block">
-                                                {formatCurrency(cat.budget)}
-                                            </span>
-                                            <span className={cn("w-24 text-right font-medium text-xs", cat.left < 0 ? "text-red-500" : "text-green-500")}>
-                                                {formatCurrency(cat.left)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                    {groupedData.length === 0 ? (
+                        <div className="text-center py-8 text-gray-400 text-sm">
+                            No spending in {new Date(currentYear, selectedMonthIndex, 1).toLocaleString('default', { month: 'long' })}
                         </div>
-                    ))}
+                    ) : (
+                        groupedData.map((group) => (
+                            <div key={group.id} className="relative">
+                                {/* Group Header - Implicitly shows the grouping */}
+                                <div className="flex items-center py-1.5 px-2 bg-gray-50 dark:bg-gray-800/80 rounded-lg mb-1">
+                                    <div className="flex items-center gap-2 flex-1">
+                                        <span className="text-base">{group.icon || '📁'}</span>
+                                        <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{group.name}</span>
+                                    </div>
+                                    <div className="flex gap-8 text-xs font-semibold text-gray-500 dark:text-gray-400 opacity-75">
+                                        <span className="w-24 text-right">{formatCurrency(group.totalSpent)}</span>
+                                        <span className="w-24 text-right">-</span>
+                                        <span className="w-24 text-right">-</span>
+                                    </div>
+                                </div>
+
+                                {/* Sub-categories (Indented) */}
+                                <div className="space-y-0.5">
+                                    {group.categories.map((cat: any) => (
+                                        <div key={cat.id} className="flex items-center justify-between py-1 pl-9 pr-2 hover:bg-gray-50 dark:hover:bg-gray-800/30 rounded cursor-pointer transition-colors group/row">
+                                            <div className="flex items-center gap-2">
+                                                {/* Small indicator dot or just text */}
+                                                <div className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600 group-hover/row:bg-blue-400"></div>
+                                                <span className={cn(theme.textPrimary, "text-sm", cat.id === group.id && "italic text-gray-500")}>
+                                                    {cat.name}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex gap-8 text-sm">
+                                                <span className={cn(theme.textPrimary, "w-24 text-right font-medium text-xs")}>
+                                                    {formatCurrency(cat.spent)}
+                                                </span>
+                                                <span className="w-24 text-right text-gray-500 font-medium text-xs hidden md:block">
+                                                    {formatCurrency(cat.budget)}
+                                                </span>
+                                                <span className={cn("w-24 text-right font-medium text-xs", cat.left < 0 ? "text-red-500" : "text-green-500")}>
+                                                    {formatCurrency(cat.left)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )))}
                 </div>
             </div>
         </div>

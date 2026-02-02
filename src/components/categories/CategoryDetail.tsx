@@ -41,7 +41,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
     const [showEditPanel, setShowEditPanel] = useState(false);
     const formRef = React.useRef<CategoryFormHandle | null>(null);
-    
+
     // Tag management state
     const [showTagPopover, setShowTagPopover] = useState(false);
     const [tagPopoverTransaction, setTagPopoverTransaction] = useState<Transaction | null>(null);
@@ -98,14 +98,33 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     // Handler for transaction updates from TransactionTable
     const handleUpdateTransaction = (transactionId: string, updates: Partial<Transaction>) => {
         const transaction = transactions.find(t => t.id === transactionId);
-        if (!transaction) return;
+
+        if (!transaction) {
+            console.warn('[CategoryDetail] Could not find transaction to update:', transactionId);
+            return;
+        }
+
+        console.log('[CategoryDetail] Updating transaction:', {
+            id: transactionId,
+            currentCategory: transaction.category,
+            updates
+        });
 
         // Handle specific fields with rule prompts
-        if (updates.category && updates.category !== transaction.category) {
-            handleCategoryChangeWithRulePrompt(transaction, updates.category);
+        if (updates.category) {
+            if (updates.category !== transaction.category) {
+                console.log('[CategoryDetail] Processing category change with rule prompt');
+                handleCategoryChangeWithRulePrompt(transaction, updates.category);
+            } else {
+                console.log('[CategoryDetail] Category update skipped - same category');
+            }
         }
-        if (updates.type && updates.type !== transaction.type) {
-            handleTypeChangeWithRulePrompt(transaction, updates.type);
+
+        if (updates.type) {
+            if (updates.type !== transaction.type) {
+                console.log('[CategoryDetail] Processing type change with rule prompt');
+                handleTypeChangeWithRulePrompt(transaction, updates.type);
+            }
         }
 
         // Apply generic updates ignoring already handled fields
@@ -114,6 +133,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
         delete otherUpdates.type;
 
         if (Object.keys(otherUpdates).length > 0) {
+            console.log('[CategoryDetail] Applying other updates:', otherUpdates);
             updateTransaction(transactionId, { ...transaction, ...otherUpdates });
         }
     };
@@ -230,46 +250,46 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                 {/* Chart */}
                 <div className="h-48 w-full mt-4">
 
-                                {/* Edit Category Side Panel */}
-                                <SidePanel
-                                    isOpen={showEditPanel}
-                                    onClose={() => setShowEditPanel(false)}
-                                    title={`Edit ${category.name}`}
-                                    headerActions={(
-                                        <button
-                                            onClick={() => formRef.current?.submit()}
-                                            className="px-4 py-1.5 bg-black text-white rounded-lg text-sm font-semibold shadow hover:bg-gray-900"
-                                        >
-                                            Save
-                                        </button>
-                                    )}
-                                >
-                                    <div onClick={(e) => e.stopPropagation()}>
-                                        <CategoryForm
-                                            ref={formRef}
-                                            initialData={category}
-                                            categories={categories}
-                                            onSave={async (data) => {
-                                                try {
-                                                    await updateCategory(category.id, data);
-                                                    setShowEditPanel(false);
-                                                } catch (err) {
-                                                    console.error('Failed to update category', err);
-                                                    alert('Failed to update category');
-                                                }
-                                            }}
-                                            onCancel={() => setShowEditPanel(false)}
-                                            onUngroupChildren={async (parentId) => {
-                                                try {
-                                                    await ungroupChildren(parentId);
-                                                    // Silent delete of empty group per requirement; no alert
-                                                } catch (err) {
-                                                    console.error('Failed to ungroup children', err);
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                </SidePanel>
+                    {/* Edit Category Side Panel */}
+                    <SidePanel
+                        isOpen={showEditPanel}
+                        onClose={() => setShowEditPanel(false)}
+                        title={`Edit ${category.name}`}
+                        headerActions={(
+                            <button
+                                onClick={() => formRef.current?.submit()}
+                                className="px-4 py-1.5 bg-black text-white rounded-lg text-sm font-semibold shadow hover:bg-gray-900"
+                            >
+                                Save
+                            </button>
+                        )}
+                    >
+                        <div onClick={(e) => e.stopPropagation()}>
+                            <CategoryForm
+                                ref={formRef}
+                                initialData={category}
+                                categories={categories}
+                                onSave={async (data) => {
+                                    try {
+                                        await updateCategory(category.id, data);
+                                        setShowEditPanel(false);
+                                    } catch (err) {
+                                        console.error('Failed to update category', err);
+                                        alert('Failed to update category');
+                                    }
+                                }}
+                                onCancel={() => setShowEditPanel(false)}
+                                onUngroupChildren={async (parentId) => {
+                                    try {
+                                        await ungroupChildren(parentId);
+                                        // Silent delete of empty group per requirement; no alert
+                                    } catch (err) {
+                                        console.error('Failed to ungroup children', err);
+                                    }
+                                }}
+                            />
+                        </div>
+                    </SidePanel>
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={chartData}>
                             {/* <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" /> */}

@@ -23,7 +23,7 @@ interface SimpleTransactionFormProps {
   defaultBankAccountId?: string;
 }
 
-const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTransactionFormProps>(({ 
+const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTransactionFormProps>(({
   transaction,
   onSubmit,
   onCancel,
@@ -68,7 +68,7 @@ const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTran
         amount: transaction.amount,
         paymentMethod: transaction.paymentMethod || '',
         bankAccountId: transaction.bankAccountId || '',
-        notes: (transaction as any).notes || '',
+        notes: transaction.notes || '',
         tags: transaction.tags || []
       });
       // Reset dirty flag on transaction load
@@ -103,12 +103,9 @@ const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTran
           amount: formData.amount,
           paymentMethod: formData.paymentMethod || undefined,
           bankAccountId: formData.bankAccountId || undefined,
-          tags: formData.tags
+          tags: formData.tags,
+          notes: formData.notes
         };
-        // Quick hack for notes
-        if ('notes' in ({} as unknown as Transaction)) {
-          (transactionData as any).notes = formData.notes;
-        }
 
         onSubmit(transactionData);
         onSaveStatusChange?.('saved');
@@ -147,12 +144,9 @@ const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTran
       amount: formData.amount,
       paymentMethod: formData.paymentMethod || undefined,
       bankAccountId: formData.bankAccountId || undefined,
-      tags: formData.tags
+      tags: formData.tags,
+      notes: formData.notes
     };
-    // Quick hack: if notes exists in type, add it.
-    if ('notes' in ({} as unknown as Transaction)) {
-      (transactionData as any).notes = formData.notes;
-    }
 
     onSubmit(transactionData);
   };
@@ -403,7 +397,7 @@ const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTran
           transaction={transaction}
           onUpdateTransaction={updateTransaction}
           anchorElement={tagPopoverAnchor}
-          onOpenTagSettings={() => {}}
+          onOpenTagSettings={() => { }}
           onOpenTagCreate={(initialName) => {
             setCreateTagInitialName(initialName);
             setShowCreateTagModal(true);

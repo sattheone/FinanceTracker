@@ -231,6 +231,7 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
         <button
           onClick={(e) => {
             e.stopPropagation();
+            console.log('[InlineCategoryEditor] Toggling popover', { isOpen: !isOpen });
             setIsOpen(!isOpen);
           }}
           className={cn(
@@ -282,124 +283,124 @@ const InlineCategoryEditor: React.FC<InlineCategoryEditorProps> = ({
               theme.border
             )}
           >
-          {/* Search Header */}
-          <div className="p-2 border-b border-gray-100 dark:border-gray-700">
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setFocusedIndex(0); // Reset focus on search
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    setFocusedIndex(prev => Math.min(prev + 1, flatList.length - 1));
-                    scrollToItem(focusedIndex + 1);
-                  } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    setFocusedIndex(prev => Math.max(prev - 1, 0));
-                    scrollToItem(focusedIndex - 1);
-                  } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (flatList[focusedIndex]) {
-                      onSave(flatList[focusedIndex].id);
+            {/* Search Header */}
+            <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setFocusedIndex(0); // Reset focus on search
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setFocusedIndex(prev => Math.min(prev + 1, flatList.length - 1));
+                      scrollToItem(focusedIndex + 1);
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setFocusedIndex(prev => Math.max(prev - 1, 0));
+                      scrollToItem(focusedIndex - 1);
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (flatList[focusedIndex]) {
+                        onSave(flatList[focusedIndex].id);
+                        setIsOpen(false);
+                      }
+                    } else if (e.key === 'Escape') {
                       setIsOpen(false);
                     }
-                  } else if (e.key === 'Escape') {
-                    setIsOpen(false);
-                  }
-                }}
-                placeholder="Search..."
-                className={cn(
-                  "input-field theme-input !pl-8 text-sm"
-                )}
-              />
+                  }}
+                  placeholder="Search..."
+                  className={cn(
+                    "input-field theme-input !pl-8 text-sm"
+                  )}
+                />
+              </div>
             </div>
-          </div>
 
-          {/* Categories List */}
-          <div
-            ref={listRef}
-            className="overflow-y-auto flex-1 p-1 max-h-[300px]"
-          >
-            {displayGroups.map(({ parent, children }) => (
-              <div key={parent.id} className="mb-1">
-                {/* Parent: selectable if standalone (no children), otherwise header-only */}
-                {children.length === 0 ? (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSave(parent.id);
-                      setIsOpen(false);
-                    }}
-                    className={cn(
-                      "w-full flex items-center space-x-2 px-2 py-1 rounded-md text-left transition-colors",
-                      currentCategory === parent.id
-                        ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                        : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-                    )}
-                  >
-                    <span className="text-sm">{parent.icon}</span>
-                    <span className="text-xs flex-1">{parent.name}</span>
-                    {currentCategory === parent.id && <Check className="w-3 h-3" />}
-                  </button>
-                ) : (
-                  <div className="px-2 py-1.5 mt-2 first:mt-0 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50 rounded flex items-center gap-1">
-                    <span>{parent.icon}</span> {parent.name}
-                  </div>
-                )}
-
-                {/* Children */}
-                {children.map(child => (
-                  <button
-                    key={child.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSave(child.id);
-                      setIsOpen(false);
-                    }}
-                    className={cn(
-                      "w-full flex items-center space-x-2 px-2 py-1 pl-8 rounded-md text-left transition-colors scroll-mt-1",
-                      currentCategory === child.id
-                        ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                        : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300",
-                      focusedIndex === flatList.findIndex(item => item.id === child.id) && "bg-gray-100 dark:bg-gray-700 ring-1 ring-blue-500/50"
-                    )}
-                    id={`category-item-${flatList.findIndex(item => item.id === child.id)}`}
-                  >
-                    <span className="text-sm">{child.icon}</span>
-                    <span className="text-xs flex-1">{child.name}</span>
-                    {currentCategory === child.id && <Check className="w-3 h-3" />}
-                  </button>
-                ))}
-              </div>
-            ))}
-
-            {displayGroups.length === 0 && (
-              <div className="p-4 text-center text-gray-500 text-sm">
-                No categories found
-              </div>
-            )}
-          </div>
-
-          {/* Footer: New Category */}
-          <div className="p-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-lg">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowNewCategoryModal(true);
-                setIsOpen(false);
-              }}
-              className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+            {/* Categories List */}
+            <div
+              ref={listRef}
+              className="overflow-y-auto flex-1 p-1 max-h-[300px]"
             >
-              <Plus className="w-4 h-4" />
-              <span>New Category</span>
-            </button>
-          </div>
+              {displayGroups.map(({ parent, children }) => (
+                <div key={parent.id} className="mb-1">
+                  {/* Parent: selectable if standalone (no children), otherwise header-only */}
+                  {children.length === 0 ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSave(parent.id);
+                        setIsOpen(false);
+                      }}
+                      className={cn(
+                        "w-full flex items-center space-x-2 px-2 py-1 rounded-md text-left transition-colors",
+                        currentCategory === parent.id
+                          ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                          : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                      )}
+                    >
+                      <span className="text-sm">{parent.icon}</span>
+                      <span className="text-xs flex-1">{parent.name}</span>
+                      {currentCategory === parent.id && <Check className="w-3 h-3" />}
+                    </button>
+                  ) : (
+                    <div className="px-2 py-1.5 mt-2 first:mt-0 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-gray-800/50 rounded flex items-center gap-1">
+                      <span>{parent.icon}</span> {parent.name}
+                    </div>
+                  )}
+
+                  {/* Children */}
+                  {children.map(child => (
+                    <button
+                      key={child.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSave(child.id);
+                        setIsOpen(false);
+                      }}
+                      className={cn(
+                        "w-full flex items-center space-x-2 px-2 py-1 pl-8 rounded-md text-left transition-colors scroll-mt-1",
+                        currentCategory === child.id
+                          ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                          : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300",
+                        focusedIndex === flatList.findIndex(item => item.id === child.id) && "bg-gray-100 dark:bg-gray-700 ring-1 ring-blue-500/50"
+                      )}
+                      id={`category-item-${flatList.findIndex(item => item.id === child.id)}`}
+                    >
+                      <span className="text-sm">{child.icon}</span>
+                      <span className="text-xs flex-1">{child.name}</span>
+                      {currentCategory === child.id && <Check className="w-3 h-3" />}
+                    </button>
+                  ))}
+                </div>
+              ))}
+
+              {displayGroups.length === 0 && (
+                <div className="p-4 text-center text-gray-500 text-sm">
+                  No categories found
+                </div>
+              )}
+            </div>
+
+            {/* Footer: New Category */}
+            <div className="p-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-lg">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowNewCategoryModal(true);
+                  setIsOpen(false);
+                }}
+                className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Category</span>
+              </button>
+            </div>
           </div>
         </>,
         document.body

@@ -28,20 +28,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [calculatedEMI, setCalculatedEMI] = useState(0);
 
-  const handleAutoCalculateBalance = () => {
-    if (!formData.principalAmount || !formData.startDate || !formData.emiAmount) {
-      return;
-    }
 
-    const details = calculateAmortizationDetails(
-      formData.principalAmount,
-      formData.interestRate,
-      formData.emiAmount,
-      formData.startDate
-    );
-
-    setFormData(prev => ({ ...prev, currentBalance: Math.round(details.projectedBalance) }));
-  };
 
   useEffect(() => {
     if (liability) {

@@ -9,9 +9,7 @@ import {
   setDoc as firestoreSetDoc,
   query,
   where,
-  orderBy,
   limit,
-  startAfter,
   onSnapshot,
   writeBatch,
   serverTimestamp,
@@ -235,6 +233,35 @@ export class FirebaseService {
       return { transactions, nextCursor, hasMore };
     } catch (error) {
       console.error('Error getting transactions page:', error);
+      throw error;
+    }
+  }
+
+  static async getTransactionsByDateRange(
+    userId: string,
+    startDate: string,
+    endDate: string
+  ): Promise<Transaction[]> {
+    try {
+      // Note: This requires a composite index on [userId, date]
+      const q = query(
+        collection(db, this.COLLECTIONS.TRANSACTIONS),
+        where('userId', '==', userId),
+        where('date', '>=', startDate),
+        where('date', '<=', endDate)
+      );
+
+      const querySnapshot = await getDocs(q);
+      const transactions = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...(doc.data() as any)
+      })) as Transaction[];
+
+      return transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    } catch (error) {
+      console.error('Error getting transactions by range:', error);
+      // Fallback if index missing: fetch all (recent) and filter client side? 
+      // Better to throw so we know index is needed, but for better UX we could try a simpler fetch.
       throw error;
     }
   }
@@ -1525,7 +1552,7 @@ export class FirebaseService {
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
-        const data = docSnap.data();
+        const data = docSnap.data() as any;
         return data.categories || [];
       }
 

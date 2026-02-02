@@ -12,7 +12,7 @@ interface SuggestedRuleItem {
   keyword: string;
   count: number;
   suggestedCategoryId: string;
-  transactionType: 'expense' | 'income' | 'investment' | 'insurance' | 'unchanged';
+  transactionType: 'expense' | 'income' | 'investment' | 'insurance' | 'transfer' | 'unchanged';
   matchType: 'partial' | 'exact';
 }
 
@@ -238,11 +238,10 @@ const SuggestedRulesModal: React.FC<Props> = ({ isOpen, onClose }) => {
                           e.stopPropagation();
                           setSuggestions(prev => prev.map(x => x.keyword === s.keyword ? { ...x, matchType: 'partial' } : x));
                         }}
-                        className={`flex-1 px-3 py-2 rounded-lg border text-xs font-semibold transition-colors ${
-                          s.matchType === 'partial'
+                        className={`flex-1 px-3 py-2 rounded-lg border text-xs font-semibold transition-colors ${s.matchType === 'partial'
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
                             : 'border-slate-200 dark:border-[#3c4753] bg-slate-50 dark:bg-[#111418] text-slate-700 dark:text-white hover:border-primary'
-                        }`}
+                          }`}
                       >
                         Partial
                       </button>
@@ -252,11 +251,10 @@ const SuggestedRulesModal: React.FC<Props> = ({ isOpen, onClose }) => {
                           e.stopPropagation();
                           setSuggestions(prev => prev.map(x => x.keyword === s.keyword ? { ...x, matchType: 'exact' } : x));
                         }}
-                        className={`flex-1 px-3 py-2 rounded-lg border text-xs font-semibold transition-colors ${
-                          s.matchType === 'exact'
+                        className={`flex-1 px-3 py-2 rounded-lg border text-xs font-semibold transition-colors ${s.matchType === 'exact'
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
                             : 'border-slate-200 dark:border-[#3c4753] bg-slate-50 dark:bg-[#111418] text-slate-700 dark:text-white hover:border-primary'
-                        }`}
+                          }`}
                       >
                         Exact
                       </button>

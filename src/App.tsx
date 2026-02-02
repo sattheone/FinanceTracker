@@ -26,6 +26,7 @@ import Forecast from './pages/Forecast';
 import Settings from './pages/Settings';
 import Alerts from './pages/Alerts';
 import Categories from './pages/Categories';
+import ReloadPrompt from './components/ReloadPrompt';
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -98,6 +99,7 @@ function App() {
             <DebugProvider>
               <AppContent />
               <FirestoreUsageHud />
+              <ReloadPrompt />
             </DebugProvider>
           </DataProvider>
         </AuthProvider>

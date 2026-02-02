@@ -9,7 +9,7 @@ interface BankAccountStepProps {
   onPrevious?: () => void;
 }
 
-const BankAccountStep: React.FC<BankAccountStepProps> = ({ onNext }) => {
+const BankAccountStep: React.FC<BankAccountStepProps> = () => {
   const { bankAccounts, addBankAccount, updateBankAccount, deleteBankAccount, getAccountBalance } = useData();
   const [showForm, setShowForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);

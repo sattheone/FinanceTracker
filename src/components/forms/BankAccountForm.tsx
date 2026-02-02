@@ -5,6 +5,7 @@ import { Building2, Wallet, CreditCard } from 'lucide-react';
 
 interface BankAccountFormProps {
   account?: BankAccount;
+  currentBalance?: number;
   onSubmit: (accountData: Omit<BankAccount, 'id'>) => void;
   onCancel: () => void;
 }
@@ -30,6 +31,7 @@ const bankLogos = [
 
 const BankAccountForm: React.FC<BankAccountFormProps> = ({
   account,
+  currentBalance,
   onSubmit,
   onCancel,
 }) => {
@@ -46,6 +48,7 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
     bank: account?.bank || '',
     accountNumber: account?.number ? account.number.replace('xx', '') : '',
     initialBalance: account?.initialBalance || 0,
+    currentBalance: currentBalance ?? (account?.initialBalance || 0),
     logo: account?.logo || '🏦',
   });
 
@@ -55,9 +58,9 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
     const newErrors: Record<string, string> = {};
 
     if (!formData.bank.trim()) {
-      newErrors.bank = accountType === 'bank' ? 'Bank name is required' : 
-                       accountType === 'credit_card' ? 'Card name is required' : 
-                       'Account name is required';
+      newErrors.bank = accountType === 'bank' ? 'Bank name is required' :
+        accountType === 'credit_card' ? 'Card name is required' :
+          'Account name is required';
     }
 
     // Account number not required for cash
@@ -107,7 +110,7 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
   const handleAccountTypeChange = (type: AccountType) => {
     setAccountType(type);
     setIsCustomBank(false);
-    
+
     // Set default values based on account type
     if (type === 'cash') {
       setFormData(prev => ({
@@ -131,6 +134,26 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
     }
   };
 
+  // Handle current balance change
+  const handleCurrentBalanceChange = (newBalance: number) => {
+    // Calculate the difference between the old current balance and the new one
+    // But importantly, we need to know the 'transactions sum' essentially.
+    // transactionsSum = originalCurrentBalance - originalInitialBalance
+    // newInitialBalance = newCurrentBalance - transactionsSum
+
+    const originalCurrentBalance = currentBalance ?? (account?.initialBalance || 0);
+    const originalInitialBalance = account?.initialBalance || 0;
+    const transactionsSum = originalCurrentBalance - originalInitialBalance;
+
+    const newInitialBalance = newBalance - transactionsSum;
+
+    setFormData(prev => ({
+      ...prev,
+      currentBalance: newBalance,
+      initialBalance: newInitialBalance
+    }));
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Account Type Selection */}
@@ -146,11 +169,10 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
                 key={type.type}
                 type="button"
                 onClick={() => handleAccountTypeChange(type.type)}
-                className={`flex flex-col items-center p-4 border-2 rounded-lg transition-all ${
-                  accountType === type.type
+                className={`flex flex-col items-center p-4 border-2 rounded-lg transition-all ${accountType === type.type
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                     : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
-                }`}
+                  }`}
               >
                 <Icon className={`w-6 h-6 mb-2 ${accountType === type.type ? 'text-blue-600' : 'text-gray-500'}`} />
                 <span className="text-sm font-medium text-gray-900 dark:text-white">{type.name}</span>
@@ -268,26 +290,57 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
         </div>
       )}
 
-      {/* Initial Balance */}
-      <div>
-        <label className="form-label">
-          {accountType === 'credit_card' ? 'Initial Outstanding Balance' : 'Initial Balance'}
-        </label>
-        <input
-          type="number"
-          step="0.01"
-          value={formData.initialBalance === 0 ? '' : formData.initialBalance}
-          onChange={(e) => setFormData(prev => ({ ...prev, initialBalance: parseFloat(e.target.value) || 0 }))}
-          className="input-field theme-input"
-          placeholder="0.00"
-        />
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {accountType === 'credit_card' 
-            ? 'Enter your starting outstanding balance. Current balance will be calculated from transactions.' 
-            : accountType === 'cash'
-            ? 'Enter your starting cash amount. Current balance will be calculated from transactions.'
-            : 'Enter your starting account balance. Current balance will be calculated from transactions.'}
-        </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Current Balance - Only shown when editing and currentBalance prop is provided */}
+        {account && currentBalance !== undefined && (
+          <div>
+            <label className="form-label">
+              Current Balance
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              value={formData.currentBalance}
+              onChange={(e) => handleCurrentBalanceChange(parseFloat(e.target.value) || 0)}
+              className="input-field theme-input font-semibold text-blue-600 dark:text-blue-400"
+              placeholder="0.00"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Updating this will automatically adjust the initial balance.
+            </p>
+          </div>
+        )}
+
+        {/* Initial Balance */}
+        <div>
+          <label className="form-label">
+            {accountType === 'credit_card' ? 'Initial Outstanding Balance' : 'Initial Balance'}
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            value={formData.initialBalance === 0 ? '' : formData.initialBalance}
+            onChange={(e) => {
+              const val = parseFloat(e.target.value) || 0;
+              // If we are editing, we should probably check if we need to update current balance as well?
+              // The user might be correcting the initial balance.
+              // If initial balance changes by +X, current balance should also change by +X
+              if (account && currentBalance !== undefined) {
+                const diff = val - formData.initialBalance;
+                setFormData(prev => ({ ...prev, initialBalance: val, currentBalance: prev.currentBalance + diff }));
+              } else {
+                setFormData(prev => ({ ...prev, initialBalance: val }));
+              }
+            }}
+            className="input-field theme-input"
+            placeholder="0.00"
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {accountType === 'credit_card'
+              ? 'Starting outstanding balance'
+              : 'Starting account balance'}
+          </p>
+        </div>
       </div>
 
       {/* Form Actions */}

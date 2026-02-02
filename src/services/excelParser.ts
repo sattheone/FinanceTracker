@@ -47,8 +47,12 @@ export class ExcelParser {
   async parseExcelFile(file: File): Promise<ParsedTransaction[]> {
     try {
       console.log('Starting Excel file parsing for:', file.name);
+      console.log('Reading file buffer...');
       const buffer = await file.arrayBuffer();
+      console.log('Buffer read complete. Size:', buffer.byteLength);
+      console.log('Parsing workbook with XLSX...');
       const workbook = XLSX.read(buffer, { type: 'array' });
+      console.log('Workbook parsed. SheetNames:', workbook.SheetNames);
 
       // Get the first worksheet
       const sheetName = workbook.SheetNames[0];

@@ -5,9 +5,9 @@ import { CategoryRule } from '../types';
  * These rules match common transaction patterns and automatically categorize them
  * All rules use partial matching for flexibility
  */
-export const defaultCategoryRules: Omit<CategoryRule, 'id' | 'userId' | 'createdAt' | 'lastUsed'>[] = [
+export const defaultCategoryRules: Omit<CategoryRule, 'id' | 'createdAt' | 'lastUsed' | 'matchCount'>[] = [
   // ===== 🛡️ INSURANCE & INVESTMENTS =====
-  
+
   // Insurance (Inv)
   { name: 'LIC', categoryId: 'insurance_inv', transactionType: 'investment', matchType: 'partial', isActive: true },
   { name: 'HDFCLIFE', categoryId: 'insurance_inv', transactionType: 'investment', matchType: 'partial', isActive: true },
@@ -33,7 +33,7 @@ export const defaultCategoryRules: Omit<CategoryRule, 'id' | 'userId' | 'created
   { name: 'ICICIDIRECT', categoryId: 'stocks', transactionType: 'investment', matchType: 'partial', isActive: true },
 
   // ===== 🚗 TRANSPORTATION =====
-  
+
   // Fuel / Gas
   { name: 'PETROL', categoryId: 'fuel', transactionType: 'expense', matchType: 'partial', isActive: true },
   { name: 'DIESEL', categoryId: 'fuel', transactionType: 'expense', matchType: 'partial', isActive: true },
@@ -57,7 +57,7 @@ export const defaultCategoryRules: Omit<CategoryRule, 'id' | 'userId' | 'created
   { name: 'FASTAG', categoryId: 'tolls', transactionType: 'expense', matchType: 'partial', isActive: true },
 
   // ===== 🍽️ FOOD & DINING =====
-  
+
   // Food Delivery
   { name: 'SWIGGY', categoryId: 'delivery', transactionType: 'expense', matchType: 'partial', isActive: true },
   { name: 'ZOMATO', categoryId: 'delivery', transactionType: 'expense', matchType: 'partial', isActive: true },
@@ -82,7 +82,7 @@ export const defaultCategoryRules: Omit<CategoryRule, 'id' | 'userId' | 'created
   { name: 'STARBUCKS', categoryId: 'restaurants', transactionType: 'expense', matchType: 'partial', isActive: true },
 
   // ===== 💡 UTILITIES & BILLS =====
-  
+
   // Electricity
   { name: 'BESCOM', categoryId: 'electricity', transactionType: 'expense', matchType: 'partial', isActive: true },
   { name: 'TNEB', categoryId: 'electricity', transactionType: 'expense', matchType: 'partial', isActive: true },
@@ -110,7 +110,7 @@ export const defaultCategoryRules: Omit<CategoryRule, 'id' | 'userId' | 'created
   { name: 'BHARAT GAS', categoryId: 'gas', transactionType: 'expense', matchType: 'partial', isActive: true },
 
   // ===== 🎬 ENTERTAINMENT =====
-  
+
   // Streaming
   { name: 'NETFLIX', categoryId: 'streaming', transactionType: 'expense', matchType: 'partial', isActive: true },
   { name: 'PRIME VIDEO', categoryId: 'streaming', transactionType: 'expense', matchType: 'partial', isActive: true },
@@ -132,7 +132,7 @@ export const defaultCategoryRules: Omit<CategoryRule, 'id' | 'userId' | 'created
   { name: 'XBOX', categoryId: 'games', transactionType: 'expense', matchType: 'partial', isActive: true },
 
   // ===== 🛍️ SHOPPING =====
-  
+
   // Shopping (General)
   { name: 'AMAZON', categoryId: 'shopping', transactionType: 'expense', matchType: 'partial', isActive: true },
   { name: 'FLIPKART', categoryId: 'shopping', transactionType: 'expense', matchType: 'partial', isActive: true },
@@ -146,7 +146,7 @@ export const defaultCategoryRules: Omit<CategoryRule, 'id' | 'userId' | 'created
   { name: 'ZUDIO', categoryId: 'clothing', transactionType: 'expense', matchType: 'partial', isActive: true },
 
   // ===== 🏥 HEALTHCARE =====
-  
+
   // Medicine / Pharmacy
   { name: 'PHARMACY', categoryId: 'pharmacy', transactionType: 'expense', matchType: 'partial', isActive: true },
   { name: 'MEDPLUS', categoryId: 'pharmacy', transactionType: 'expense', matchType: 'partial', isActive: true },
@@ -164,7 +164,7 @@ export const defaultCategoryRules: Omit<CategoryRule, 'id' | 'userId' | 'created
   { name: 'GYM', categoryId: 'fitness', transactionType: 'expense', matchType: 'partial', isActive: true },
 
   // ===== 🎓 EDUCATION =====
-  
+
   // Education
   { name: 'BYJU', categoryId: 'education', transactionType: 'expense', matchType: 'partial', isActive: true },
   { name: 'UNACADEMY', categoryId: 'education', transactionType: 'expense', matchType: 'partial', isActive: true },
@@ -177,7 +177,7 @@ export const defaultCategoryRules: Omit<CategoryRule, 'id' | 'userId' | 'created
   { name: 'COLLEGE', categoryId: 'tuition', transactionType: 'expense', matchType: 'partial', isActive: true },
 
   // ===== 💰 INCOME =====
-  
+
   // Salary
   { name: 'SALARY', categoryId: 'salary', transactionType: 'income', matchType: 'partial', isActive: true },
   { name: 'PAYROLL', categoryId: 'salary', transactionType: 'income', matchType: 'partial', isActive: true },
@@ -189,7 +189,7 @@ export const defaultCategoryRules: Omit<CategoryRule, 'id' | 'userId' | 'created
   { name: 'CASHBACK', categoryId: 'other_income', transactionType: 'income', matchType: 'partial', isActive: true },
 
   // ===== ↔️ TRANSFERS =====
-  
+
   // Transfer (Active)
   { name: 'ATM WITHDRAWAL', categoryId: 'transfer', transactionType: 'transfer', matchType: 'partial', isActive: true },
   { name: 'CASH WITHDRAWAL', categoryId: 'transfer', transactionType: 'transfer', matchType: 'partial', isActive: true },

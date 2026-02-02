@@ -10,7 +10,7 @@ import SidePanel from '../components/common/SidePanel';
 import CategoryForm, { CategoryFormHandle } from '../components/categories/CategoryForm';
 
 const Categories: React.FC = () => {
-    const { categories, transactions, monthlyBudget, bankAccounts, addCategory } = useData();
+    const { categories, transactions, monthlyBudget, bankAccounts, addCategory, loadTransactionsForPeriod, loadInitialTransactions, isDataLoaded } = useData();
     const theme = useThemeClasses();
     const [searchParams] = useSearchParams();
 
@@ -38,6 +38,11 @@ const Categories: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showFilters]);
 
+    // Initial load of transactions if page is accessed directly
+    useEffect(() => {
+        loadInitialTransactions();
+    }, []);
+
     // Read view mode from URL
     useEffect(() => {
         const view = searchParams.get('view');
@@ -45,6 +50,44 @@ const Categories: React.FC = () => {
             setViewMode(view as any);
         }
     }, [searchParams]);
+
+    // Ensure we have data for the selected view
+    useEffect(() => {
+        if (!isDataLoaded) return; // Wait for initial load
+
+        const now = new Date();
+        const year = now.getFullYear();
+        let start: Date, end: Date;
+
+        if (viewMode === 'month') {
+            // For month view, we actually still prefer to see year trends in the chart, so let's load the whole year
+            // But strictly speaking, if user wants speed, we might just load month
+            // However, "Category Overview" charts often show "Spent in J F M A..." (12 months)
+            // So we should load the Current Year
+            start = new Date(year, 0, 1);
+            end = new Date(year, 11, 31, 23, 59, 59);
+        } else if (viewMode === 'year') {
+            start = new Date(year, 0, 1);
+            end = new Date(year, 11, 31, 23, 59, 59);
+        } else if (viewMode === 'prevYear') {
+            start = new Date(year - 1, 0, 1);
+            end = new Date(year - 1, 11, 31, 23, 59, 59);
+        } else {
+            return;
+        }
+
+        const startStr = start.toISOString();
+        const endStr = end.toISOString();
+
+        // Use a small timeout to avoid blocking main thread immediately on mount
+        const timer = setTimeout(() => {
+            // We can access loadTransactionsForPeriod from context
+            // Note: add this to destructuring above first
+            loadTransactionsForPeriod(startStr, endStr);
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [viewMode, isDataLoaded]);
 
     // Filter transactions by account first
     const filteredTransactions = useMemo(() => {
@@ -136,7 +179,7 @@ const Categories: React.FC = () => {
                         <h1 className={cn(theme.textPrimary, "text-xl font-bold")}>
                             Categories
                         </h1>
-                        
+
                         {/* Header Actions: Filter + Add */}
                         <div className="flex items-center gap-2">
                             <div className="relative" ref={filterRef}>
@@ -159,103 +202,103 @@ const Categories: React.FC = () => {
 
                                 {/* Popover Content */}
                                 {showFilters && (
-                                    <div className="fixed mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-[100]" 
-                                         style={{ 
-                                             top: filterRef.current?.getBoundingClientRect().bottom ?? 0,
-                                             left: Math.max(16, (filterRef.current?.getBoundingClientRect().right ?? 0) - 288)
-                                         }}>
-                                    <div className="p-3 space-y-3">
-                                        {/* Account Filter */}
-                                        <div>
-                                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-1.5">
-                                                <Building2 className="w-3.5 h-3.5" />
-                                                <span>Account</span>
+                                    <div className="fixed mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-[100]"
+                                        style={{
+                                            top: filterRef.current?.getBoundingClientRect().bottom ?? 0,
+                                            left: Math.max(16, (filterRef.current?.getBoundingClientRect().right ?? 0) - 288)
+                                        }}>
+                                        <div className="p-3 space-y-3">
+                                            {/* Account Filter */}
+                                            <div>
+                                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-1.5">
+                                                    <Building2 className="w-3.5 h-3.5" />
+                                                    <span>Account</span>
+                                                </div>
+                                                <div className="relative">
+                                                    <select
+                                                        value={selectedAccountId}
+                                                        onChange={(e) => setSelectedAccountId(e.target.value)}
+                                                        className="w-full appearance-none bg-gray-100 dark:bg-gray-700 text-xs font-medium text-gray-800 dark:text-gray-200 pl-2 pr-6 py-1.5 rounded-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 truncate"
+                                                    >
+                                                        <option value="all">All Accounts</option>
+                                                        {bankAccounts.map(account => {
+                                                            const last4 = account.number?.slice(-4);
+                                                            const displayName = last4 ? `${account.bank} ••${last4}` : account.bank;
+                                                            return (
+                                                                <option key={account.id} value={account.id}>
+                                                                    {account.logo} {displayName}
+                                                                </option>
+                                                            );
+                                                        })}
+                                                    </select>
+                                                    <ChevronDown className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                                </div>
                                             </div>
-                                            <div className="relative">
-                                                <select
-                                                    value={selectedAccountId}
-                                                    onChange={(e) => setSelectedAccountId(e.target.value)}
-                                                    className="w-full appearance-none bg-gray-100 dark:bg-gray-700 text-xs font-medium text-gray-800 dark:text-gray-200 pl-2 pr-6 py-1.5 rounded-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 truncate"
+
+                                            {/* Investment Toggle */}
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                    <TrendingUp className="w-3.5 h-3.5" />
+                                                    <span>Include Investments</span>
+                                                </div>
+                                                <button
+                                                    onClick={() => setIncludeInvestments(!includeInvestments)}
+                                                    className={cn(
+                                                        "relative w-9 h-5 rounded-full transition-colors",
+                                                        includeInvestments
+                                                            ? "bg-purple-600"
+                                                            : "bg-gray-300 dark:bg-gray-600"
+                                                    )}
                                                 >
-                                                    <option value="all">All Accounts</option>
-                                                    {bankAccounts.map(account => {
-                                                        const last4 = account.number?.slice(-4);
-                                                        const displayName = last4 ? `${account.bank} ••${last4}` : account.bank;
-                                                        return (
-                                                            <option key={account.id} value={account.id}>
-                                                                {account.logo} {displayName}
-                                                            </option>
-                                                        );
-                                                    })}
-                                                </select>
-                                                <ChevronDown className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                                    <span
+                                                        className={cn(
+                                                            "absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
+                                                            includeInvestments && "translate-x-4"
+                                                        )}
+                                                    />
+                                                </button>
                                             </div>
-                                        </div>
 
-                                        {/* Investment Toggle */}
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                                <TrendingUp className="w-3.5 h-3.5" />
-                                                <span>Include Investments</span>
-                                            </div>
-                                            <button
-                                                onClick={() => setIncludeInvestments(!includeInvestments)}
-                                                className={cn(
-                                                    "relative w-9 h-5 rounded-full transition-colors",
-                                                    includeInvestments
-                                                        ? "bg-purple-600"
-                                                        : "bg-gray-300 dark:bg-gray-600"
-                                                )}
-                                            >
-                                                <span
+                                            {/* Transfer Toggle */}
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                    <List className="w-3.5 h-3.5" />
+                                                    <span>Include Transfer</span>
+                                                </div>
+                                                <button
+                                                    onClick={() => setIncludeTransfer(!includeTransfer)}
                                                     className={cn(
-                                                        "absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
-                                                        includeInvestments && "translate-x-4"
+                                                        "relative w-9 h-5 rounded-full transition-colors",
+                                                        includeTransfer
+                                                            ? "bg-blue-600"
+                                                            : "bg-gray-300 dark:bg-gray-600"
                                                     )}
-                                                />
-                                            </button>
-                                        </div>
-
-                                        {/* Transfer Toggle */}
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                                <List className="w-3.5 h-3.5" />
-                                                <span>Include Transfer</span>
+                                                >
+                                                    <span
+                                                        className={cn(
+                                                            "absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
+                                                            includeTransfer && "translate-x-4"
+                                                        )}
+                                                    />
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={() => setIncludeTransfer(!includeTransfer)}
-                                                className={cn(
-                                                    "relative w-9 h-5 rounded-full transition-colors",
-                                                    includeTransfer
-                                                        ? "bg-blue-600"
-                                                        : "bg-gray-300 dark:bg-gray-600"
-                                                )}
-                                            >
-                                                <span
-                                                    className={cn(
-                                                        "absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
-                                                        includeTransfer && "translate-x-4"
-                                                    )}
-                                                />
-                                            </button>
                                         </div>
-                                    </div>
 
-                                    {/* Clear Filters Footer */}
-                                    {activeFilterCount > 0 && (
-                                        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700">
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedAccountId('all');
-                                                    setIncludeInvestments(false);
-                                                    setIncludeTransfer(false);
-                                                }}
-                                                className="w-full text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium"
-                                            >
-                                                Clear all filters
-                                            </button>
-                                        </div>
-                                    )}
+                                        {/* Clear Filters Footer */}
+                                        {activeFilterCount > 0 && (
+                                            <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedAccountId('all');
+                                                        setIncludeInvestments(false);
+                                                        setIncludeTransfer(false);
+                                                    }}
+                                                    className="w-full text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium"
+                                                >
+                                                    Clear all filters
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -373,11 +416,12 @@ const Categories: React.FC = () => {
                         selectedCategoryId={selectedCategoryId}
                         onSelectCategory={handleCategorySelect}
                         spendingByCategory={expenseSpending}
-                        investmentSpending={includeInvestments ? investmentSpending : undefined}
+                        investmentSpending={investmentSpending}
                         monthlyBudget={monthlyBudget}
                         displayMode={categoryDisplayMode}
                         viewMode={viewMode}
                         includeTransfer={includeTransfer}
+                        includeInvestments={includeInvestments}
                     />
                 </div>
 

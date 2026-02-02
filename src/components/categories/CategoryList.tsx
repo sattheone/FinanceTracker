@@ -15,6 +15,7 @@ interface CategoryListProps {
     displayMode?: 'flat' | 'grouped';
     viewMode?: 'month' | 'year' | 'prevYear';
     includeTransfer?: boolean;
+    includeInvestments?: boolean;
 }
 
 const CategoryList: React.FC<CategoryListProps> = ({
@@ -26,7 +27,8 @@ const CategoryList: React.FC<CategoryListProps> = ({
     monthlyBudget,
     displayMode = 'flat',
     viewMode = 'month',
-    includeTransfer = false
+    includeTransfer = false,
+    includeInvestments = false
 }) => {
     const theme = useThemeClasses();
 
@@ -97,8 +99,8 @@ const CategoryList: React.FC<CategoryListProps> = ({
                 : (spendingByCategory[parent.id] || 0);
             return { parent, children, total };
         })
-        // Include parents that either have children or are standalone roots present in active
-        .filter(g => g.children.length > 0 || activeIds.has(g.parent.id));
+            // Include parents that either have children or are standalone roots present in active
+            .filter(g => g.children.length > 0 || activeIds.has(g.parent.id));
 
         // Sort groups by total spend desc
         groups.sort((a, b) => b.total - a.total);
@@ -112,14 +114,21 @@ const CategoryList: React.FC<CategoryListProps> = ({
 
     // In flat view, show active categories along with system categories inline
     const flatCategories = useMemo(() => {
-        const combined = [...groupedCategories.active, ...groupedCategories.system];
+        // Identify all categories that act as parents
+        const parentIds = new Set(categories.map(c => c.parentId).filter(Boolean));
+
+        const combined = [...groupedCategories.active, ...groupedCategories.system]
+            // Filter out categories that are parents (groups) unless they are system categories or strictly have no children in the context
+            // Actually, simply: if it is a parent to someone, hide it in flat view.
+            .filter(c => !parentIds.has(c.id));
+
         combined.sort((a, b) => {
             const spendA = spendingByCategory[a.id] || 0;
             const spendB = spendingByCategory[b.id] || 0;
             return spendB - spendA;
         });
         return combined;
-    }, [groupedCategories.active, groupedCategories.system, spendingByCategory]);
+    }, [groupedCategories.active, groupedCategories.system, spendingByCategory, categories]);
 
     // Render a single category item
     const renderCategoryItem = (category: Category, isInvestment = false) => {
@@ -204,7 +213,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
     return (
         <div className={cn('p-2', theme.bgPrimary)}>
             <div className="space-y-4">
-                {groupedCategories.investments.length > 0 && (
+                {includeInvestments && groupedCategories.investments.length > 0 && (
                     <section>
                         <div className="flex items-center justify-between mb-2 px-2">
                             <h3 className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">

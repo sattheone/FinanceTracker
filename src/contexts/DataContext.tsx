@@ -166,6 +166,9 @@ interface DataContextType {
   loadSIPRules: () => Promise<void>;
   loadMonthlyBudget: () => Promise<void>;
   loadInitialTransactions: () => Promise<void>;
+
+  // Explicitly fetch transactions for a specific period (e.g., for reports/dashboard)
+  loadTransactionsForPeriod: (startDate: string, endDate: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -415,8 +418,22 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setBankAccounts(bankAccountsData);
       setCategoryRules(categoryRulesData);
 
-      // Don't load transactions on initial login - they'll be loaded by Transactions page
-      setTransactions([]);
+      // Load transactions from local storage (cache) first
+      try {
+        const cachedTransactions = localStorage.getItem('transactions');
+        if (cachedTransactions) {
+          const parsed = JSON.parse(cachedTransactions);
+          console.log(`[DataContext] Loaded ${parsed.length} transactions from local cache`);
+          setTransactions(parsed);
+          // We don't verify hasMore/cursor from cache usually, or we can save it.
+          // For now, let's assume if we have cache, we still might want to fetch fresh "page 1".
+        } else {
+          setTransactions([]);
+        }
+      } catch (e) {
+        console.error('Error parsing cached transactions', e);
+        setTransactions([]);
+      }
       setTransactionsCursor(null);
       setHasMoreTransactions(false);
 
@@ -528,14 +545,38 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   const loadInitialTransactions = async () => {
-    if (!user || transactions.length > 0) return; // Already loaded
+    if (!user) return;
     try {
       console.log(`[DataContext] Lazy loading initial transactions`);
+      // Always fetch fresh data for page 1 to ensure sync
       const initialPage = await FirebaseService.getTransactionsPage(user.id, {
         pageSize: 50
       });
 
-      setTransactions(initialPage.transactions);
+      setTransactions(prev => {
+        // Merge strategy:
+        // 1. Create Map of new items
+        // 2. Override existing items with new ones (updates)
+        // 3. Keep existing items that are NOT in the new batch (assuming they are older or not in this page)
+        // But since we are fetching "Page 1" (most recent), we should prepend/merge carefully.
+
+        // Actually, easiest way for Page 1 is: 
+        // Take new items, add any existing items that are OLDER than the new items.
+        // But if we have a gap, it is risky. 
+        // Safer: Just dedup by ID.
+
+        const newMap = new Map(initialPage.transactions.map(t => [t.id, t]));
+        const merged = [...initialPage.transactions];
+
+        prev.forEach(t => {
+          if (!newMap.has(t.id)) {
+            merged.push(t);
+          }
+        });
+
+        // Final Sort
+        return merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      });
       setTransactionsCursor(initialPage.nextCursor ?? null);
       setHasMoreTransactions(initialPage.hasMore);
       console.log(`[DataContext] Loaded ${initialPage.transactions.length} transactions`);
@@ -573,6 +614,40 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setHasMoreTransactions(page.hasMore);
     } finally {
       setIsLoadingMoreTransactions(false);
+    }
+  };
+
+  const loadTransactionsForPeriod = async (startDate: string, endDate: string) => {
+    if (!user) return;
+    try {
+      console.log(`[DataContext] Loading transactions for period: ${startDate} to ${endDate}`);
+      const periodTransactions = await FirebaseService.getTransactionsByDateRange(user.id, startDate, endDate);
+
+      if (periodTransactions.length > 0) {
+        setTransactions(prev => {
+          const seen = new Set(prev.map(t => t.id));
+          const merged = [...prev];
+          let addedCount = 0;
+
+          for (const transaction of periodTransactions) {
+            if (!seen.has(transaction.id)) {
+              merged.push(transaction);
+              seen.add(transaction.id);
+              addedCount++;
+            }
+          }
+
+          // Keep sorted
+          if (addedCount > 0) {
+            merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            console.log(`[DataContext] Added ${addedCount} new transactions from period fetch`);
+            return merged;
+          }
+          return prev;
+        });
+      }
+    } catch (error) {
+      console.error('[DataContext] Error loading detailed period transactions:', error);
     }
   };
 
@@ -838,10 +913,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         const accountUpdates = bankAccounts
           .filter(account => accountsToUpdate.has(account.id))
           .map(account => {
-            const accountTransactions = mergedTransactions.filter(t => t.bankAccountId === account.id);
-            const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
-              return sum + (t.type === 'income' ? t.amount : -t.amount);
-            }, 0);
+
+
 
             let initialBalance = account.initialBalance ?? 0;
 
@@ -853,7 +926,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
               initialBalance -= netImported;
             }
 
-            const newBalance = initialBalance + totalTransactionAmount;
+
 
             return {
               id: account.id,
@@ -1443,6 +1516,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         id: Math.random().toString(36).substr(2, 9),
         userId: user.id,
         createdAt: new Date().toISOString(),
+        matchCount: 0,
       }));
 
       // Use bulk add for efficiency and consistency
@@ -1577,6 +1651,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     loadSIPRules,
     loadMonthlyBudget,
     loadInitialTransactions,
+    loadTransactionsForPeriod,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

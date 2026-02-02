@@ -76,7 +76,31 @@ const Transactions: React.FC = () => {
     loadInitialTransactions();
   }, []);
 
+
   const formRef = useRef<SimpleTransactionFormHandle>(null);
+  const observerTarget = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMoreTransactions && !isLoadingMoreTransactions) {
+          loadMoreTransactions();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [hasMoreTransactions, isLoadingMoreTransactions, loadMoreTransactions]);
+
 
   const navigate = useNavigate();
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; transaction: Transaction } | null>(null);
@@ -1891,17 +1915,23 @@ const Transactions: React.FC = () => {
                       />
 
                       {hasMoreTransactions && (
-                        <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex justify-center">
-                          <button
-                            type="button"
-                            onClick={loadMoreTransactions}
-                            disabled={isLoadingMoreTransactions}
-                            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isLoadingMoreTransactions ? 'Loading…' : 'Load more'}
-                          </button>
+                        <div
+                          ref={observerTarget}
+                          className="py-6 flex justify-center items-center"
+                        >
+                          {isLoadingMoreTransactions ? (
+                            <div className="flex flex-col items-center">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                              <span className="mt-2 text-xs text-gray-500">Loading more transactions...</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">Scroll to load more</span>
+                          )}
                         </div>
                       )}
+
+                      {/* Spacer to prevent content from being hidden behind floating action bar */}
+                      {selectedTransactions.size > 0 && <div className="h-20" />}
                     </>
                   )}
                 </div>
@@ -2111,6 +2141,7 @@ const Transactions: React.FC = () => {
       >
         <BankAccountForm
           account={editingBankAccount || undefined}
+          currentBalance={editingBankAccount ? getAccountBalance(editingBankAccount.id) : undefined}
           onSubmit={handleBankAccountSubmit}
           onCancel={handleBankAccountCancel}
         />

@@ -187,14 +187,14 @@ class AlertService {
             // Alert if balance is less than 10% of average monthly expenses
             const threshold = averageMonthlyExpense * 0.1;
 
-            if (account.balance < threshold && account.balance > 0) {
+            if ((account.balance || 0) < threshold && (account.balance || 0) > 0) {
                 alerts.push({
                     id: `low-balance-${account.id}`,
                     type: 'low_balance',
                     severity: 'warning',
                     title: `Low Balance: ${account.bank}`,
-                    message: `Your ${account.bank} account balance (₹${account.balance.toLocaleString()}) is running low`,
-                    amount: account.balance,
+                    message: `Your ${account.bank} account balance (₹${(account.balance || 0).toLocaleString()}) is running low`,
+                    amount: account.balance || 0,
                     relatedId: account.id,
                     createdAt: new Date().toISOString(),
                     isRead: false,
