@@ -27,6 +27,7 @@ import Settings from './pages/Settings';
 import Alerts from './pages/Alerts';
 import Categories from './pages/Categories';
 import ReloadPrompt from './components/ReloadPrompt';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -100,6 +101,7 @@ function App() {
               <AppContent />
               <FirestoreUsageHud />
               <ReloadPrompt />
+              <PWAInstallPrompt />
             </DebugProvider>
           </DataProvider>
         </AuthProvider>
