@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Calendar, Clock, CheckCircle, ArrowRight, Trash2, Edit3, Repeat } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { RecurringTransaction } from '../types';
@@ -8,8 +8,12 @@ import RecurringSetupModal from '../components/transactions/RecurringSetupModal'
 import InlineCategoryEditor from '../components/transactions/InlineCategoryEditor';
 
 const RecurringTransactions: React.FC = () => {
-  const { recurringTransactions, transactions, updateRecurringTransaction, deleteRecurringTransaction } = useData();
+  const { recurringTransactions, transactions, updateRecurringTransaction, deleteRecurringTransaction, loadRecurringTransactions } = useData();
   const theme = useThemeClasses();
+
+  useEffect(() => {
+    loadRecurringTransactions();
+  }, []);
   const [viewMode, setViewMode] = useState<'overview' | 'all'>('overview');
   const [showForm, setShowForm] = useState(false);
   const [editingRecurring, setEditingRecurring] = useState<RecurringTransaction | null>(null);

@@ -611,6 +611,19 @@ const Assets: React.FC = () => {
 
                     const hasLiveData = livePriceData && (asset.category === 'stocks' || asset.category === 'mutual_funds');
 
+                    // Calculate FD maturity amount
+                    let fdMaturityAmount = 0;
+                    if (asset.category === 'fixed_deposit' && (asset as any).principalAmount && (asset as any).interestRate) {
+                      const principal = (asset as any).principalAmount;
+                      const rate = (asset as any).interestRate / 100;
+                      const startDate = asset.purchaseDate ? new Date(asset.purchaseDate) : new Date();
+                      const maturityDate = (asset as any).maturityDate ? new Date((asset as any).maturityDate) : new Date();
+                      const years = (maturityDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+                      
+                      // Simple interest calculation (can be changed to compound if needed)
+                      fdMaturityAmount = principal * (1 + rate * years);
+                    }
+
                     return (
                       <div key={asset.id} className="group relative flex flex-col overflow-hidden rounded-xl bg-white dark:bg-gray-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-slate-900/5 dark:ring-gray-700 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
                         {/* Header Section */}
@@ -659,65 +672,152 @@ const Assets: React.FC = () => {
                           </div>
 
                           <div className="text-right">
-                            {/* Live Price if available, else Market Price from asset */}
-                            <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                              {formatCurrency((hasLiveData ? (livePriceData.price || livePriceData.nav) : (asset as any).marketPrice) || 0)}
-                            </p>
-                            {hasLiveData && livePriceData.changePercent !== undefined && (
-                              <div className={cn(
-                                "flex items-center justify-end gap-1 text-xs font-medium",
-                                livePriceData.changePercent >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                              )}>
-                                {livePriceData.changePercent >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingUp className="w-3 h-3 rotate-180" />}
-                                <span>{Math.abs(livePriceData.changePercent).toFixed(2)}%</span>
-                              </div>
+                            {/* For FDs show maturity amount, for stocks/MF show live price */}
+                            {asset.category === 'fixed_deposit' ? (
+                              <>
+                                <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                                  {formatCurrency(fdMaturityAmount)}
+                                </p>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">Maturity Amount</span>
+                              </>
+                            ) : asset.category === 'mutual_funds' && !(asset as any).quantity ? (
+                              // For MF without quantity, don't show NAV/price
+                              <></>
+                            ) : (
+                              <>
+                                <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                                  {formatCurrency((hasLiveData ? (livePriceData.price || livePriceData.nav) : (asset as any).marketPrice) || 0)}
+                                </p>
+                                {hasLiveData && livePriceData.changePercent !== undefined && (
+                                  <div className={cn(
+                                    "flex items-center justify-end gap-1 text-xs font-medium",
+                                    livePriceData.changePercent >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                                  )}>
+                                    {livePriceData.changePercent >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingUp className="w-3 h-3 rotate-180" />}
+                                    <span>{Math.abs(livePriceData.changePercent).toFixed(2)}%</span>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
 
                         {/* Metrics Grid */}
                         <div className="p-5 pb-2">
-                          <div className="grid grid-cols-2 gap-x-8 gap-y-6">
-                            {/* Invested Value */}
-                            <div className="flex flex-col gap-1">
-                              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Invested Value</span>
-                              <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
-                                {asset.purchaseValue ? formatCurrency(asset.purchaseValue) : '-'}
-                              </p>
-                            </div>
+                          {asset.category === 'fixed_deposit' ? (
+                            // Fixed Deposit specific metrics
+                            <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                              {/* Principal Amount */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Principal Amount</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {formatCurrency((asset as any).principalAmount || asset.purchaseValue || 0)}
+                                </p>
+                              </div>
 
-                            {/* Current Value */}
-                            <div className="flex flex-col gap-1">
-                              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Current Value</span>
-                              <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
-                                {formatCurrency(asset.currentValue)}
-                              </p>
-                            </div>
+                              {/* Interest Rate */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Interest Rate</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {(asset as any).interestRate ? `${(asset as any).interestRate}%` : '-'}
+                                </p>
+                              </div>
 
-                            {/* Quantity */}
-                            <div className="flex flex-col gap-1">
-                              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Quantity</span>
-                              <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
-                                {(asset as any).quantity || '-'}
-                              </p>
-                            </div>
+                              {/* Start Date */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Start Date</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {asset.purchaseDate ? new Date(asset.purchaseDate).toLocaleDateString() : '-'}
+                                </p>
+                              </div>
 
-                            {/* Average Price */}
-                            <div className="flex flex-col gap-1">
-                              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Avg. Price</span>
-                              <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
-                                {(asset as any).averagePrice
-                                  ? formatCurrency((asset as any).averagePrice)
-                                  : asset.purchaseValue && (asset as any).quantity
-                                    ? formatCurrency(asset.purchaseValue / (asset as any).quantity)
-                                    : '-'}
-                              </p>
+                              {/* Maturity Date */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Maturity Date</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {(asset as any).maturityDate ? new Date((asset as any).maturityDate).toLocaleDateString() : '-'}
+                                </p>
+                              </div>
                             </div>
-                          </div>
+                          ) : asset.category === 'epf' ? (
+                            // EPF specific metrics
+                            <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                              {/* Current Balance */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Current Balance</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {formatCurrency(asset.currentValue)}
+                                </p>
+                              </div>
+
+                              {/* Monthly Contribution */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Monthly Contribution</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {(asset as any).sipAmount ? formatCurrency((asset as any).sipAmount) : '-'}
+                                </p>
+                              </div>
+
+                              {/* Contribution Date */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Contribution Date</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {(asset as any).sipDate ? `${(asset as any).sipDate} of every month` : '-'}
+                                </p>
+                              </div>
+
+                              {/* Start Date */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Start Date</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {asset.purchaseDate ? new Date(asset.purchaseDate).toLocaleDateString() : '-'}
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            // Stocks/MF metrics
+                            <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                              {/* Invested Value */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Invested Value</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {asset.purchaseValue ? formatCurrency(asset.purchaseValue) : '-'}
+                                </p>
+                              </div>
+
+                              {/* Current Value */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Current Value</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {formatCurrency(asset.currentValue)}
+                                </p>
+                              </div>
+
+                              {/* Quantity */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Quantity</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {(asset as any).quantity || '-'}
+                                </p>
+                              </div>
+
+                              {/* Average Price */}
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Avg. Price</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {(asset as any).averagePrice
+                                    ? formatCurrency((asset as any).averagePrice)
+                                    : asset.purchaseValue && (asset as any).quantity
+                                      ? formatCurrency(asset.purchaseValue / (asset as any).quantity)
+                                      : '-'}
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
-                        {/* Total Returns Section (Styled with visual flair) */}
-                        {asset.purchaseValue && (
+                        {/* Total Returns Section (Styled with visual flair) - Hide for FDs and EPF as returns are 0 */}
+                        {asset.purchaseValue && asset.category !== 'fixed_deposit' && asset.category !== 'epf' && (
                           <div className="mx-5 mb-5 mt-4 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 p-4 relative overflow-hidden">
                             {/* Background blob effect */}
                             <div className={cn(

@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Liability } from '../../types';
-import { formatCurrency } from '../../utils/formatters';
-import { calculateAmortizationDetails } from '../../utils/loanCalculations';
 
 interface LiabilityFormProps {
   liability?: Liability;
@@ -9,33 +7,38 @@ interface LiabilityFormProps {
   onCancel: () => void;
 }
 
-const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCancel }) => {
+const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCancel: _onCancel }) => {
   const [formData, setFormData] = useState({
     name: '',
     type: 'home_loan' as Liability['type'],
     principalAmount: 0,
     currentBalance: 0,
     interestRate: 0,
-    emiAmount: 0,
-    numberOfDues: 0,
     startDate: '',
+    tenureMonths: 0,
+    emiAmount: 0,
     endDate: '',
     bankName: '',
     accountNumber: '',
     description: '',
+    markPastDuesAsPaid: false,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [calculatedEMI, setCalculatedEMI] = useState(0);
+  const [manuallyEditedFields, setManuallyEditedFields] = useState<Set<string>>(new Set());
 
 
 
   useEffect(() => {
     if (liability) {
-      // Calculate number of dues from start and end date
+      // Calculate tenure from start and end date using accurate month difference
       const startDate = new Date(liability.startDate);
       const endDate = new Date(liability.endDate);
-      const monthsDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
+      
+      // Calculate month difference more accurately
+      const yearDiff = endDate.getFullYear() - startDate.getFullYear();
+      const monthDiff = endDate.getMonth() - startDate.getMonth();
+      const monthsDiff = yearDiff * 12 + monthDiff;
 
       setFormData({
         name: liability.name,
@@ -43,14 +46,18 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         principalAmount: liability.principalAmount,
         currentBalance: liability.currentBalance,
         interestRate: liability.interestRate,
-        emiAmount: liability.emiAmount,
-        numberOfDues: monthsDiff,
         startDate: liability.startDate,
+        tenureMonths: monthsDiff,
+        emiAmount: liability.emiAmount,
         endDate: liability.endDate,
-        bankName: liability.bankName,
+        bankName: liability.bankName || '',
         accountNumber: liability.accountNumber || '',
         description: liability.description || '',
+        markPastDuesAsPaid: false,
       });
+      
+      // Reset manual edit flags when loading existing liability
+      setManuallyEditedFields(new Set());
     } else {
       // Reset form for new liability
       setFormData({
@@ -59,29 +66,26 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
         principalAmount: 0,
         currentBalance: 0,
         interestRate: 0,
-        emiAmount: 0,
-        numberOfDues: 0,
         startDate: '',
+        tenureMonths: 0,
+        emiAmount: 0,
         endDate: '',
         bankName: '',
         accountNumber: '',
         description: '',
+        markPastDuesAsPaid: false,
       });
     }
   }, [liability]);
 
   // Calculate EMI using the standard formula
   const calculateEMI = () => {
-    if (!formData.principalAmount || !formData.startDate || !formData.endDate) {
+    if (!formData.principalAmount || !formData.tenureMonths || formData.tenureMonths <= 0) {
       return 0;
     }
 
     const principal = formData.principalAmount;
-    const startDate = new Date(formData.startDate);
-    const endDate = new Date(formData.endDate);
-    const tenureMonths = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
-
-    if (tenureMonths <= 0) return 0;
+    const tenureMonths = formData.tenureMonths;
 
     // If interest rate is 0, simple division
     if (formData.interestRate === 0) {
@@ -96,76 +100,77 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
     return Math.ceil(emi);
   };
 
-  useEffect(() => {
-    setCalculatedEMI(calculateEMI());
-  }, [formData.principalAmount, formData.interestRate, formData.startDate, formData.endDate]);
-
-  // Auto-calculate end date when numberOfDues or startDate changes (manual input only)
-  const handleNumberOfDuesChange = (value: number) => {
-    handleChange('numberOfDues', value);
-
-    if (value > 0 && formData.startDate) {
-      const startDate = new Date(formData.startDate);
-      const endDate = new Date(startDate);
-      endDate.setMonth(endDate.getMonth() + value);
-      const calculatedEndDate = endDate.toISOString().split('T')[0];
-
-      setFormData(prev => ({ ...prev, endDate: calculatedEndDate, numberOfDues: value }));
+  // Calculate end date from start date + tenure
+  const calculateEndDate = () => {
+    if (!formData.startDate || !formData.tenureMonths || formData.tenureMonths <= 0) {
+      return '';
     }
+
+    const startDate = new Date(formData.startDate);
+    if (isNaN(startDate.getTime())) {
+      return '';
+    }
+    
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + formData.tenureMonths);
+    
+    if (isNaN(endDate.getTime())) {
+      return '';
+    }
+    
+    // Format date properly to avoid invalid date strings
+    const year = endDate.getFullYear();
+    const month = String(endDate.getMonth() + 1).padStart(2, '0');
+    const day = String(endDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
-  // Auto-calculate current balance when loan details change
+  // Auto-fill EMI when inputs change (only if not manually edited)
   useEffect(() => {
-    // Only auto-calculate if:
-    // 1. We have all necessary data
-    // 2. The current balance is exactly equal to principal (meaning user hasn't likely updated it yet)
-    // 3. The start date is in the past
-    if (
-      formData.principalAmount > 0 &&
-      formData.startDate &&
-      formData.emiAmount > 0 &&
-      formData.currentBalance === formData.principalAmount
-    ) {
-      const startDate = new Date(formData.startDate);
-
-      // If start date is at least 1 month in the past
-      const oneMonthAgo = new Date();
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-
-      if (startDate < oneMonthAgo) {
-        const details = calculateAmortizationDetails(
-          formData.principalAmount,
-          formData.interestRate,
-          formData.emiAmount,
-          formData.startDate
-        );
-
-        // Only update if the calculated balance is different and valid
-        if (details.projectedBalance < formData.principalAmount && details.projectedBalance >= 0) {
-          console.log('Auto-calculating current balance based on past start date');
-          setFormData(prev => ({
-            ...prev,
-            currentBalance: Math.round(details.projectedBalance)
-          }));
-        }
+    if (!manuallyEditedFields.has('emiAmount')) {
+      const calculatedEMI = calculateEMI();
+      if (calculatedEMI > 0) {
+        setFormData(prev => ({ ...prev, emiAmount: calculatedEMI }));
+      } else if (formData.emiAmount > 0 && calculatedEMI === 0) {
+        // Clear EMI if inputs are cleared
+        setFormData(prev => ({ ...prev, emiAmount: 0 }));
       }
     }
-  }, [formData.principalAmount, formData.startDate, formData.emiAmount, formData.interestRate]);
+  }, [formData.principalAmount, formData.interestRate, formData.tenureMonths, manuallyEditedFields]);
 
-  // Auto-calculate numberOfDues when endDate changes (manual input only)
-  const handleEndDateChange = (value: string) => {
-    handleChange('endDate', value);
-
-    if (formData.startDate && value) {
-      const startDate = new Date(formData.startDate);
-      const endDate = new Date(value);
-      const monthsDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
-
-      if (monthsDiff > 0) {
-        setFormData(prev => ({ ...prev, numberOfDues: monthsDiff, endDate: value }));
-      }
+  // Auto-update end date when start date or tenure changes
+  useEffect(() => {
+    const calculatedEndDate = calculateEndDate();
+    if (calculatedEndDate) {
+      setFormData(prev => ({ ...prev, endDate: calculatedEndDate }));
+    } else if (formData.endDate && !calculatedEndDate) {
+      // Clear end date if start date or tenure is cleared
+      setFormData(prev => ({ ...prev, endDate: '' }));
     }
+  }, [formData.startDate, formData.tenureMonths]);
+
+  // When tenure changes by user, clear the manual EMI flag so it recalculates
+  const handleTenureChange = (newTenure: number) => {
+    setManuallyEditedFields(prev => {
+      const updated = new Set(prev);
+      updated.delete('emiAmount'); // Allow EMI to recalculate
+      return updated;
+    });
+    setFormData(prev => ({ ...prev, tenureMonths: newTenure }));
   };
+
+  // When EMI is manually changed, just update the value without recalculating tenure
+  const handleEMIChange = (newEMI: number) => {
+    setManuallyEditedFields(prev => new Set(prev).add('emiAmount'));
+    setFormData(prev => ({ ...prev, emiAmount: newEMI }));
+  };
+
+  // Auto-fill current balance only when checkbox is used
+  useEffect(() => {
+    if (formData.markPastDuesAsPaid && formData.principalAmount > 0) {
+      setFormData(prev => ({ ...prev, currentBalance: formData.principalAmount }));
+    }
+  }, [formData.markPastDuesAsPaid, formData.principalAmount]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -182,24 +187,20 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
       newErrors.interestRate = 'Interest rate must be between 0% and 50%';
     }
 
-    if (formData.emiAmount <= 0) {
-      newErrors.emiAmount = 'EMI amount must be greater than 0';
-    }
-
     if (!formData.startDate) {
       newErrors.startDate = 'Start date is required';
     }
 
+    if (formData.tenureMonths <= 0) {
+      newErrors.tenureMonths = 'Tenure must be greater than 0';
+    }
+
+    if (formData.emiAmount <= 0) {
+      newErrors.emiAmount = 'EMI amount must be greater than 0';
+    }
+
     if (!formData.endDate) {
       newErrors.endDate = 'End date is required';
-    }
-
-    if (formData.endDate && formData.startDate && new Date(formData.endDate) <= new Date(formData.startDate)) {
-      newErrors.endDate = 'End date must be after start date';
-    }
-
-    if (!formData.bankName.trim()) {
-      newErrors.bankName = 'Bank/Lender name is required';
     }
 
     setErrors(newErrors);
@@ -217,15 +218,16 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
       name: formData.name.trim(),
       type: formData.type,
       principalAmount: formData.principalAmount,
-      currentBalance: formData.principalAmount, // Set to principal amount initially, will be calculated from transactions
+      currentBalance: formData.currentBalance,
       interestRate: formData.interestRate,
       emiAmount: formData.emiAmount,
       startDate: formData.startDate,
       endDate: formData.endDate,
-      bankName: formData.bankName.trim(),
+      bankName: formData.bankName.trim() || 'Not specified',
       accountNumber: formData.accountNumber.trim() || undefined,
       description: formData.description.trim() || undefined,
-    });
+      markPastDuesAsPaid: formData.markPastDuesAsPaid,
+    } as any);
   };
 
   const handleChange = (field: string, value: any) => {
@@ -236,36 +238,13 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
     }
   };
 
-  const useSuggestedEMI = () => {
-    setFormData(prev => ({ ...prev, emiAmount: calculatedEMI }));
-  };
-
-  const calculateRemainingTenure = () => {
-    if (formData.emiAmount <= 0 || formData.principalAmount <= 0) {
-      return 0;
-    }
-
-    // If interest rate is 0, simple division
-    if (formData.interestRate === 0) {
-      return Math.ceil(formData.principalAmount / formData.emiAmount);
-    }
-
-    const monthlyRate = formData.interestRate / 100 / 12;
-    const balance = formData.principalAmount;
-    const emi = formData.emiAmount;
-
-    // Calculate remaining months using loan balance formula
-    const remainingMonths = Math.log(1 + (balance * monthlyRate) / emi) / Math.log(1 + monthlyRate);
-    return Math.ceil(remainingMonths);
-  };
-
-  const remainingMonths = calculateRemainingTenure();
-  const remainingYears = Math.floor(remainingMonths / 12);
-  const remainingMonthsOnly = remainingMonths % 12;
+  const remainingYears = Math.floor(formData.tenureMonths / 12);
+  const remainingMonthsOnly = formData.tenureMonths % 12;
 
   return (
     <form id="liability-form" onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Name */}
         <div className="md:col-span-2">
           <label className="form-label">
             Liability Name *
@@ -275,14 +254,15 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
             value={formData.name}
             onChange={(e) => handleChange('name', e.target.value)}
             className={`input-field theme-input ${errors.name ? 'border-red-500 dark:border-red-400' : ''}`}
-            placeholder="e.g., Home Loan - HDFC, Car Loan - SBI"
+            placeholder="e.g., Home Loan, Car Loan, Personal Loan"
           />
           {errors.name && <p className="form-error">{errors.name}</p>}
         </div>
 
+        {/* Principal Amount */}
         <div>
           <label className="form-label">
-            Principal Amount *
+            Total Amount (Principal) *
           </label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
@@ -300,15 +280,16 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
           {errors.principalAmount && <p className="text-red-500 text-sm mt-1">{errors.principalAmount}</p>}
         </div>
 
+        {/* Interest Rate */}
         <div>
           <label className="form-label">
-            Interest Rate (Annual)
+            Interest Rate (Annual) *
           </label>
           <div className="relative">
             <input
               type="number"
-              value={formData.interestRate || ''}
-              onChange={(e) => handleChange('interestRate', Number(e.target.value))}
+              value={formData.interestRate ?? ''}
+              onChange={(e) => handleChange('interestRate', e.target.value === '' ? '' : Number(e.target.value))}
               className={`input-field pr-8 theme-input ${errors.interestRate ? 'border-red-500' : ''}`}
               placeholder="8.5"
               min="0"
@@ -321,40 +302,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
           {errors.interestRate && <p className="text-red-500 text-sm mt-1">{errors.interestRate}</p>}
         </div>
 
-        <div>
-          <label className="form-label">
-            Monthly EMI *
-          </label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
-            <input
-              type="number"
-              value={formData.emiAmount || ''}
-              onChange={(e) => handleChange('emiAmount', Number(e.target.value))}
-              className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 ${errors.emiAmount ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-500'}`}
-              placeholder="0"
-              min="0"
-              step="0.01"
-            />
-          </div>
-          {errors.emiAmount && <p className="text-red-500 text-sm mt-1">{errors.emiAmount}</p>}
-
-          {calculatedEMI > 0 && Math.abs(calculatedEMI - formData.emiAmount) > 1 && (
-            <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-sm">
-              <span className="text-blue-700 dark:text-blue-300">
-                Suggested EMI (based on dates): {formatCurrency(calculatedEMI)}
-              </span>
-              <button
-                type="button"
-                onClick={useSuggestedEMI}
-                className="ml-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 underline"
-              >
-                Use this
-              </button>
-            </div>
-          )}
-        </div>
-
+        {/* Start Date */}
         <div>
           <label className="form-label">
             Loan Start Date *
@@ -369,53 +317,84 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
           {errors.startDate && <p className="text-red-500 text-sm mt-1">{errors.startDate}</p>}
         </div>
 
+        {/* Tenure */}
         <div>
           <label className="form-label">
-            Number of Dues (Months)
+            Tenure (Months) *
           </label>
           <input
             type="number"
-            value={formData.numberOfDues || ''}
-            onChange={(e) => handleNumberOfDuesChange(Number(e.target.value))}
-            className="input-field theme-input"
+            value={formData.tenureMonths || ''}
+            onChange={(e) => handleTenureChange(Number(e.target.value))}
+            className={`input-field theme-input ${errors.tenureMonths ? 'border-red-500' : ''}`}
             placeholder="0"
-            min="0"
+            min="1"
             step="1"
           />
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total number of monthly installments</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Total loan duration in months
+            {formData.tenureMonths > 0 && (
+              <span className="ml-1 font-medium text-gray-700 dark:text-gray-300">
+                ({remainingYears > 0 && `${remainingYears} ${remainingYears === 1 ? 'year' : 'years'} `}
+                {remainingMonthsOnly > 0 && `${remainingMonthsOnly} ${remainingMonthsOnly === 1 ? 'month' : 'months'}`})
+                {remainingMonthsOnly > 0 && `${remainingMonthsOnly} ${remainingMonthsOnly === 1 ? 'month' : 'months'}`})
+              </span>
+            )}
+          </p>
+          {errors.tenureMonths && <p className="text-red-500 text-sm mt-1">{errors.tenureMonths}</p>}
         </div>
 
+        {/* End Date */}
         <div>
           <label className="form-label">
-            Loan End Date *
+            Loan End Date
           </label>
           <input
             type="date"
             value={formData.endDate}
-            onChange={(e) => handleEndDateChange(e.target.value)}
+            onChange={(e) => handleChange('endDate', e.target.value)}
             className={`input-field theme-input ${errors.endDate ? 'border-red-500' : ''}`}
-            min={formData.startDate}
           />
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            When the loan will be fully repaid
-          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Auto-calculated from start date + tenure</p>
           {errors.endDate && <p className="text-red-500 text-sm mt-1">{errors.endDate}</p>}
         </div>
 
+        {/* Monthly EMI */}
         <div>
           <label className="form-label">
-            Bank/Lender Name *
+            Monthly EMI
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
+            <input
+              type="number"
+              value={formData.emiAmount || ''}
+              onChange={(e) => handleEMIChange(Number(e.target.value))}
+              className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 ${errors.emiAmount ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-500'}`}
+              placeholder="0"
+              min="0"
+              step="0.01"
+            />
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Auto-calculated from principal, interest rate, and tenure</p>
+          {errors.emiAmount && <p className="text-red-500 text-sm mt-1">{errors.emiAmount}</p>}
+        </div>
+
+        {/* Bank Name */}
+        <div>
+          <label className="form-label">
+            Bank/Lender Name (Optional)
           </label>
           <input
             type="text"
             value={formData.bankName}
             onChange={(e) => handleChange('bankName', e.target.value)}
-            className={`input-field theme-input ${errors.bankName ? 'border-red-500' : ''}`}
+            className="input-field theme-input"
             placeholder="e.g., HDFC Bank, SBI, ICICI Bank"
           />
-          {errors.bankName && <p className="text-red-500 text-sm mt-1">{errors.bankName}</p>}
         </div>
 
+        {/* Account Number */}
         <div>
           <label className="form-label">
             Account Number (Optional)
@@ -429,6 +408,7 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
           />
         </div>
 
+        {/* Description */}
         <div className="md:col-span-2">
           <label className="form-label">
             Description (Optional)
@@ -441,52 +421,26 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
             placeholder="Additional notes about this liability..."
           />
         </div>
-      </div>
 
-      {/* Liability Summary */}
-      {formData.principalAmount > 0 && formData.emiAmount > 0 && (
-        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-          <h4 className="font-medium text-gray-900 dark:text-white mb-3">Liability Summary</h4>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-            <div>
-              <span className="text-gray-600 dark:text-gray-300">Principal Amount:</span>
-              <p className="font-medium text-blue-600 dark:text-blue-400">
-                {formatCurrency(formData.principalAmount)}
+        {/* Mark Past Dues as Paid */}
+        <div className="md:col-span-2">
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={formData.markPastDuesAsPaid}
+              onChange={(e) => handleChange('markPastDuesAsPaid', e.target.checked)}
+              className="mt-1 w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-500 rounded focus:ring-blue-500 dark:focus:ring-blue-400 focus:ring-2"
+            />
+            <div className="flex-1">
+              <span className="text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                Mark past dues as paid
+              </span>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Automatically mark all installments before today as paid. This will calculate the remaining balance based on paid installments.
               </p>
             </div>
-            <div>
-              <span className="text-gray-600 dark:text-gray-300">Monthly EMI:</span>
-              <p className="font-medium text-orange-600 dark:text-orange-400">
-                {formatCurrency(formData.emiAmount)}
-              </p>
-            </div>
-            {remainingMonths > 0 && (
-              <div>
-                <span className="text-gray-600 dark:text-gray-300">Total Tenure:</span>
-                <p className="font-medium text-gray-900 dark:text-white">
-                  {remainingYears > 0 && `${remainingYears}y `}
-                  {remainingMonthsOnly}m
-                </p>
-              </div>
-            )}
-          </div>
+          </label>
         </div>
-      )}
-
-      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-600">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="btn-secondary"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="btn-primary"
-        >
-          {liability ? 'Update Liability' : 'Add Liability'}
-        </button>
       </div>
     </form>
   );

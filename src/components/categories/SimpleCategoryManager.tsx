@@ -136,7 +136,7 @@ const SimpleCategoryManager: React.FC = () => {
           const transactionsToUpdate = transactions.filter(t => t.category === categoryId);
           // Update transactions sequentially to avoid race conditions if any
           for (const t of transactionsToUpdate) {
-            await updateTransaction(t.id, { ...t, category: 'other' });
+            await updateTransaction(t.id, { category: 'other' });
           }
         }
 

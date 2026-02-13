@@ -3,20 +3,13 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DataProvider } from './contexts/DataContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { DebugProvider } from './contexts/DebugContext';
 import AuthPage from './components/auth/AuthPage';
 import OnboardingWizard from './components/onboarding/OnboardingWizard';
 import Layout from './components/Layout';
-import FirestoreUsageHud from './components/debug/FirestoreUsageHud';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import Calendar from './pages/Calendar';
 import RecurringTransactions from './pages/RecurringTransactions';
-
-// Import test utility for development
-if (import.meta.env.DEV) {
-  import('./utils/testDuplicateDetection');
-}
 import Assets from './pages/Assets';
 import Goals from './pages/Goals';
 import Insurance from './pages/Insurance';
@@ -28,6 +21,7 @@ import Alerts from './pages/Alerts';
 import Categories from './pages/Categories';
 import ReloadPrompt from './components/ReloadPrompt';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
+import FirestoreUsageHud from './components/debug/FirestoreUsageHud';
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -97,12 +91,10 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <DataProvider>
-            <DebugProvider>
-              <AppContent />
-              <FirestoreUsageHud />
-              <ReloadPrompt />
-              <PWAInstallPrompt />
-            </DebugProvider>
+            <AppContent />
+            <FirestoreUsageHud />
+            <ReloadPrompt />
+            <PWAInstallPrompt />
           </DataProvider>
         </AuthProvider>
       </ThemeProvider>

@@ -27,12 +27,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import SimpleCategoryManager from '../components/categories/SimpleCategoryManager';
 import CategoryMigration from '../components/settings/CategoryMigration';
 import CategoryRules from '../components/settings/CategoryRules';
-import SimpleEmailSettings from '../components/settings/SimpleEmailSettings';
-import EmailDiagnostics from '../components/settings/EmailDiagnostics';
 import GmailImportSettings from '../components/settings/GmailImportSettings';
 import DuplicateDetectionSettings from '../components/settings/DuplicateDetectionSettings';
 import DataDeletionSettings from '../components/settings/DataDeletionSettings';
-import { CategoryConfigInit } from '../components/admin/CategoryConfigInit';
+import CategorySummaryMigration from '../components/settings/CategorySummaryMigration';
 
 const CategoriesWithMigration: React.FC = () => {
   return (
@@ -56,7 +54,7 @@ const CategoriesWithMigration: React.FC = () => {
 
 const Settings: React.FC = () => {
   const { user, deleteAccount } = useAuth();
-  const { userProfile, bankAccounts, getAccountBalance } = useData();
+  const { userProfile, bankAccounts, getAccountBalance, updateUserProfile } = useData();
   const { theme, setTheme } = useTheme();
 
 
@@ -91,6 +89,7 @@ const Settings: React.FC = () => {
     theme: theme,
     language: 'english',
     dashboardLayout: 'default',
+    defaultTimePeriod: userProfile?.displayPreferences?.defaultTimePeriod || 'current',
 
     // Security
     twoFactorAuth: false,
@@ -99,6 +98,11 @@ const Settings: React.FC = () => {
     // Dashboard preferences
     dashboardAccounts: bankAccounts.map(acc => acc.id), // Array of account IDs to include in dashboard
   });
+
+  React.useEffect(() => {
+    const pref = userProfile?.displayPreferences?.defaultTimePeriod || 'current';
+    setSettings(prev => ({ ...prev, defaultTimePeriod: pref }));
+  }, [userProfile?.displayPreferences?.defaultTimePeriod]);
 
 
 
@@ -114,7 +118,6 @@ const Settings: React.FC = () => {
     { id: 'display', label: 'Display & Interface', icon: Palette },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'data', label: 'Data & Privacy', icon: Download },
-    { id: 'developer', label: 'Developer Tools', icon: SettingsIcon },
   ];
 
   const handleSettingChange = (key: string, value: any) => {
@@ -123,6 +126,14 @@ const Settings: React.FC = () => {
     // Handle theme change
     if (key === 'theme') {
       setTheme(value);
+    }
+
+    if (key === 'defaultTimePeriod') {
+      updateUserProfile({
+        displayPreferences: {
+          defaultTimePeriod: value
+        }
+      });
     }
 
   };
@@ -406,11 +417,12 @@ Type "DELETE" to confirm:`;
 
   const renderNotificationSettings = () => (
     <div className="space-y-6">
-      {/* SendGrid Email Settings */}
-      <SimpleEmailSettings />
-
-      {/* Email Configuration Diagnostics */}
-      <EmailDiagnostics />
+      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white">Notifications</h3>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+          Email notifications are temporarily disabled while the email system is being cleaned up.
+        </p>
+      </div>
     </div>
   );
 
@@ -461,6 +473,21 @@ Type "DELETE" to confirm:`;
             <option value="compact">Compact</option>
             <option value="detailed">Detailed</option>
           </select>
+        </div>
+
+        <div>
+          <label className="form-label">Default Time Period</label>
+          <select
+            value={settings.defaultTimePeriod}
+            onChange={(e) => handleSettingChange('defaultTimePeriod', e.target.value)}
+            className="input-field theme-input border-gray-300 dark:border-gray-500"
+          >
+            <option value="current">Current Month</option>
+            <option value="previous">Previous Month</option>
+          </select>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Used across dashboard, categories, and transactions by default.
+          </p>
         </div>
       </div>
 
@@ -567,6 +594,9 @@ Type "DELETE" to confirm:`;
           </button>
         </div>
 
+        {/* Category Summary Migration */}
+        <CategorySummaryMigration />
+
         {/* Data Deletion Options */}
         <DataDeletionSettings />
 
@@ -598,7 +628,6 @@ Type "DELETE" to confirm:`;
       case 'display': return renderDisplaySettings();
       case 'security': return renderSecuritySettings();
       case 'data': return renderDataSettings();
-      case 'developer': return <CategoryConfigInit />;
       default: return renderProfileSettings();
     }
   };

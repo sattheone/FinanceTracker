@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retirement Corpus Calculator - India</title>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #1a472a;
+            --primary-light: #2d5f42;
+            --accent: #d4af37;
+            --bg-main: #faf8f3;
+            --bg-card: #ffffff;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --border: #e0ddd5;
+            --success: #2d5f42;
+            --warning: #d97706;
+            --danger: #dc2626;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg-main);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 20% 80%, rgba(212, 175, 55, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(26, 71, 42, 0.05) 0%, transparent 50%);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 3rem 0 2rem;
+            position: relative;
+        }
+
+        h1 {
+            font-family: 'Crimson Pro', serif;
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .credit {
+            margin-top: 1rem;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+
+        .credit a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            border-bottom: 2px solid var(--accent);
+            transition: all 0.3s ease;
+        }
+
+        .credit a:hover {
+            color: var(--accent);
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 968px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            h1 {
+                font-size: 2.5rem;
+            }
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02), 0 1px 3px rgba(0, 0, 0, 0.04);
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.05), 0 4px 6px rgba(0, 0, 0, 0.03);
+        }
+
+        .card h2 {
+            font-family: 'Crimson Pro', serif;
+            font-size: 1.75rem;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--accent);
+        }
+
+        .form-group {
+            margin-bottom: 1.75rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+
+        .label-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+            margin-top: 0.25rem;
+        }
+
+        input[type="number"],
+        input[type="range"],
+        select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: var(--bg-main);
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: white;
+        }
+
+        input[type="range"] {
+            padding: 0;
+            background: transparent;
+            height: 2.5rem;
+        }
+
+        input[type="range"]::-webkit-slider-track {
+            background: var(--border);
+            height: 6px;
+            border-radius: 3px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            margin-top: -7px;
+            border: 3px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        input[type="range"]::-moz-range-track {
+            background: var(--border);
+            height: 6px;
+            border-radius: 3px;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            border: 3px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .slider-value {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .slider-value span {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .results-grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .result-item {
+            background: linear-gradient(135deg, var(--bg-main) 0%, white 100%);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .result-item:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .result-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .result-value {
+            font-family: 'Crimson Pro', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .result-value.large {
+            font-size: 2.5rem;
+        }
+
+        .result-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        .bucket-strategy {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, rgba(26, 71, 42, 0.05) 0%, rgba(212, 175, 55, 0.05) 100%);
+            border-radius: 12px;
+            border: 2px solid var(--accent);
+        }
+
+        .bucket-strategy h3 {
+            font-family: 'Crimson Pro', serif;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+
+        .bucket {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            border-left: 4px solid var(--primary);
+        }
+
+        .bucket-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .bucket-name {
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .bucket-amount {
+            font-family: 'Crimson Pro', serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .bucket-details {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .alert {
+            padding: 1.25rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid;
+        }
+
+        .alert-info {
+            background: rgba(26, 71, 42, 0.05);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .alert-warning {
+            background: rgba(217, 119, 6, 0.05);
+            border-color: var(--warning);
+            color: #92400e;
+        }
+
+        .alert-danger {
+            background: rgba(220, 38, 38, 0.05);
+            border-color: var(--danger);
+            color: #991b1b;
+        }
+
+        .assumptions {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .assumptions h3 {
+            font-family: 'Crimson Pro', serif;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .assumptions ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .assumptions li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        .assumptions li:last-child {
+            border-bottom: none;
+        }
+
+        .assumptions strong {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin-top: 1rem;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            font-size: 0.9rem;
+        }
+
+        thead {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+        }
+
+        thead th {
+            padding: 1rem 0.75rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background 0.2s ease;
+        }
+
+        tbody tr:hover {
+            background: var(--bg-main);
+        }
+
+        tbody tr:nth-child(5n) {
+            background: rgba(26, 71, 42, 0.02);
+        }
+
+        tbody tr:nth-child(5n):hover {
+            background: rgba(26, 71, 42, 0.05);
+        }
+
+        tbody td {
+            padding: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        tbody td:first-child {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .positive {
+            color: var(--success);
+        }
+
+        .negative {
+            color: var(--danger);
+        }
+
+        .bucket-tag {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: var(--primary);
+            color: white;
+        }
+
+        .table-summary {
+            padding: 1rem;
+            background: linear-gradient(135deg, rgba(26, 71, 42, 0.05) 0%, rgba(212, 175, 55, 0.05) 100%);
+            border-top: 2px solid var(--accent);
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        footer {
+            margin-top: 3rem;
+            padding: 2rem 0;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            border-top: 2px solid var(--border);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .result-item {
+            animation: fadeIn 0.5s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Retirement Corpus Calculator</h1>
+            <p class="subtitle">Can You Retire at 40 with ₹1 Crore in India?</p>
+            <p class="credit">Based on methodology by <a href="https://freefincal.com" target="_blank" rel="noopener">Freefincal</a></p>
+        </header>
+
+        <div class="main-grid">
+            <div class="card">
+                <h2>Your Details</h2>
+                
+                <div class="form-group">
+                    <label>
+                        Current Age
+                        <div class="label-subtitle">How old are you now?</div>
+                    </label>
+                    <input type="number" id="currentAge" value="35" min="25" max="60">
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Retirement Age
+                        <div class="label-subtitle">When do you want to retire?</div>
+                    </label>
+                    <input type="number" id="retirementAge" value="40" min="40" max="70">
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Current Corpus (₹)
+                        <div class="label-subtitle">Current retirement savings</div>
+                    </label>
+                    <input type="number" id="currentCorpus" value="5000000" min="0" step="100000">
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Monthly Savings (₹)
+                        <div class="label-subtitle">Amount you save/invest every month</div>
+                    </label>
+                    <input type="number" id="monthlySavings" value="50000" min="0" step="5000">
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Annual Savings Growth (%)
+                        <div class="label-subtitle">How much your monthly savings increase each year</div>
+                    </label>
+                    <input type="range" id="savingsGrowth" value="10" min="0" max="20" step="1">
+                    <div class="slider-value">
+                        <span id="savingsGrowthValue">10% per year</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Pre-Retirement Return (%)
+                        <div class="label-subtitle">Expected return during accumulation phase</div>
+                    </label>
+                    <input type="range" id="preRetirementReturn" value="12" min="8" max="15" step="0.5">
+                    <div class="slider-value">
+                        <span id="preRetirementReturnValue">12% per year</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Life Expectancy (Years)
+                        <div class="label-subtitle">Conservative estimate recommended</div>
+                    </label>
+                    <input type="range" id="lifeExpectancy" value="85" min="75" max="95">
+                    <div class="slider-value">
+                        <span id="lifeExpectancyValue">85 years</span>
+                        <span id="retirementYears">45 years in retirement</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Family Status
+                        <div class="label-subtitle">Affects corpus requirement significantly</div>
+                    </label>
+                    <select id="familyStatus">
+                        <option value="single">Single/Unmarried</option>
+                        <option value="married">Married (no kids)</option>
+                        <option value="married-kids">Married with kids</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Monthly Expenses (₹)
+                        <div class="label-subtitle">Current monthly living expenses</div>
+                    </label>
+                    <input type="number" id="monthlyExpense" value="40000" min="10000" step="5000">
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Annual One-time Expenses (₹)
+                        <div class="label-subtitle">Health insurance, maintenance, etc.</div>
+                    </label>
+                    <input type="number" id="annualExpense" value="60000" min="0" step="10000">
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Assumptions</h2>
+                
+                <div class="form-group">
+                    <label>
+                        Inflation Rate (%)
+                        <div class="label-subtitle">Annual expense increase - use 7-8%</div>
+                    </label>
+                    <input type="range" id="inflationRate" value="7" min="4" max="10" step="0.5">
+                    <div class="slider-value">
+                        <span id="inflationValue">7% per year</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Equity Return (%)
+                        <div class="label-subtitle">Post-tax return from equity</div>
+                    </label>
+                    <input type="range" id="equityReturn" value="10" min="8" max="12" step="0.5">
+                    <div class="slider-value">
+                        <span id="equityValue">10% per year</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        Debt/Fixed Income Return (%)
+                        <div class="label-subtitle">Post-tax return from debt instruments</div>
+                    </label>
+                    <input type="range" id="debtReturn" value="6" min="4" max="8" step="0.5">
+                    <div class="slider-value">
+                        <span id="debtValue">6% per year</span>
+                    </div>
+                </div>
+
+                <div class="assumptions">
+                    <h3>Key Principles</h3>
+                    <ul>
+                        <li><strong>Conservative Approach:</strong> Freefincal recommends zero real return assumption (inflation = return) for safety</li>
+                        <li><strong>Equity Allocation:</strong> Max 30-35% equity for retirees to manage sequence of returns risk</li>
+                        <li><strong>Bucket Strategy:</strong> Divide corpus into buckets with different risk profiles and time horizons</li>
+                        <li><strong>Income Buffer:</strong> Ensure 15 years of inflation-protected income with fixed income</li>
+                        <li><strong>Passive Income:</strong> Additional income sources strongly recommended even after "retirement"</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" id="resultsCard">
+            <h2>Retirement Corpus Analysis</h2>
+            
+            <div id="assessmentAlert" class="alert alert-info"></div>
+
+            <div class="results-grid" id="resultsGrid"></div>
+
+            <div class="bucket-strategy" id="bucketStrategy"></div>
+        </div>
+
+        <div class="card" id="accumulationCard">
+            <h2>Accumulation Phase (Before Retirement)</h2>
+            <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                How your corpus will grow from now until retirement with regular savings:
+            </p>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Year</th>
+                            <th>Age</th>
+                            <th>Monthly Savings</th>
+                            <th>Annual Contribution</th>
+                            <th>Corpus Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody id="accumulationTable"></tbody>
+                </table>
+                <div class="table-summary" id="accumulationSummary"></div>
+            </div>
+        </div>
+
+        <div class="card" id="tableCard">
+            <h2>Withdrawal Phase (During Retirement)</h2>
+            <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                How your corpus will be utilized over your retirement years with the Freefincal strategy:
+            </p>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Year</th>
+                            <th>Age</th>
+                            <th>Annual Expense</th>
+                            <th>Equity → Debt Shift</th>
+                            <th>Debt Balance</th>
+                            <th>Equity Balance</th>
+                            <th>Total Corpus</th>
+                        </tr>
+                    </thead>
+                    <tbody id="yearTable"></tbody>
+                </table>
+                <div class="table-summary" id="tableSummary"></div>
+            </div>
+        </div>
+
+        <footer>
+            <p>This calculator is based on the retirement planning methodology from <strong>Freefincal</strong>.</p>
+            <p style="margin-top: 0.5rem; font-size: 0.85rem;">
+                Disclaimer: This is an educational tool. Consult a SEBI registered fee-only financial planner for personalized retirement planning advice.
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        function formatCurrency(amount) {
+            if (amount >= 10000000) {
+                return `₹${(amount / 10000000).toFixed(2)} Cr`;
+            } else if (amount >= 100000) {
+                return `₹${(amount / 100000).toFixed(2)} L`;
+            } else {
+                return `₹${amount.toLocaleString('en-IN')}`;
+            }
+        }
+
+        function calculateRetirement() {
+            const currentAge = parseInt(document.getElementById('currentAge').value);
+            const retirementAge = parseInt(document.getElementById('retirementAge').value);
+            const lifeExpectancy = parseInt(document.getElementById('lifeExpectancy').value);
+            const monthlyExpense = parseFloat(document.getElementById('monthlyExpense').value);
+            const annualExpense = parseFloat(document.getElementById('annualExpense').value);
+            const startingCorpus = parseFloat(document.getElementById('currentCorpus').value);
+            const monthlySavings = parseFloat(document.getElementById('monthlySavings').value);
+            const savingsGrowth = parseFloat(document.getElementById('savingsGrowth').value);
+            const preRetirementReturn = parseFloat(document.getElementById('preRetirementReturn').value);
+            const inflationRate = parseFloat(document.getElementById('inflationRate').value);
+            const equityReturn = parseFloat(document.getElementById('equityReturn').value);
+            const debtReturn = parseFloat(document.getElementById('debtReturn').value);
+            const familyStatus = document.getElementById('familyStatus').value;
+
+            // ACCUMULATION PHASE: Calculate corpus at retirement
+            const yearsToRetirement = retirementAge - currentAge;
+            let accumulationData = [];
+            let currentSavingsCorpus = startingCorpus;
+            let currentMonthlySavings = monthlySavings;
+            
+            for (let year = 1; year <= yearsToRetirement; year++) {
+                // Add monthly savings for the year (with growth)
+                const annualContribution = currentMonthlySavings * 12;
+                
+                // Apply return on existing corpus
+                currentSavingsCorpus = currentSavingsCorpus * (1 + preRetirementReturn / 100);
+                
+                // Add this year's contributions (simplified: added at year end)
+                currentSavingsCorpus += annualContribution;
+                
+                accumulationData.push({
+                    year,
+                    age: currentAge + year - 1,
+                    monthlyContribution: currentMonthlySavings,
+                    annualContribution: annualContribution,
+                    corpusBalance: currentSavingsCorpus
+                });
+                
+                // Increase monthly savings for next year
+                currentMonthlySavings = currentMonthlySavings * (1 + savingsGrowth / 100);
+            }
+            
+            const corpusAtRetirement = currentSavingsCorpus;
+
+            // RETIREMENT PHASE: Use the accumulated corpus
+            const yearsInRetirement = lifeExpectancy - retirementAge;
+            const totalMonthlyExpense = monthlyExpense * 12;
+            const totalAnnualExpense = totalMonthlyExpense + annualExpense;
+            
+            // Freefincal methodology: Calculate required corpus with actual returns
+            // Start with initial allocation
+            let debtCorpus = 4000000; // 40 lakh in fixed income
+            let equityCorpus = corpusAtRetirement - debtCorpus;
+            
+            // Simulate year by year with returns and withdrawals
+            let yearByYearData = [];
+            let corpusBalance = corpusAtRetirement;
+            let currentDebt = debtCorpus;
+            let currentEquity = equityCorpus;
+            
+            for (let year = 1; year <= yearsInRetirement; year++) {
+                // Calculate expense for this year (inflation-adjusted)
+                const yearExpense = totalAnnualExpense * Math.pow(1 + inflationRate / 100, year - 1);
+                
+                // Track shift amount
+                let shiftAmount = 0;
+                
+                // From year 6 onwards, shift 10% of equity to debt annually
+                if (year >= 6 && currentEquity > 0) {
+                    shiftAmount = currentEquity * 0.10;
+                    currentEquity -= shiftAmount;
+                    currentDebt += shiftAmount;
+                }
+                
+                // Apply returns
+                currentDebt = currentDebt * (1 + debtReturn / 100);
+                currentEquity = currentEquity * (1 + equityReturn / 100);
+                
+                // Withdraw from debt first, then equity if needed
+                if (currentDebt >= yearExpense) {
+                    currentDebt -= yearExpense;
+                } else {
+                    const debtWithdrawal = currentDebt;
+                    currentDebt = 0;
+                    currentEquity -= (yearExpense - debtWithdrawal);
+                }
+                
+                corpusBalance = currentDebt + currentEquity;
+                
+                yearByYearData.push({
+                    year,
+                    age: retirementAge + year - 1,
+                    expense: yearExpense,
+                    shiftAmount: shiftAmount,
+                    debtBalance: currentDebt,
+                    equityBalance: currentEquity,
+                    totalBalance: corpusBalance,
+                    equityPercent: corpusBalance > 0 ? (currentEquity / corpusBalance * 100) : 0
+                });
+                
+                // Stop if corpus depleted
+                if (corpusBalance <= 0) break;
+            }
+            
+            // Calculate how long the corpus lasts
+            const corpusLastsYears = yearByYearData.length;
+            const finalBalance = corpusBalance;
+            
+            // Calculate conservative requirement (zero real return assumption)
+            const conservativeCorpus = totalAnnualExpense * yearsInRetirement;
+            
+            // Calculate bucket allocations for display
+            const emergencyBucket = currentCorpus * 0.05;
+            const incomeBucket = debtCorpus;
+            const lowRiskBucket = currentCorpus * 0.25;
+            const mediumRiskBucket = currentCorpus * 0.12;
+            const highRiskBucket = currentCorpus * 0.08;
+            
+            const totalBucketCorpus = emergencyBucket + incomeBucket + lowRiskBucket + mediumRiskBucket + highRiskBucket;
+            const initialEquityAllocation = (equityCorpus / currentCorpus) * 100;
+            
+            // Assessment based on simulation results
+            let assessmentType = '';
+            let assessmentMessage = '';
+            
+            if (corpusLastsYears < yearsInRetirement) {
+                assessmentType = 'danger';
+                assessmentMessage = `⚠️ Your corpus will be depleted in ${corpusLastsYears} years (at age ${retirementAge + corpusLastsYears}), but you need it to last ${yearsInRetirement} years. You need approximately ${formatCurrency(conservativeCorpus)} for a safe retirement with current assumptions.`;
+            } else if (finalBalance < totalAnnualExpense * 5) {
+                assessmentType = 'warning';
+                assessmentMessage = `Your corpus of ${formatCurrency(corpusAtRetirement)} lasts through retirement but with minimal buffer. Final balance: ${formatCurrency(finalBalance)}. Consider building a larger corpus or generating passive income.`;
+            } else if (finalBalance >= totalAnnualExpense * 10) {
+                assessmentType = 'info';
+                assessmentMessage = `✓ Your corpus of ${formatCurrency(corpusAtRetirement)} is adequate! Final balance after ${yearsInRetirement} years: ${formatCurrency(finalBalance)}. With ${equityReturn}% equity returns and ${debtReturn}% debt returns, you're on track.`;
+            } else {
+                assessmentType = 'info';
+                assessmentMessage = `Your corpus of ${formatCurrency(corpusAtRetirement)} should work with current assumptions. Final balance: ${formatCurrency(finalBalance)}. However, returns vary, so maintaining passive income streams is recommended.`;
+            }
+
+            if (familyStatus === 'married-kids' && corpusAtRetirement < 30000000) {
+                assessmentType = 'danger';
+                assessmentMessage = 'Unless there is a separate corpus for children\'s education and needs, your current corpus is NOT sufficient to retire with kids. Plan for at least ₹3-4 Crores with separate provisions for children.';
+            }
+
+            return {
+                yearsInRetirement,
+                totalAnnualExpense,
+                conservativeCorpus,
+                incomeBucket,
+                emergencyBucket,
+                lowRiskBucket,
+                mediumRiskBucket,
+                highRiskBucket,
+                totalBucketCorpus,
+                equityAllocation: initialEquityAllocation,
+                assessmentType,
+                assessmentMessage,
+                currentCorpus: corpusAtRetirement,
+                retirementAge,
+                lifeExpectancy,
+                inflationRate,
+                yearByYearData,
+                corpusLastsYears,
+                finalBalance,
+                debtReturn,
+                equityReturn,
+                yearsToRetirement,
+                accumulationData,
+                corpusAtRetirement,
+                startingCorpus,
+                monthlySavings,
+                savingsGrowth,
+                preRetirementReturn
+            };
+        }
+
+        function updateResults() {
+            const results = calculateRetirement();
+            
+            const assessmentAlert = document.getElementById('assessmentAlert');
+            assessmentAlert.className = `alert alert-${results.assessmentType}`;
+            assessmentAlert.textContent = results.assessmentMessage;
+            
+            const resultsGrid = document.getElementById('resultsGrid');
+            resultsGrid.innerHTML = `
+                <div class="result-item">
+                    <div class="result-label">Starting Corpus (Today)</div>
+                    <div class="result-value">${formatCurrency(results.startingCorpus)}</div>
+                    <div class="result-subtitle">Your current retirement savings</div>
+                </div>
+
+                <div class="result-item">
+                    <div class="result-label">Years to Retirement</div>
+                    <div class="result-value">${results.yearsToRetirement} years</div>
+                    <div class="result-subtitle">Age ${results.retirementAge - results.yearsToRetirement} to ${results.retirementAge}</div>
+                </div>
+
+                <div class="result-item">
+                    <div class="result-label">Corpus at Retirement</div>
+                    <div class="result-value large">${formatCurrency(results.corpusAtRetirement)}</div>
+                    <div class="result-subtitle">With ${results.preRetirementReturn}% returns + ${formatCurrency(results.monthlySavings)}/month savings</div>
+                </div>
+
+                <div class="result-item">
+                    <div class="result-label">Total Annual Expenses (Year 1)</div>
+                    <div class="result-value">${formatCurrency(results.totalAnnualExpense)}</div>
+                    <div class="result-subtitle">${formatCurrency(results.totalAnnualExpense / 12)}/month</div>
+                </div>
+
+                <div class="result-item">
+                    <div class="result-label">Years in Retirement</div>
+                    <div class="result-value">${results.yearsInRetirement} years</div>
+                    <div class="result-subtitle">Age ${results.retirementAge} to ${results.lifeExpectancy}</div>
+                </div>
+
+                <div class="result-item">
+                    <div class="result-label">Conservative Corpus Required</div>
+                    <div class="result-value large">${formatCurrency(results.conservativeCorpus)}</div>
+                    <div class="result-subtitle">Zero real return assumption (safest)</div>
+                </div>
+
+                <div class="result-item">
+                    <div class="result-label">Initial Equity Allocation</div>
+                    <div class="result-value">${results.equityAllocation.toFixed(0)}%</div>
+                    <div class="result-subtitle">₹${formatCurrency(results.corpusAtRetirement - 4000000)} in equity, ₹40L in debt</div>
+                </div>
+
+                <div class="result-item">
+                    <div class="result-label">Corpus Sustainability</div>
+                    <div class="result-value">${results.corpusLastsYears} years</div>
+                    <div class="result-subtitle">${results.corpusLastsYears >= results.yearsInRetirement ? '✓ Lasts full retirement' : `⚠️ Need ${results.yearsInRetirement} years`}</div>
+                </div>
+
+                <div class="result-item">
+                    <div class="result-label">Final Balance (Age ${results.lifeExpectancy})</div>
+                    <div class="result-value large">${formatCurrency(Math.max(0, results.finalBalance))}</div>
+                    <div class="result-subtitle">With ${results.equityReturn}% equity, ${results.debtReturn}% debt returns</div>
+                </div>
+            `;
+            
+            const bucketStrategy = document.getElementById('bucketStrategy');
+            bucketStrategy.innerHTML = `
+                <h3>Freefincal Investment Strategy</h3>
+                <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                    Based on the article methodology: Start with debt allocation, grow equity, and gradually shift to reduce sequence of returns risk.
+                </p>
+
+                <div class="bucket">
+                    <div class="bucket-header">
+                        <span class="bucket-name">Year 1: Initial Allocation</span>
+                        <span class="bucket-amount">${formatCurrency(results.currentCorpus)}</span>
+                    </div>
+                    <div class="bucket-details">
+                        <strong>₹40 Lakh in Fixed Income</strong> (${results.debtReturn}% post-tax return)<br/>
+                        <strong>${formatCurrency(results.currentCorpus - 4000000)} in Equity</strong> (${results.equityReturn}% post-tax return)<br/>
+                        Initial equity allocation: ${results.equityAllocation.toFixed(1)}%
+                    </div>
+                </div>
+
+                <div class="bucket">
+                    <div class="bucket-header">
+                        <span class="bucket-name">Years 1-5: Growth Phase</span>
+                        <span class="bucket-amount">Let it grow</span>
+                    </div>
+                    <div class="bucket-details">
+                        Both equity and debt grow with their respective returns. Withdrawals are taken from debt first, then equity if needed.
+                    </div>
+                </div>
+
+                <div class="bucket">
+                    <div class="bucket-header">
+                        <span class="bucket-name">Year 6 onwards: De-risking Phase</span>
+                        <span class="bucket-amount">10% annual shift</span>
+                    </div>
+                    <div class="bucket-details">
+                        <strong>Each year from year 6:</strong> Shift 10% of equity corpus to fixed income.<br/>
+                        This gradually reduces equity exposure to manage sequence of returns risk.<br/>
+                        By year 15, most of the portfolio will have shifted to debt/fixed income.
+                    </div>
+                </div>
+
+                <div class="bucket">
+                    <div class="bucket-header">
+                        <span class="bucket-name">Withdrawal Strategy</span>
+                        <span class="bucket-amount">Debt First</span>
+                    </div>
+                    <div class="bucket-details">
+                        Always withdraw from fixed income/debt first. Only tap equity if debt is depleted. This protects equity from being sold during market downturns.
+                    </div>
+                </div>
+
+                <div style="margin-top: 1rem; padding: 1rem; background: white; border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary);">
+                    <strong style="color: var(--primary); display: block; margin-bottom: 0.5rem;">Important Notes:</strong>
+                    • This simulation assumes constant returns, but actual returns vary significantly year-to-year<br/>
+                    • <strong>Sequence of returns risk</strong> is the biggest threat - poor returns in early retirement years can deplete corpus<br/>
+                    • The 10% annual equity-to-debt shift is designed to reduce this risk over time<br/>
+                    • Having passive income sources in addition to corpus is strongly recommended<br/>
+                    • Consider testing with variable return scenarios for robust planning<br/>
+                    • Work with a SEBI registered fee-only financial planner for personalized advice
+                </div>
+            `;
+            
+            updateAccumulationTable(results);
+            updateYearTable(results);
+        }
+
+        function updateAccumulationTable(results) {
+            const accumulationTable = document.getElementById('accumulationTable');
+            const accumulationSummary = document.getElementById('accumulationSummary');
+            
+            if (results.yearsToRetirement <= 0) {
+                accumulationTable.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-secondary);">You are already at or past retirement age. Adjust your current age or retirement age.</td></tr>';
+                accumulationSummary.innerHTML = '';
+                return;
+            }
+            
+            let tableHTML = '';
+            let totalContributions = 0;
+            
+            for (let i = 0; i < results.accumulationData.length; i++) {
+                const data = results.accumulationData[i];
+                totalContributions += data.annualContribution;
+                
+                const rowClass = data.year % 5 === 0 ? 'style="background: rgba(26, 71, 42, 0.03);"' : '';
+                
+                tableHTML += `
+                    <tr ${rowClass}>
+                        <td>${data.year}</td>
+                        <td>${data.age}</td>
+                        <td>${formatCurrency(data.monthlyContribution)}</td>
+                        <td>${formatCurrency(data.annualContribution)}</td>
+                        <td class="positive"><strong>${formatCurrency(data.corpusBalance)}</strong></td>
+                    </tr>
+                `;
+            }
+            
+            accumulationTable.innerHTML = tableHTML;
+            
+            const gains = results.corpusAtRetirement - results.startingCorpus - totalContributions;
+            
+            accumulationSummary.innerHTML = `
+                <strong>Accumulation Summary:</strong><br/>
+                • Starting corpus: ${formatCurrency(results.startingCorpus)}<br/>
+                • Total contributions over ${results.yearsToRetirement} years: ${formatCurrency(totalContributions)}<br/>
+                • Investment gains: ${formatCurrency(gains)} (at ${results.preRetirementReturn}% return)<br/>
+                • <strong>Final corpus at retirement: ${formatCurrency(results.corpusAtRetirement)}</strong><br/>
+                • Monthly savings grow by ${results.savingsGrowth}% annually
+            `;
+        }
+
+        function updateYearTable(results) {
+            const yearTable = document.getElementById('yearTable');
+            const tableSummary = document.getElementById('tableSummary');
+            
+            let tableHTML = '';
+            
+            // Show ALL years
+            for (let i = 0; i < results.yearByYearData.length; i++) {
+                const data = results.yearByYearData[i];
+                
+                // Highlight every 5th year for visual clarity
+                const rowClass = data.year % 5 === 0 ? 'style="background: rgba(26, 71, 42, 0.03);"' : '';
+                
+                // Format shift amount
+                let shiftDisplay = '-';
+                let shiftClass = '';
+                if (data.shiftAmount > 0) {
+                    shiftDisplay = formatCurrency(data.shiftAmount);
+                    shiftClass = 'style="color: var(--warning); font-weight: 600;"';
+                }
+                
+                tableHTML += `
+                    <tr ${rowClass}>
+                        <td>${data.year}</td>
+                        <td>${data.age}</td>
+                        <td>${formatCurrency(data.expense)}</td>
+                        <td ${shiftClass}>${shiftDisplay}</td>
+                        <td>${formatCurrency(data.debtBalance)}</td>
+                        <td>${formatCurrency(data.equityBalance)} <span style="font-size: 0.8rem; color: var(--text-secondary);">(${data.equityPercent.toFixed(1)}%)</span></td>
+                        <td class="${data.totalBalance > 0 ? 'positive' : 'negative'}">
+                            <strong>${formatCurrency(Math.max(0, data.totalBalance))}</strong>
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            yearTable.innerHTML = tableHTML;
+            tableSummary.innerHTML = `
+                <strong>Table Notes:</strong><br/>
+                • Showing ALL ${results.yearByYearData.length} years of retirement projection<br/>
+                • Annual expenses increase by ${results.inflationRate}% each year due to inflation<br/>
+                • <strong>Equity → Debt Shift:</strong> From year 6 onwards, 10% of equity balance shifts to debt (shown in orange)<br/>
+                • Returns applied: ${results.equityReturn}% on equity, ${results.debtReturn}% on debt (compounded annually)<br/>
+                • Withdrawals taken from debt first, then equity if needed<br/>
+                • Every 5th year is highlighted for easier reading<br/>
+                • Equity % shown in parentheses next to equity balance<br/>
+                • This simulation assumes constant returns - actual returns will vary
+            `;
+        }
+
+        document.getElementById('lifeExpectancy').addEventListener('input', function() {
+            const value = this.value;
+            const retirementAge = parseInt(document.getElementById('retirementAge').value);
+            document.getElementById('lifeExpectancyValue').textContent = value + ' years';
+            document.getElementById('retirementYears').textContent = (value - retirementAge) + ' years in retirement';
+            updateResults();
+        });
+
+        document.getElementById('inflationRate').addEventListener('input', function() {
+            document.getElementById('inflationValue').textContent = this.value + '% per year';
+            updateResults();
+        });
+
+        document.getElementById('equityReturn').addEventListener('input', function() {
+            document.getElementById('equityValue').textContent = this.value + '% per year';
+            updateResults();
+        });
+
+        document.getElementById('debtReturn').addEventListener('input', function() {
+            document.getElementById('debtValue').textContent = this.value + '% per year';
+            updateResults();
+        });
+
+        document.getElementById('savingsGrowth').addEventListener('input', function() {
+            document.getElementById('savingsGrowthValue').textContent = this.value + '% per year';
+            updateResults();
+        });
+
+        document.getElementById('preRetirementReturn').addEventListener('input', function() {
+            document.getElementById('preRetirementReturnValue').textContent = this.value + '% per year';
+            updateResults();
+        });
+
+        const inputs = ['currentAge', 'retirementAge', 'monthlyExpense', 'annualExpense', 'currentCorpus', 'monthlySavings', 'familyStatus'];
+        inputs.forEach(id => {
+            document.getElementById(id).addEventListener('input', updateResults);
+        });
+
+        updateResults();
+    </script>
+</body>
+</html>

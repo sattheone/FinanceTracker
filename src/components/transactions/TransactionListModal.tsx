@@ -46,7 +46,7 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
   const handleUpdateTransaction = (transactionId: string, updates: Partial<Transaction>) => {
     const transaction = freshTransactions.find(t => t.id === transactionId);
     if (transaction) {
-      updateTransaction(transactionId, { ...transaction, ...updates });
+      updateTransaction(transactionId, updates);
     }
   };
 

@@ -20,9 +20,19 @@ import UnifiedGoalCard from '../components/goals/UnifiedGoalCard';
 import MarketDataService from '../services/marketDataService';
 
 const Dashboard: React.FC = () => {
-  const { assets, goals, insurance, transactions, bankAccounts, liabilities, recurringTransactions, categories, getAccountBalance, updateAsset } = useData();
+  const { assets, goals, insurance, transactions, bankAccounts, liabilities, recurringTransactions, categories, getAccountBalance, updateAsset, loadAssets, loadGoals, loadInsurance, loadLiabilities, loadRecurringTransactions, loadBills, userProfile } = useData();
   const navigate = useNavigate();
   const theme = useThemeClasses();
+
+  // Ensure data is loaded for dashboard
+  React.useEffect(() => {
+    loadAssets();
+    loadGoals();
+    loadInsurance();
+    loadLiabilities();
+    loadRecurringTransactions();
+    loadBills();
+  }, []);
 
   // Auto-refresh asset prices (Stocks/MF) on Dashboard load
   const processedRef = React.useRef(false);
@@ -75,10 +85,19 @@ const Dashboard: React.FC = () => {
   const retirementProgress = retirementGoal ? (retirementGoal.currentAmount / retirementGoal.targetAmount) * 100 : 0;
   const totalLICMaturity = licPoliciesFromInsurance.reduce((sum, policy) => sum + (policy.maturityAmount || 0), 0);
 
-  // Calculate current month cash flow from actual transactions
-  const currentDate = new Date();
-  const currentYear = currentDate.getFullYear();
-  const currentMonth = currentDate.getMonth();
+  // Calculate default period cash flow from actual transactions
+  const defaultTimePeriod = userProfile?.displayPreferences?.defaultTimePeriod || 'current';
+  const baseDate = React.useMemo(() => {
+    const date = new Date();
+    if (defaultTimePeriod === 'previous') {
+      date.setMonth(date.getMonth() - 1);
+    }
+    return date;
+  }, [defaultTimePeriod]);
+  const currentYear = baseDate.getFullYear();
+  const currentMonth = baseDate.getMonth();
+  const periodLabel = defaultTimePeriod === 'previous' ? 'Previous Month' : 'This Month';
+  const periodMonthLabel = baseDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   const currentMonthTransactions = transactions.filter(t => {
     const transactionDate = new Date(t.date);
@@ -116,10 +135,14 @@ const Dashboard: React.FC = () => {
 
   // Dashboard Timeline Switcher State
   const [expenseTimeRange, setExpenseTimeRange] = React.useState<'1M' | '6M' | '1Y'>('1M');
+  const expenseRangeLabel = expenseTimeRange === '1M'
+    ? periodMonthLabel
+    : expenseTimeRange === '6M'
+      ? `Last 6 Months (ending ${periodMonthLabel})`
+      : `Last 12 Months (ending ${periodMonthLabel})`;
 
   const filteredExpenseTransactions = React.useMemo(() => {
-    const now = new Date();
-    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currentMonthStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
 
     return transactions.filter(t => {
       if (t.type !== 'expense' || t.category === 'transfer') return false;
@@ -130,15 +153,15 @@ const Dashboard: React.FC = () => {
         return tDate >= currentMonthStart;
       } else if (expenseTimeRange === '6M') {
         // Last 6 Months
-        const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+        const sixMonthsAgo = new Date(baseDate.getFullYear(), baseDate.getMonth() - 5, 1);
         return tDate >= sixMonthsAgo;
       } else {
         // Last 1 Year
-        const oneYearAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+        const oneYearAgo = new Date(baseDate.getFullYear(), baseDate.getMonth() - 11, 1);
         return tDate >= oneYearAgo;
       }
     });
-  }, [transactions, expenseTimeRange]);
+  }, [transactions, expenseTimeRange, baseDate]);
 
 
   // Calculate category breakdown for expenses (using filtered timeframe)
@@ -249,7 +272,7 @@ const Dashboard: React.FC = () => {
             }
           />
           <MetricCard
-            title="Current Month Flow"
+            title={`${periodLabel} Flow`}
             value={currentMonthSurplus}
             icon={TrendingUp}
             color="blue"
@@ -309,7 +332,7 @@ const Dashboard: React.FC = () => {
               <div className="p-4 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm text-gray-700 dark:text-gray-200 dark:text-gray-200">This Month Income</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-200 dark:text-gray-200">{periodLabel} Income</span>
                     <p className="text-xl font-bold text-green-700 dark:text-green-300">
                       +{formatCurrency(currentMonthIncome)}
                     </p>
@@ -321,7 +344,7 @@ const Dashboard: React.FC = () => {
               <div className="p-4 bg-red-50 dark:bg-red-900/30 rounded-lg border border-red-200 dark:border-red-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm text-gray-700 dark:text-gray-200 dark:text-gray-200">This Month Expenses</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-200 dark:text-gray-200">{periodLabel} Expenses</span>
                     <p className="text-xl font-bold text-red-700 dark:text-red-300">
                       -{formatCurrency(currentMonthExpenses)}
                     </p>
@@ -333,7 +356,7 @@ const Dashboard: React.FC = () => {
               <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm text-gray-700 dark:text-gray-200 dark:text-gray-200">This Month Investments</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-200 dark:text-gray-200">{periodLabel} Investments</span>
                     <p className="text-xl font-bold text-blue-700 dark:text-blue-300">
                       -{formatCurrency(currentMonthInvestments)}
                     </p>
@@ -345,13 +368,13 @@ const Dashboard: React.FC = () => {
 
             <div className="p-4 bg-gray-50 dark:bg-gray-700 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 dark:border-gray-600">
               <div className="flex justify-between items-center">
-                <span className="text-gray-700 dark:text-gray-200 dark:text-gray-200">Net Cash Flow This Month</span>
+                <span className="text-gray-700 dark:text-gray-200 dark:text-gray-200">Net Cash Flow {periodLabel}</span>
                 <span className={`text-xl font-bold ${currentMonthSurplus >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
                   {currentMonthSurplus >= 0 ? '+' : ''}{formatCurrency(currentMonthSurplus)}
                 </span>
               </div>
               <div className="mt-2 text-xs text-gray-600 dark:text-gray-300 dark:text-gray-300">
-                {currentMonthTransactions.length} transactions in {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                {currentMonthTransactions.length} transactions in {periodMonthLabel}
               </div>
             </div>
           </div>
@@ -359,7 +382,7 @@ const Dashboard: React.FC = () => {
 
         {/* Top Expense Categories */}
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-1">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
               Top Expenses
             </h3>
@@ -383,6 +406,9 @@ const Dashboard: React.FC = () => {
               ))}
             </div>
           </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            {expenseRangeLabel}
+          </p>
 
           <div className="space-y-3">
             {topExpenseCategories.length > 0 ? (

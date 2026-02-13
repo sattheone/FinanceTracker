@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { AlertTriangle, Bell, TrendingUp, Wallet, Receipt, X, Check } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { AlertType, AlertSeverity } from '../types';
@@ -8,9 +8,14 @@ import { useThemeClasses, cn } from '../hooks/useThemeClasses';
 
 const Alerts: React.FC = () => {
     const theme = useThemeClasses();
-    const { transactions, bills, bankAccounts, monthlyBudget } = useData();
+    const { transactions, bills, bankAccounts, monthlyBudget, loadBills, loadMonthlyBudget } = useData();
     const [filter, setFilter] = useState<'all' | AlertType>('all');
     const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        loadBills();
+        loadMonthlyBudget();
+    }, []);
 
     // Generate alerts
     const allAlerts = useMemo(() => {

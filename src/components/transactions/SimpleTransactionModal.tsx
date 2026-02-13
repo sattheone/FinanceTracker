@@ -1,12 +1,19 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Loader2, Check, Scissors, Repeat, Trash2 } from 'lucide-react';
+import { Loader2, Check, Scissors, Repeat, Trash2, Folder, Tag, TrendingUp, MoreHorizontal } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { useData } from '../../contexts/DataContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { FirebaseService } from '../../services/firebaseService';
 import { Transaction } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { extractMerchant, getMerchantKeyFromDescription, normalizeMerchant } from '../../utils/merchantSimilarity';
 import SidePanel from '../common/SidePanel';
 import SimpleTransactionForm, { SimpleTransactionFormHandle } from '../forms/SimpleTransactionForm';
 import InlineCategoryEditor from './InlineCategoryEditor';
+import InlineTypeEditor from './InlineTypeEditor';
+import TagPopover from './TagPopover';
+import CategoryPopover from './CategoryPopover';
+import TagSettingsOverlay from './TagSettingsOverlay';
 import SplitTransactionModal from './SplitTransactionModal';
 import RecurringSetupModal from './RecurringSetupModal';
 
@@ -17,30 +24,13 @@ interface SimpleTransactionModalProps {
   onTransactionClick?: (transaction: Transaction) => void;
 }
 
-const extractMerchant = (description: string) => {
-  if (!description) return '';
-  const upiMatch = description.match(/^UPI-([A-Z\s]+)/i);
-  if (upiMatch) {
-    return upiMatch[1];
-  }
-  return description;
-};
-
-const normalizeMerchant = (text: string) => {
-  if (!text) return '';
-  return text
-    .toLowerCase()
-    .replace(/\b\d{4,}\b/g, '')       // remove long numeric IDs only
-    .replace(/[^a-z\s]/g, '')         // keep letters & spaces
-    .replace(/\s+/g, ' ')
-    .trim();
-};
 const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
   transaction: passedTransaction,
   isOpen,
   onClose,
   onTransactionClick
 }) => {
+  const { user } = useAuth();
   const { transactions: allTransactions, updateTransaction, deleteTransaction, categories: contextCategories } = useData();
   const theme = useThemeClasses();
   const formRef = useRef<SimpleTransactionFormHandle>(null);
@@ -52,6 +42,13 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkTagPopover, setShowBulkTagPopover] = useState(false);
+  const [bulkTagAnchor, setBulkTagAnchor] = useState<HTMLElement | null>(null);
+  const [showBulkCategoryPopover, setShowBulkCategoryPopover] = useState(false);
+  const [bulkCategoryAnchor, setBulkCategoryAnchor] = useState<HTMLElement | null>(null);
+  const [showTagSettings, setShowTagSettings] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Clear selection when opening a new transaction
   useEffect(() => {
@@ -65,9 +62,9 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
 
     try {
       await Promise.all(idsToUpdate.map(id => {
-        const txn = allTransactions.find(t => t.id === id);
-        if (txn) {
-          return updateTransaction(id, { ...txn, category: categoryId });
+        const txnExists = allTransactions.some(t => t.id === id);
+        if (txnExists) {
+          return updateTransaction(id, { category: categoryId });
         }
         return Promise.resolve();
       }));
@@ -105,40 +102,176 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [allTransactions, normalizedCurrentMerchant]);
 
-  // Lazy loading state
-  const [visibleCount, setVisibleCount] = useState(20);
-  const scrollTriggerRef = useRef<HTMLDivElement>(null);
-
-  const visibleTransactions = useMemo(() =>
-    matchedTransactions.slice(0, visibleCount),
-    [matchedTransactions, visibleCount]
+  const currentMerchantKey = useMemo(
+    () => getMerchantKeyFromDescription(transaction.description),
+    [transaction.description]
   );
 
-  useEffect(() => {
-    // Reset visible count when transaction changes
-    setVisibleCount(20);
-  }, [transaction.id]);
+  const [historicalMatches, setHistoricalMatches] = useState<Transaction[]>([]);
+  const [historyCursor, setHistoryCursor] = useState<{ date: string; id: string } | undefined>(undefined);
+  const [hasMoreHistory, setHasMoreHistory] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [useFallbackScan, setUseFallbackScan] = useState(false);
+  const previousMerchantKeyRef = useRef<string>('');
 
-  // Lazy Loading Observer
-  useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        setVisibleCount(prev => prev + 20);
+  const allSimilarTransactions = useMemo(() => {
+    const byId = new Map<string, Transaction>();
+    matchedTransactions.forEach(t => byId.set(t.id, t));
+    historicalMatches.forEach(t => {
+      if (!byId.has(t.id)) {
+        byId.set(t.id, t);
       }
-    }, { threshold: 0.1 });
+    });
+    return Array.from(byId.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [matchedTransactions, historicalMatches]);
 
-    if (scrollTriggerRef.current) {
-      observer.observe(scrollTriggerRef.current);
+  // Lazy loading state
+  const [visibleCount, setVisibleCount] = useState(20);
+
+  const visibleTransactions = useMemo(() =>
+    allSimilarTransactions.slice(0, visibleCount),
+    [allSimilarTransactions, visibleCount]
+  );
+
+  const selectedTxns = useMemo(
+    () => allSimilarTransactions.filter(t => selectedIds.has(t.id)),
+    [allSimilarTransactions, selectedIds]
+  );
+
+  const bulkCommonTagIds = useMemo(() => {
+    if (selectedTxns.length === 0) return [] as string[];
+    const initial = (selectedTxns[0].tags || []).slice();
+    return selectedTxns.reduce((acc, t) => acc.filter(id => (t.tags || []).includes(id)), initial);
+  }, [selectedTxns]);
+
+  const bulkCommonType = useMemo(() => {
+    if (selectedTxns.length === 0) return 'expense';
+    const first = selectedTxns[0].type;
+    return selectedTxns.every(t => t.type === first) ? first : 'expense';
+  }, [selectedTxns]);
+
+  useEffect(() => {
+    const previousKey = previousMerchantKeyRef.current;
+
+    // Keep expanded/lazy-loaded state when navigating within the same merchant group.
+    // Reset only when merchant key changes.
+    if (previousKey && previousKey !== normalizedCurrentMerchant) {
+      setVisibleCount(20);
+      setHistoricalMatches([]);
+      setHistoryCursor(undefined);
+      setHasMoreHistory(true);
+      setSelectedIds(new Set());
+      setUseFallbackScan(false);
     }
-    return () => observer.disconnect();
-  }, [visibleTransactions]);
+
+    previousMerchantKeyRef.current = normalizedCurrentMerchant;
+  }, [normalizedCurrentMerchant]);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!moreContainerRef.current?.contains(target)) {
+        setMoreOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [moreOpen]);
+
+  const handleBulkToggleTag = (tagId: string, shouldAdd: boolean) => {
+    selectedTxns.forEach(t => {
+      const existing = t.tags || [];
+      const updated = shouldAdd
+        ? (existing.includes(tagId) ? existing : [...existing, tagId])
+        : existing.filter(tid => tid !== tagId);
+      updateTransaction(t.id, { tags: updated });
+    });
+  };
+
+  const fetchMoreHistoricalMatches = async () => {
+    if (!user?.id || !normalizedCurrentMerchant || isLoadingMore || !hasMoreHistory) {
+      return;
+    }
+
+    setIsLoadingMore(true);
+    try {
+      const PAGE_SIZE = 120;
+      const TARGET_NEW_MATCHES = 20;
+      const MAX_PAGES_PER_CLICK = 8;
+
+      let cursor = historyCursor;
+      let canContinue: boolean = hasMoreHistory;
+      let pagesScanned = 0;
+      let added = 0;
+
+      const knownIds = new Set<string>([
+        ...allTransactions.map(t => t.id),
+        ...historicalMatches.map(t => t.id)
+      ]);
+      const newlyMatched: Transaction[] = [];
+
+      while (canContinue && pagesScanned < MAX_PAGES_PER_CLICK && added < TARGET_NEW_MATCHES) {
+        const page = !useFallbackScan
+          ? await FirebaseService.getTransactionsByMerchantKeyPage(user.id, currentMerchantKey, {
+              pageSize: PAGE_SIZE,
+              cursor
+            })
+          : await FirebaseService.getTransactionsPage(user.id, {
+              pageSize: 500,
+              cursor
+            });
+
+        pagesScanned += 1;
+        cursor = page.nextCursor;
+        canContinue = page.hasMore;
+
+        page.transactions
+          .filter(t => !t.isSplitParent)
+          .filter(t =>
+            useFallbackScan
+              ? normalizeMerchant(extractMerchant(t.description)) === normalizedCurrentMerchant
+              : true
+          )
+          .forEach(t => {
+            if (!knownIds.has(t.id)) {
+              knownIds.add(t.id);
+              newlyMatched.push(t);
+              added += 1;
+            }
+          });
+      }
+
+      if (newlyMatched.length > 0) {
+        setHistoricalMatches(prev => [...prev, ...newlyMatched]);
+      }
+      setHistoryCursor(cursor);
+      setHasMoreHistory(canContinue);
+    } catch (error) {
+      if (!useFallbackScan) {
+        console.warn('Indexed merchant-key query failed, falling back to scan mode for similar transactions.', error);
+        setUseFallbackScan(true);
+      } else {
+        console.error('Failed to load more similar transactions:', error);
+      }
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const handleLoadMoreSimilar = async () => {
+    if (visibleCount < allSimilarTransactions.length) {
+      setVisibleCount(prev => prev + 20);
+      return;
+    }
+
+    await fetchMoreHistoricalMatches();
+    setVisibleCount(prev => prev + 20);
+  };
 
   const handleUpdate = async (updatedData: Omit<Transaction, 'id'>) => {
     // Auto-save logic: update without closing
-    await updateTransaction(transaction.id, {
-      ...transaction,
-      ...updatedData
-    });
+    await updateTransaction(transaction.id, updatedData);
   };
 
   // Avoid showing zero-amount split parent in the detail view.
@@ -281,18 +414,18 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
                   <span className="text-gray-300 leading-5 relative -top-[2px]">|</span>
                 </>
               )}
-              {matchedTransactions.length > 0 && (
+              {allSimilarTransactions.length > 0 && (
                 <button
                   onClick={() => {
-                    if (selectedIds.size === matchedTransactions.length) {
+                    if (selectedIds.size === allSimilarTransactions.length) {
                       setSelectedIds(new Set());
                     } else {
-                      setSelectedIds(new Set(matchedTransactions.map(t => t.id)));
+                      setSelectedIds(new Set(allSimilarTransactions.map(t => t.id)));
                     }
                   }}
                   className="text-xs font-medium text-blue-600 hover:text-blue-700 whitespace-nowrap leading-5"
                 >
-                  {selectedIds.size === matchedTransactions.length ? 'Deselect All' : 'Select All'}
+                  {selectedIds.size === allSimilarTransactions.length ? 'Deselect All' : 'Select All'}
                 </button>
               )}
             </div>
@@ -348,18 +481,161 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
                     </div>
                     <div className={cn(
                       "text-right text-sm font-medium flex-shrink-0 w-24",
-                      t.type === 'expense' ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
+                      t.type === 'income' ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                     )}>
-                      {t.type === 'expense' ? '-' : '+'}{formatCurrency(t.amount)}
+                      {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
                     </div>
                   </div>
                 </div>
               );
             })}
+
+            {(visibleCount < allSimilarTransactions.length || hasMoreHistory) && (
+              <div className="pt-2">
+                <button
+                  onClick={handleLoadMoreSimilar}
+                  disabled={isLoadingMore}
+                  className="w-full py-2 text-sm font-medium text-blue-600 hover:text-blue-700 disabled:text-gray-400 disabled:cursor-not-allowed"
+                >
+                  {isLoadingMore ? 'Loading more...' : 'Load more'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </SidePanel>
+    {/* Floating bulk actions bar */}
+    {selectedIds.size > 0 && (
+      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[80]">
+        <div className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl">
+          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+            {selectedIds.size} selected
+          </span>
+          <button
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+            onClick={(e) => {
+              setBulkCategoryAnchor(e.currentTarget);
+              setShowBulkCategoryPopover(true);
+            }}
+          >
+            <Folder className="w-4 h-4" />
+            Category
+          </button>
+          <button
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+            onClick={(e) => {
+              setBulkTagAnchor(e.currentTarget);
+              setShowBulkTagPopover(true);
+            }}
+          >
+            <Tag className="w-4 h-4" />
+            Tag
+          </button>
+          <InlineTypeEditor
+            currentType={bulkCommonType}
+            allowUnchanged={false}
+            onSave={(newType) => {
+              if (newType === 'unchanged') return;
+              selectedTxns.forEach(t => updateTransaction(t.id, { type: newType }));
+            }}
+            triggerClassName="inline-flex items-center gap-2 h-9 px-3 text-sm bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+            triggerContent={(
+              <>
+                <TrendingUp className="w-4 h-4" />
+                <span>Type</span>
+              </>
+            )}
+          />
+          <div className="relative" ref={moreContainerRef}>
+            <button
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+              onClick={() => setMoreOpen(v => !v)}
+            >
+              <MoreHorizontal className="w-4 h-4" />
+              More
+            </button>
+            {moreOpen && (
+              <div className="absolute bottom-12 right-0 w-44 z-50">
+                <div className={cn(theme.dropdown, "py-1")}
+                  role="menu"
+                  aria-orientation="vertical"
+                  aria-labelledby="more-menu">
+                  <button
+                    className={cn(theme.dropdownItem, "w-full text-left text-sm")}
+                    onClick={() => {
+                        setSelectedIds(new Set(allSimilarTransactions.map(t => t.id)));
+                      setMoreOpen(false);
+                    }}
+                  >
+                    Select all
+                  </button>
+                  <button
+                    className={cn(theme.dropdownItem, "w-full text-left text-sm")}
+                    onClick={() => {
+                      setSelectedIds(new Set());
+                      setMoreOpen(false);
+                    }}
+                  >
+                    Unselect all
+                  </button>
+                  <div className="px-1 pt-1">
+                    <button
+                      className={cn(theme.dropdownItem, "w-full text-left text-sm rounded-md hover:bg-red-50")}
+                      style={{ color: '#dc2626' }}
+                      onClick={() => {
+                        selectedIds.forEach(id => deleteTransaction(id));
+                        setSelectedIds(new Set());
+                        setMoreOpen(false);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    {/* Bulk Tag Popover */}
+    {showBulkTagPopover && (
+      <TagPopover
+        isOpen={showBulkTagPopover}
+        onClose={() => {
+          setShowBulkTagPopover(false);
+          setBulkTagAnchor(null);
+        }}
+        anchorElement={bulkTagAnchor}
+        bulkCommonTagIds={bulkCommonTagIds}
+        onBulkToggleTag={handleBulkToggleTag}
+        onOpenTagSettings={() => setShowTagSettings(true)}
+      />
+    )}
+    {/* Bulk Category Popover */}
+    {showBulkCategoryPopover && (
+      <CategoryPopover
+        isOpen={showBulkCategoryPopover}
+        onClose={() => {
+          setShowBulkCategoryPopover(false);
+          setBulkCategoryAnchor(null);
+        }}
+        anchorElement={bulkCategoryAnchor}
+        currentCategory={''}
+        onSelect={(id) => {
+          selectedTxns.forEach(t => updateTransaction(t.id, { category: id }));
+          setSelectedIds(new Set());
+          setShowBulkCategoryPopover(false);
+          setBulkCategoryAnchor(null);
+        }}
+      />
+    )}
+    {/* Tag Settings Overlay */}
+    <TagSettingsOverlay
+      isOpen={showTagSettings}
+      onClose={() => setShowTagSettings(false)}
+    />
     {/* Split Modal */}
     {showSplitModal && (
       <SplitTransactionModal

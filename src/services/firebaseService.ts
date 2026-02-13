@@ -12,12 +12,12 @@ import {
   limit,
   onSnapshot,
   writeBatch,
-  serverTimestamp,
-  deleteField
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Asset, Insurance, Goal, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, CategoryRule, SIPRule } from '../types';
 import { UserProfile } from '../types/user';
+import { getMerchantKeyFromDescription } from '../utils/merchantSimilarity';
 import {
   incrementFirestoreBatches,
   incrementFirestoreReads,
@@ -266,10 +266,101 @@ export class FirebaseService {
     }
   }
 
+  static async getTransactionsByMerchantKeyPage(
+    userId: string,
+    merchantKey: string,
+    options?: {
+      pageSize?: number;
+      cursor?: { date: string; id: string };
+    }
+  ): Promise<{
+    transactions: Transaction[];
+    nextCursor?: { date: string; id: string };
+    hasMore: boolean;
+  }> {
+    try {
+      if (!merchantKey) {
+        return { transactions: [], hasMore: false };
+      }
+
+      const pageSize = options?.pageSize ?? 100;
+      const constraints: any[] = [
+        where('userId', '==', userId),
+        where('merchantKey', '==', merchantKey),
+        limit(pageSize + 20)
+      ];
+
+      const q = query(collection(db, this.COLLECTIONS.TRANSACTIONS), ...constraints);
+      const querySnapshot = await getDocs(q);
+
+      let transactions = querySnapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...(docSnap.data() as any)
+      })) as Transaction[];
+
+      transactions.sort((a, b) => {
+        const dateCompare = b.date.localeCompare(a.date);
+        if (dateCompare !== 0) return dateCompare;
+        return b.id.localeCompare(a.id);
+      });
+
+      if (options?.cursor) {
+        transactions = transactions.filter(t =>
+          t.date < options.cursor!.date ||
+          (t.date === options.cursor!.date && t.id < options.cursor!.id)
+        );
+      }
+
+      const hasMore = transactions.length > pageSize;
+      if (hasMore) {
+        transactions = transactions.slice(0, pageSize);
+      }
+
+      const last = transactions[transactions.length - 1];
+      const nextCursor = hasMore && last?.date ? { date: last.date, id: last.id } : undefined;
+
+      return { transactions, nextCursor, hasMore };
+    } catch (error) {
+      console.error('Error getting transactions by merchant key page:', error);
+      throw error;
+    }
+  }
+
+  static async getTransactionsByCategoryAndDateRange(
+    userId: string,
+    category: string,
+    startDate: string,
+    endDate: string
+  ): Promise<Transaction[]> {
+    try {
+      const q = query(
+        collection(db, this.COLLECTIONS.TRANSACTIONS),
+        where('userId', '==', userId),
+        where('category', '==', category),
+        where('date', '>=', startDate),
+        where('date', '<=', endDate)
+      );
+
+      const querySnapshot = await getDocs(q);
+      const transactions = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...(doc.data() as any)
+      })) as Transaction[];
+
+      return transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    } catch (error) {
+      console.error('Error getting transactions by category and range:', error);
+      throw error;
+    }
+  }
+
   static async addTransaction(userId: string, transaction: Omit<Transaction, 'id'>): Promise<string> {
     try {
       // Filter out undefined values as Firebase doesn't support them
-      const cleanTransaction = removeUndefined(transaction as any) as Record<string, any>;
+      const cleanTransaction = removeUndefined({
+        ...transaction,
+        merchantKey: getMerchantKeyFromDescription(transaction.description || '')
+      } as any) as Record<string, any>;
 
       const docRef = await addDoc(collection(db, this.COLLECTIONS.TRANSACTIONS), {
         ...cleanTransaction,
@@ -287,7 +378,14 @@ export class FirebaseService {
   static async updateTransaction(transactionId: string, updates: Partial<Transaction>): Promise<void> {
     try {
       // Filter out undefined values as Firebase doesn't support them
-      const cleanUpdates = removeUndefined(updates as any);
+      const updatesWithMerchantKey = {
+        ...updates,
+        ...(typeof updates.description === 'string'
+          ? { merchantKey: getMerchantKeyFromDescription(updates.description) }
+          : {})
+      };
+
+      const cleanUpdates = removeUndefined(updatesWithMerchantKey as any);
 
       const docRef = doc(db, this.COLLECTIONS.TRANSACTIONS, transactionId);
       await updateDoc(docRef, {
@@ -327,7 +425,10 @@ export class FirebaseService {
 
         chunk.forEach(transaction => {
           // Filter out undefined values as Firebase doesn't support them
-          const cleanTransaction = removeUndefined(transaction as any) as Record<string, any>;
+          const cleanTransaction = removeUndefined({
+            ...transaction,
+            merchantKey: getMerchantKeyFromDescription(transaction.description || '')
+          } as any) as Record<string, any>;
 
           const docRef = doc(collection(db, this.COLLECTIONS.TRANSACTIONS));
           batch.set(docRef, {
@@ -370,7 +471,14 @@ export class FirebaseService {
   static async bulkUpdateTransactions(ids: string[], update: Partial<Transaction>): Promise<void> {
     if (ids.length === 0) return;
 
-    const cleanUpdates = removeUndefined(update as any) as Record<string, any>;
+    const updateWithMerchantKey = {
+      ...update,
+      ...(typeof update.description === 'string'
+        ? { merchantKey: getMerchantKeyFromDescription(update.description) }
+        : {})
+    };
+
+    const cleanUpdates = removeUndefined(updateWithMerchantKey as any) as Record<string, any>;
 
     if (!('updatedAt' in cleanUpdates)) {
       cleanUpdates.updatedAt = serverTimestamp() as any;
@@ -404,7 +512,14 @@ export class FirebaseService {
     for (const chunk of chunks) {
       const batch = writeBatch(db);
       chunk.forEach(([id, updates]) => {
-        const cleanUpdates = removeUndefined(updates as any) as Record<string, any>;
+        const updatesWithMerchantKey = {
+          ...updates,
+          ...(typeof updates.description === 'string'
+            ? { merchantKey: getMerchantKeyFromDescription(updates.description) }
+            : {})
+        };
+
+        const cleanUpdates = removeUndefined(updatesWithMerchantKey as any) as Record<string, any>;
         if (!('updatedAt' in cleanUpdates)) {
           cleanUpdates.updatedAt = serverTimestamp() as any;
         }
@@ -905,6 +1020,7 @@ export class FirebaseService {
   static async hasUserData(userId: string): Promise<boolean> {
     try {
       // Check if user has any transactions, assets, insurance, goals, bank accounts, or liabilities
+      // Using limit(1) to minimize reads - we only need to know if ANY data exists
       const collections = [
         this.COLLECTIONS.TRANSACTIONS,
         this.COLLECTIONS.ASSETS,
@@ -917,7 +1033,8 @@ export class FirebaseService {
       for (const collectionName of collections) {
         const q = query(
           collection(db, collectionName),
-          where('userId', '==', userId)
+          where('userId', '==', userId),
+          limit(1) // Only check for existence, don't load all documents
         );
         const querySnapshot = await getDocs(q);
 
@@ -1372,16 +1489,34 @@ export class FirebaseService {
   // Category Rule Operations
   static async getCategoryRules(userId: string): Promise<CategoryRule[]> {
     try {
+      const userRef = doc(db, this.COLLECTIONS.USERS, userId);
+      const userSnap = await getDoc(userRef);
+      const data = userSnap.data() as any;
+      const stored = Array.isArray(data?.categoryRules) ? data.categoryRules : null;
+
+      if (stored) {
+        return stored as CategoryRule[];
+      }
+
+      // Legacy fallback: read collection once, then migrate to user doc
       const q = query(
         collection(db, this.COLLECTIONS.CATEGORY_RULES),
         where('userId', '==', userId)
       );
       const querySnapshot = await getDocs(q);
-
-      return querySnapshot.docs.map(doc => ({
+      const legacy = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...(doc.data() as any)
       })) as CategoryRule[];
+
+      if (legacy.length > 0) {
+        await setDoc(userRef, {
+          categoryRules: legacy,
+          categoryRulesUpdatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+
+      return legacy;
     } catch (error) {
       console.error('Error getting category rules:', error);
       throw error;
@@ -1390,48 +1525,87 @@ export class FirebaseService {
 
   static async addCategoryRule(userId: string, rule: Omit<CategoryRule, 'id'>): Promise<string> {
     try {
-      const docRef = await addDoc(collection(db, this.COLLECTIONS.CATEGORY_RULES), {
+      const newId = doc(collection(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.CATEGORY_RULES)).id;
+      const userRef = doc(db, this.COLLECTIONS.USERS, userId);
+      const userSnap = await getDoc(userRef);
+      const data = userSnap.data() as any;
+      const existing = Array.isArray(data?.categoryRules) ? data.categoryRules : [];
+      const nowIso = new Date().toISOString();
+
+      const newRule = {
         ...rule,
+        id: newId,
         userId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      return docRef.id;
+        createdAt: nowIso,
+        updatedAt: nowIso
+      } as CategoryRule;
+
+      const updated = [...existing.filter((r: any) => r.id !== newId), newRule];
+
+      await setDoc(userRef, {
+        categoryRules: updated,
+        categoryRulesUpdatedAt: serverTimestamp()
+      }, { merge: true });
+
+      return newId;
     } catch (error) {
       console.error('Error adding category rule:', error);
       throw error;
     }
   }
 
-  static async updateCategoryRule(ruleId: string, updates: Partial<CategoryRule>): Promise<void> {
+  static async updateCategoryRule(userId: string, ruleId: string, updates: Partial<CategoryRule>): Promise<void> {
     try {
-      const docRef = doc(db, this.COLLECTIONS.CATEGORY_RULES, ruleId);
-      // Sanitize undefineds and map to deleteField where needed
+      const userRef = doc(db, this.COLLECTIONS.USERS, userId);
+      const userSnap = await getDoc(userRef);
+      const data = userSnap.data() as any;
+      const existing = Array.isArray(data?.categoryRules) ? data.categoryRules : [];
+
+      const updated = [...existing];
+      const index = updated.findIndex((r: any) => r.id === ruleId);
+
       const sanitized: Record<string, any> = {};
       Object.entries(updates).forEach(([key, value]) => {
-        if (value === undefined) {
-          if (key === 'transactionType') {
-            sanitized[key] = deleteField();
-          }
-          // omit other undefined keys
-        } else {
+        if (value !== undefined) {
           sanitized[key] = value;
         }
       });
-      await updateDoc(docRef, {
-        ...sanitized,
-        updatedAt: serverTimestamp()
-      });
+
+      const base = index >= 0 ? updated[index] : { id: ruleId, userId };
+      const next = { ...base, ...sanitized, updatedAt: new Date().toISOString() };
+
+      if (updates.transactionType === undefined && 'transactionType' in base) {
+        delete (next as any).transactionType;
+      }
+
+      if (index >= 0) {
+        updated[index] = next;
+      } else {
+        updated.push(next);
+      }
+
+      await setDoc(userRef, {
+        categoryRules: updated,
+        categoryRulesUpdatedAt: serverTimestamp()
+      }, { merge: true });
     } catch (error) {
       console.error('Error updating category rule:', error);
       throw error;
     }
   }
 
-  static async deleteCategoryRule(ruleId: string): Promise<void> {
+  static async deleteCategoryRule(userId: string, ruleId: string): Promise<void> {
     try {
-      const docRef = doc(db, this.COLLECTIONS.CATEGORY_RULES, ruleId);
-      await deleteDoc(docRef);
+      const userRef = doc(db, this.COLLECTIONS.USERS, userId);
+      const userSnap = await getDoc(userRef);
+      const data = userSnap.data() as any;
+      const existing = Array.isArray(data?.categoryRules) ? data.categoryRules : [];
+      const updated = existing.filter((r: any) => r.id !== ruleId);
+
+      await setDoc(userRef, {
+        categoryRules: updated,
+        categoryRulesUpdatedAt: serverTimestamp()
+      }, { merge: true });
     } catch (error) {
       console.error('Error deleting category rule:', error);
       throw error;
@@ -1443,37 +1617,27 @@ export class FirebaseService {
     rules: CategoryRule[]
   ): Promise<void> {
     try {
-      const BATCH_SIZE = 450;
-      const chunks = this.chunkArray(rules, BATCH_SIZE);
-      const now = serverTimestamp();
+      const userRef = doc(db, this.COLLECTIONS.USERS, userId);
+      const nowIso = new Date().toISOString();
 
-      for (const chunk of chunks) {
-        const batch = writeBatch(db);
+      const normalized = rules.map(rule => {
+        const { id, ...rest } = rule as any;
+        const cleanRuleData = Object.fromEntries(
+          Object.entries(rest).filter(([_, value]) => value !== undefined)
+        );
+        return {
+          id,
+          userId,
+          ...cleanRuleData,
+          createdAt: (rule as any).createdAt || nowIso,
+          updatedAt: nowIso
+        } as unknown as CategoryRule;
+      });
 
-        chunk.forEach(rule => {
-          // Use the provided ID for the document
-          const docRef = doc(db, this.COLLECTIONS.CATEGORY_RULES, rule.id);
-
-          // Remove ID from data payload since it's the doc key
-          const { id, ...ruleData } = rule;
-
-          // Filter out undefined values
-          const cleanRuleData = Object.fromEntries(
-            Object.entries(ruleData).filter(([_, value]) => value !== undefined)
-          );
-
-          batch.set(docRef, {
-            ...cleanRuleData,
-            userId,
-            createdAt: now,
-            updatedAt: now
-          });
-        });
-
-        await batch.commit();
-        incrementFirestoreBatches(1);
-        incrementFirestoreWrites(chunk.length);
-      }
+      await setDoc(userRef, {
+        categoryRules: normalized,
+        categoryRulesUpdatedAt: serverTimestamp()
+      }, { merge: true });
     } catch (error) {
       console.error('Error bulk adding category rules:', error);
       throw error;
@@ -1565,14 +1729,34 @@ export class FirebaseService {
     }
   }
 
-  // Get user's custom categories only (separate from defaults)
+  // Get user's custom categories only (stored in a single user document field)
+  // Falls back to legacy subcollection once and migrates to the user doc.
   static async getUserCustomCategories(userId: string): Promise<any[]> {
     try {
+      const userRef = doc(db, this.COLLECTIONS.USERS, userId);
+      const userSnap = await getDoc(userRef);
+      const data = userSnap.data() as any;
+      const stored = Array.isArray(data?.categories) ? data.categories : null;
+
+      if (stored) {
+        return stored;
+      }
+
+      // Legacy fallback: read subcollection once, then migrate to user doc
       const q = query(
         collection(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.CATEGORIES)
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+      const legacy = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+
+      if (legacy.length > 0) {
+        await setDoc(userRef, {
+          categories: legacy,
+          categoriesUpdatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+
+      return legacy;
     } catch (error) {
       console.error('Error getting user categories:', error);
       throw error;
@@ -1607,13 +1791,30 @@ export class FirebaseService {
         Object.entries(category).filter(([_, value]) => value !== undefined)
       );
 
-      const docRef = await addDoc(collection(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.CATEGORIES), {
+      // Generate ID without creating a document
+      const newId = doc(collection(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.CATEGORIES)).id;
+      const userRef = doc(db, this.COLLECTIONS.USERS, userId);
+      const userSnap = await getDoc(userRef);
+      const data = userSnap.data() as any;
+      const existing = Array.isArray(data?.categories) ? data.categories : [];
+
+      const nowIso = new Date().toISOString();
+      const newCategory = {
         ...cleanCategory,
+        id: newId,
         userId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      return docRef.id;
+        createdAt: nowIso,
+        updatedAt: nowIso
+      };
+
+      const updated = [...existing.filter((c: any) => c.id !== newId), newCategory];
+
+      await setDoc(userRef, {
+        categories: updated,
+        categoriesUpdatedAt: serverTimestamp()
+      }, { merge: true });
+
+      return newId;
     } catch (error) {
       console.error('Error adding category:', error);
       throw error;
@@ -1626,13 +1827,26 @@ export class FirebaseService {
         Object.entries(category).filter(([_, value]) => value !== undefined)
       );
 
-      const docRef = doc(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.CATEGORIES, categoryId);
-      await setDoc(docRef, {
+      const userRef = doc(db, this.COLLECTIONS.USERS, userId);
+      const userSnap = await getDoc(userRef);
+      const data = userSnap.data() as any;
+      const existing = Array.isArray(data?.categories) ? data.categories : [];
+
+      const nowIso = new Date().toISOString();
+      const newCategory = {
         ...cleanCategory,
+        id: categoryId,
         userId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+        createdAt: nowIso,
+        updatedAt: nowIso
+      };
+
+      const updated = [...existing.filter((c: any) => c.id !== categoryId), newCategory];
+
+      await setDoc(userRef, {
+        categories: updated,
+        categoriesUpdatedAt: serverTimestamp()
+      }, { merge: true });
     } catch (error) {
       console.error('Error adding category with ID:', error);
       throw error;
@@ -1645,10 +1859,29 @@ export class FirebaseService {
         Object.entries(updates).filter(([_, value]) => value !== undefined)
       );
 
-      await updateDoc(doc(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.CATEGORIES, categoryId), {
+      const userRef = doc(db, this.COLLECTIONS.USERS, userId);
+      const userSnap = await getDoc(userRef);
+      const data = userSnap.data() as any;
+      const existing = Array.isArray(data?.categories) ? data.categories : [];
+
+      const updated = [...existing];
+      const index = updated.findIndex((c: any) => c.id === categoryId);
+      const next = {
+        ...(index >= 0 ? updated[index] : { id: categoryId, userId }),
         ...cleanUpdates,
-        updatedAt: serverTimestamp()
-      });
+        updatedAt: new Date().toISOString()
+      };
+
+      if (index >= 0) {
+        updated[index] = next;
+      } else {
+        updated.push(next);
+      }
+
+      await setDoc(userRef, {
+        categories: updated,
+        categoriesUpdatedAt: serverTimestamp()
+      }, { merge: true });
     } catch (error) {
       console.error('Error updating category:', error);
       throw error;
@@ -1657,7 +1890,16 @@ export class FirebaseService {
 
   static async deleteCategory(userId: string, categoryId: string): Promise<void> {
     try {
-      await deleteDoc(doc(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.CATEGORIES, categoryId));
+      const userRef = doc(db, this.COLLECTIONS.USERS, userId);
+      const userSnap = await getDoc(userRef);
+      const data = userSnap.data() as any;
+      const existing = Array.isArray(data?.categories) ? data.categories : [];
+      const updated = existing.filter((c: any) => c.id !== categoryId);
+
+      await setDoc(userRef, {
+        categories: updated,
+        categoriesUpdatedAt: serverTimestamp()
+      }, { merge: true });
     } catch (error) {
       console.error('Error deleting category:', error);
       throw error;

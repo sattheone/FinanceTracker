@@ -48,6 +48,7 @@ const Transactions: React.FC = () => {
     transactions,
     loadInitialTransactions,
     loadMoreTransactions,
+    loadTransactionsForPeriod,
     hasMoreTransactions,
     isLoadingMoreTransactions,
     updateTransaction,
@@ -68,38 +69,31 @@ const Transactions: React.FC = () => {
     bulkUpdateTransactions,
     bulkUpdateTransactionsById,
     bulkDeleteTransactions,
-    isDataLoaded
+    isDataLoaded,
+    userProfile
   } = useData();
 
-  // Lazy load transactions when page mounts
+  const getDefaultMonthKey = (pref?: 'current' | 'previous') => {
+    const date = new Date();
+    if (pref === 'previous') {
+      date.setMonth(date.getMonth() - 1);
+    }
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    return getDefaultMonthKey(userProfile?.displayPreferences?.defaultTimePeriod);
+  });
+
+  // Lazy load transactions when page mounts (skip if month filter will load)
   useEffect(() => {
-    loadInitialTransactions();
-  }, []);
+    if (!selectedMonth) {
+      loadInitialTransactions();
+    }
+  }, [selectedMonth]);
 
 
   const formRef = useRef<SimpleTransactionFormHandle>(null);
-  const observerTarget = useRef(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      entries => {
-        if (entries[0].isIntersecting && hasMoreTransactions && !isLoadingMoreTransactions) {
-          loadMoreTransactions();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current);
-    }
-
-    return () => {
-      if (observerTarget.current) {
-        observer.unobserve(observerTarget.current);
-      }
-    };
-  }, [hasMoreTransactions, isLoadingMoreTransactions, loadMoreTransactions]);
 
 
   const navigate = useNavigate();
@@ -194,14 +188,36 @@ const Transactions: React.FC = () => {
     }
     return bankAccounts[0]?.id || '';
   });
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
+  // Load transactions for the selected month when filter changes (Summary tab)
+  useEffect(() => {
+    if (selectedMonth) {
+      const [year, month] = selectedMonth.split('-').map(Number);
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0, 23, 59, 59); // Last day of month
+      loadTransactionsForPeriod(startDate.toISOString(), endDate.toISOString());
+    }
+  }, [selectedMonth]);
+
   const [selectedTransactionMonth, setSelectedTransactionMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return getDefaultMonthKey(userProfile?.displayPreferences?.defaultTimePeriod);
   });
+
+  useEffect(() => {
+    const key = getDefaultMonthKey(userProfile?.displayPreferences?.defaultTimePeriod);
+    setSelectedMonth(key);
+    setSelectedTransactionMonth(key);
+  }, [userProfile?.displayPreferences?.defaultTimePeriod]);
+
+  // Load transactions for the selected month when Transactions tab month changes
+  useEffect(() => {
+    if (selectedTransactionMonth) {
+      const [year, month] = selectedTransactionMonth.split('-').map(Number);
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0, 23, 59, 59);
+      loadTransactionsForPeriod(startDate.toISOString(), endDate.toISOString());
+    }
+  }, [selectedTransactionMonth]);
+
   const [activeTab, setActiveTab] = useState<'summary' | 'transactions'>('transactions');
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedTransactionForDetail, setSelectedTransactionForDetail] = useState<Transaction | null>(null);
@@ -476,7 +492,7 @@ const Transactions: React.FC = () => {
     setShowConfirmDialog(true);
   };
 
-  const handleDuplicateConfirm = async (forceImport: boolean) => {
+  const handleDuplicateConfirm = async (forceImport: boolean, selectedDuplicates?: Transaction[]) => {
     if (forceImport) {
       // Force import all transactions (including duplicates)
       const transactionsToAdd = pendingImportData.map(item => ({
@@ -499,16 +515,30 @@ const Transactions: React.FC = () => {
         alert(`❌ Force import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     } else {
-      // Import only new transactions
+      // Import only new transactions + any selected duplicates
       const newTransactions = duplicateSummary.importedTransactions.map((t: any) => {
         const { id, ...transaction } = t;
         return transaction;
       });
 
-      if (newTransactions.length > 0) {
+      // Add any selected duplicates that user chose to import anyway
+      const additionalDuplicates = (selectedDuplicates || []).map((t: any) => {
+        const { id, ...transaction } = t;
+        return {
+          ...transaction,
+          source: 'excel-import-duplicate-override'
+        };
+      });
+
+      const allTransactions = [...newTransactions, ...additionalDuplicates];
+
+      if (allTransactions.length > 0) {
         try {
-          await addTransactionsBulk(newTransactions, { skipDuplicateCheck: true });
-          alert(`✅ Successfully imported ${newTransactions.length} new transactions!`);
+          await addTransactionsBulk(allTransactions, { skipDuplicateCheck: true });
+          const message = additionalDuplicates.length > 0
+            ? `✅ Successfully imported ${newTransactions.length} new transactions + ${additionalDuplicates.length} selected duplicates!`
+            : `✅ Successfully imported ${newTransactions.length} new transactions!`;
+          alert(message);
         } catch (error) {
           alert(`❌ Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -791,7 +821,9 @@ const Transactions: React.FC = () => {
   const accountLast4 = currentAccount?.number ? currentAccount.number.slice(-4) : '';
 
   // Calculate account-specific balance from initialBalance + transactions
-  const calculatedBalance = currentAccount ? getAccountBalance(currentAccount.id) : 0;
+  const calculatedBalance = selectedAccount === 'all_accounts'
+    ? bankAccounts.reduce((sum, account) => sum + getAccountBalance(account.id), 0)
+    : currentAccount ? getAccountBalance(currentAccount.id) : 0;
 
   // Generate month options for the last 12 months
   const generateMonthOptions = () => {
@@ -814,6 +846,7 @@ const Transactions: React.FC = () => {
   };
 
   const monthOptions = generateMonthOptions();
+  const selectedMonthLabel = monthOptions.find(m => m.value === selectedMonth)?.label || selectedMonth;
 
   // Calculate 6-month data for chart
   const getSixMonthData = useMemo(() => {
@@ -1471,7 +1504,7 @@ const Transactions: React.FC = () => {
                     </div>
                   ) : (
                     <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                      No {pieChartType} data available for this month
+                      No {pieChartType} data available for {selectedMonthLabel}
                     </div>
                   )}
                 </div>
@@ -1891,7 +1924,7 @@ const Transactions: React.FC = () => {
                           delete otherUpdates.type;
 
                           if (Object.keys(otherUpdates).length > 0) {
-                            updateTransaction(id, { ...transaction, ...otherUpdates });
+                            updateTransaction(id, otherUpdates);
                           }
                         }}
                         onContextMenu={handleContextMenu}
@@ -1915,18 +1948,21 @@ const Transactions: React.FC = () => {
                       />
 
                       {hasMoreTransactions && (
-                        <div
-                          ref={observerTarget}
-                          className="py-6 flex justify-center items-center"
-                        >
-                          {isLoadingMoreTransactions ? (
-                            <div className="flex flex-col items-center">
-                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-                              <span className="mt-2 text-xs text-gray-500">Loading more transactions...</span>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-400">Scroll to load more</span>
-                          )}
+                        <div className="py-6 flex justify-center items-center">
+                          <button
+                            onClick={loadMoreTransactions}
+                            disabled={isLoadingMoreTransactions}
+                            className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                          >
+                            {isLoadingMoreTransactions ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                <span>Loading...</span>
+                              </>
+                            ) : (
+                              <span>Load More</span>
+                            )}
+                          </button>
                         </div>
                       )}
 
@@ -2292,11 +2328,11 @@ const Transactions: React.FC = () => {
               const otherUpdates = { ...updates };
               delete otherUpdates.category;
               if (Object.keys(otherUpdates).length > 0) {
-                updateTransaction(transactionId, { ...transaction, ...otherUpdates });
+                updateTransaction(transactionId, otherUpdates);
               }
             } else {
               // Standard update
-              updateTransaction(transactionId, { ...transaction, ...updates });
+              updateTransaction(transactionId, updates);
             }
           }
         }}

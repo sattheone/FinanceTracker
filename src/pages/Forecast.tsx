@@ -55,7 +55,12 @@ const Forecast: React.FC = () => {
 };
 
 const DrawdownSimulator: React.FC = () => {
-  const { assets, monthlyBudget, userProfile, transactions } = useData();
+  const { assets, monthlyBudget, userProfile, transactions, loadAssets, loadMonthlyBudget } = useData();
+
+  React.useEffect(() => {
+    loadAssets();
+    loadMonthlyBudget();
+  }, []);
 
   // Initial Defaults
   const defaultCorpus = assets.reduce((sum, a) => sum + a.currentValue, 0);
@@ -444,7 +449,13 @@ const DrawdownSimulator: React.FC = () => {
 };
 
 const ForecastOverview: React.FC = () => {
-  const { goals, monthlyBudget, assets, userProfile, updateUserProfile, updateMonthlyBudget } = useData();
+  const { goals, monthlyBudget, assets, userProfile, updateUserProfile, updateMonthlyBudget, loadGoals, loadAssets, loadMonthlyBudget } = useData();
+
+  React.useEffect(() => {
+    loadGoals();
+    loadAssets();
+    loadMonthlyBudget();
+  }, []);
   const [inflationRate, setInflationRate] = useState(6);
   const [forecastYears, setForecastYears] = useState(10);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);

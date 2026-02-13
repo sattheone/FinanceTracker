@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   Home,
   TrendingUp,
@@ -30,6 +30,7 @@ const MAX_SIDEBAR_WIDTH = 400;
 const DEFAULT_SIDEBAR_WIDTH = 256; // w-64 = 16rem = 256px
 
 const Layout: React.FC = () => {
+  const location = useLocation();
   const { user, logout } = useAuth();
   const { isDataLoaded } = useData();
   const { actualTheme, toggleTheme } = useTheme();
@@ -88,6 +89,7 @@ const Layout: React.FC = () => {
   const alertCount = alerts.filter(a => a.severity === 'critical' || a.severity === 'warning').length;
 
   const closeSidebar = () => setSidebarOpen(false);
+  const isCategoriesPage = location.pathname === '/categories';
 
   if (!isDataLoaded) {
     return (
@@ -250,7 +252,11 @@ const Layout: React.FC = () => {
         {/* Main Content */}
         <main
           id="main-content"
-          className={cn(theme.bgPrimary, 'flex-1 p-4 lg:p-6 min-h-screen')}
+          className={cn(
+            theme.bgPrimary,
+            'flex-1 min-h-screen',
+            isCategoriesPage ? 'p-0 overflow-hidden' : 'p-4 lg:p-6'
+          )}
           role="main"
           tabIndex={-1}
         >

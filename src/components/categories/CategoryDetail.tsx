@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
     BarChart,
     Bar,
@@ -19,6 +19,7 @@ import RulePrompt from '../transactions/RulePrompt';
 import RuleCreationDialog from '../transactions/RuleCreationDialog';
 import TagPopover from '../transactions/TagPopover';
 import TagSettingsOverlay from '../transactions/TagSettingsOverlay';
+import CategoryPopover from '../transactions/CategoryPopover';
 import { useData } from '../../contexts/DataContext';
 import SidePanel from '../common/SidePanel';
 import CategoryForm, { CategoryFormHandle } from './CategoryForm';
@@ -28,17 +29,23 @@ interface CategoryDetailProps {
     transactions: Transaction[];
     monthlyBudget: MonthlyBudget | null;
     currentMonth: Date;
+    onUpdateTransaction?: (id: string, updates: Partial<Transaction>) => Promise<void> | void;
 }
 
 const CategoryDetail: React.FC<CategoryDetailProps> = ({
     category,
     transactions,
     monthlyBudget,
-    currentMonth
+    currentMonth,
+    onUpdateTransaction
 }) => {
-    const { updateTransaction, categories, addCategoryRule, updateCategory, ungroupChildren } = useData();
+    const { updateTransaction, deleteTransaction, categories, addCategoryRule, updateCategory, ungroupChildren } = useData();
+    const updateTransactionFn = onUpdateTransaction ?? updateTransaction;
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
     const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
+    const [blinkTransactionId, setBlinkTransactionId] = useState<string | null>(null);
+    const listContainerRef = useRef<HTMLDivElement | null>(null);
+    const blinkTimeoutRef = useRef<number | null>(null);
     const [showEditPanel, setShowEditPanel] = useState(false);
     const formRef = React.useRef<CategoryFormHandle | null>(null);
 
@@ -47,6 +54,10 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     const [tagPopoverTransaction, setTagPopoverTransaction] = useState<Transaction | null>(null);
     const [tagPopoverAnchor, setTagPopoverAnchor] = useState<HTMLElement | null>(null);
     const [showTagSettings, setShowTagSettings] = useState(false);
+    
+    // Bulk category popover state
+    const [showBulkCategoryPopover, setShowBulkCategoryPopover] = useState(false);
+    const [bulkCategoryAnchor, setBulkCategoryAnchor] = useState<HTMLElement | null>(null);
 
     // Rule creation state
     const [showRulePrompt, setShowRulePrompt] = useState(false);
@@ -60,11 +71,11 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     const [showRuleDialog, setShowRuleDialog] = useState(false);
 
     // Handler for category changes with rule prompt
-    const handleCategoryChangeWithRulePrompt = (transaction: Transaction, newCategoryId: string) => {
+    const handleCategoryChangeWithRulePrompt = async (transaction: Transaction, newCategoryId: string) => {
         const oldCategoryId = transaction.category;
 
         // Update the transaction
-        updateTransaction(transaction.id, { category: newCategoryId });
+        await updateTransactionFn(transaction.id, { category: newCategoryId });
 
         // Show rule prompt if category actually changed
         if (oldCategoryId !== newCategoryId) {
@@ -80,9 +91,9 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
         }
     };
 
-    const handleTypeChangeWithRulePrompt = (transaction: Transaction, newType: Transaction['type']) => {
+    const handleTypeChangeWithRulePrompt = async (transaction: Transaction, newType: Transaction['type']) => {
         // Update the transaction
-        updateTransaction(transaction.id, { type: newType });
+        await updateTransactionFn(transaction.id, { type: newType });
 
         // Show rule prompt if type actually changed
         if (transaction.type !== newType) {
@@ -96,34 +107,23 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     };
 
     // Handler for transaction updates from TransactionTable
-    const handleUpdateTransaction = (transactionId: string, updates: Partial<Transaction>) => {
+    const handleUpdateTransaction = async (transactionId: string, updates: Partial<Transaction>) => {
         const transaction = transactions.find(t => t.id === transactionId);
 
         if (!transaction) {
-            console.warn('[CategoryDetail] Could not find transaction to update:', transactionId);
             return;
         }
-
-        console.log('[CategoryDetail] Updating transaction:', {
-            id: transactionId,
-            currentCategory: transaction.category,
-            updates
-        });
 
         // Handle specific fields with rule prompts
         if (updates.category) {
             if (updates.category !== transaction.category) {
-                console.log('[CategoryDetail] Processing category change with rule prompt');
-                handleCategoryChangeWithRulePrompt(transaction, updates.category);
-            } else {
-                console.log('[CategoryDetail] Category update skipped - same category');
+                await handleCategoryChangeWithRulePrompt(transaction, updates.category);
             }
         }
 
         if (updates.type) {
             if (updates.type !== transaction.type) {
-                console.log('[CategoryDetail] Processing type change with rule prompt');
-                handleTypeChangeWithRulePrompt(transaction, updates.type);
+                await handleTypeChangeWithRulePrompt(transaction, updates.type);
             }
         }
 
@@ -133,8 +133,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
         delete otherUpdates.type;
 
         if (Object.keys(otherUpdates).length > 0) {
-            console.log('[CategoryDetail] Applying other updates:', otherUpdates);
-            updateTransaction(transactionId, { ...transaction, ...otherUpdates });
+            await updateTransactionFn(transactionId, otherUpdates);
         }
     };
 
@@ -152,7 +151,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
 
         transactions.forEach(t => {
             const tDate = new Date(t.date);
-            if (isSameMonth(tDate, currentMonth) && (t.type === 'expense' || t.type === 'investment')) {
+            if (isSameMonth(tDate, currentMonth)) {
                 stats.spent += t.amount;
                 stats.count += 1;
             }
@@ -182,7 +181,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
             let amount = 0;
             transactions.forEach(t => {
                 const tDate = new Date(t.date);
-                if (isSameMonth(tDate, date) && (t.type === 'expense' || t.type === 'investment')) {
+                if (isSameMonth(tDate, date)) {
                     amount += t.amount;
                 }
             });
@@ -196,6 +195,43 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
         }
         return data;
     }, [transactions]);
+
+    const sortedTransactions = useMemo(() =>
+        [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+        [transactions]
+    );
+
+    const handleChartClick = (event: any) => {
+        const payloadDate: Date | undefined = event?.activePayload?.[0]?.payload?.date;
+        if (!payloadDate) return;
+
+        const target = sortedTransactions.find(t => isSameMonth(new Date(t.date), payloadDate));
+        if (!target) return;
+
+        const row = listContainerRef.current?.querySelector<HTMLTableRowElement>(
+            `[data-transaction-id="${target.id}"]`
+        );
+
+        if (row) {
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        setBlinkTransactionId(target.id);
+        if (blinkTimeoutRef.current) {
+            window.clearTimeout(blinkTimeoutRef.current);
+        }
+        blinkTimeoutRef.current = window.setTimeout(() => {
+            setBlinkTransactionId(null);
+        }, 900);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (blinkTimeoutRef.current) {
+                window.clearTimeout(blinkTimeoutRef.current);
+            }
+        };
+    }, []);
 
     // --- Helper for Over/Under ---
     const getBudgetStatus = () => {
@@ -213,7 +249,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     const budgetStatus = getBudgetStatus();
 
     return (
-        <div className="h-fit flex flex-col bg-white dark:bg-gray-800">
+        <div className="h-fit w-full min-w-0 overflow-x-hidden flex flex-col bg-white dark:bg-gray-800">
 
             {/* Header Section */}
             <div className="p-4 border-b border-gray-100 dark:border-gray-700">
@@ -237,7 +273,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                     </div>
 
                     <div className="text-right">
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Spent in {format(currentMonth, 'MMM')}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Spent in {format(currentMonth, 'MMM yyyy')}</p>
                         <p className="text-3xl font-bold dark:text-white">{formatCurrency(currentMonthStats.spent)}</p>
                         {budgetStatus && (
                             <p className="text-sm text-gray-400 mt-1">
@@ -248,7 +284,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                 </div>
 
                 {/* Chart */}
-                <div className="h-48 w-full mt-4">
+                <div className="h-48 w-full mt-4 overflow-hidden">
 
                     {/* Edit Category Side Panel */}
                     <SidePanel
@@ -291,7 +327,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                         </div>
                     </SidePanel>
                     <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData}>
+                        <BarChart data={chartData} onClick={handleChartClick}>
                             {/* <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" /> */}
                             <XAxis
                                 dataKey="name"
@@ -328,10 +364,11 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
             </div>
 
             {/* Transaction List */}
-            <div className="bg-white dark:bg-gray-900 p-4 flex-1">
+            <div className="bg-white dark:bg-gray-900 p-4 flex-1 overflow-x-hidden" ref={listContainerRef}>
                 <TransactionTable
-                    transactions={transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
+                    transactions={sortedTransactions}
                     selectedTransactions={selectedTransactions}
+                    highlightTransactionId={blinkTransactionId}
                     onSelectTransaction={(id, select) => {
                         setSelectedTransactions(prev => {
                             const next = new Set(prev);
@@ -350,7 +387,12 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                     }}
                     onSelectAll={() => {
                         const allIds = transactions.filter(t => !t.isSplitParent).map(t => t.id);
-                        setSelectedTransactions(new Set(allIds));
+                        // Toggle: if all selected, deselect all; otherwise select all
+                        if (selectedTransactions.size === allIds.length) {
+                            setSelectedTransactions(new Set());
+                        } else {
+                            setSelectedTransactions(new Set(allIds));
+                        }
                     }}
                     onClearSelection={() => setSelectedTransactions(new Set())}
                     onTransactionClick={(t) => setSelectedTransaction(t)}
@@ -360,7 +402,26 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                         setTagPopoverAnchor(anchor);
                         setShowTagPopover(true);
                     }}
-                // Only passing update, delete handled via overlay or could be passed here
+                    onBulkCategoryClick={(anchor) => {
+                        setBulkCategoryAnchor(anchor as HTMLElement);
+                        setShowBulkCategoryPopover(true);
+                    }}
+                    onBulkDelete={async () => {
+                        if (selectedTransactions.size === 0) return;
+                        const count = selectedTransactions.size;
+                        if (!window.confirm(`Are you sure you want to delete ${count} transaction${count > 1 ? 's' : ''}? This cannot be undone.`)) {
+                            return;
+                        }
+                        try {
+                            await Promise.all(
+                                Array.from(selectedTransactions).map(id => deleteTransaction(id))
+                            );
+                            setSelectedTransactions(new Set());
+                        } catch (error) {
+                            console.error('Failed to delete transactions:', error);
+                            alert('Failed to delete some transactions. Please try again.');
+                        }
+                    }}
                 />
             </div>
 
@@ -420,7 +481,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                         setTagPopoverAnchor(null);
                     }}
                     transaction={tagPopoverTransaction}
-                    onUpdateTransaction={updateTransaction}
+                    onUpdateTransaction={updateTransactionFn}
                     anchorElement={tagPopoverAnchor}
                     onOpenTagSettings={() => setShowTagSettings(true)}
                 />
@@ -431,6 +492,28 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                 isOpen={showTagSettings}
                 onClose={() => setShowTagSettings(false)}
             />
+            
+            {/* Bulk Category Popover */}
+            {showBulkCategoryPopover && (
+                <CategoryPopover
+                    isOpen={showBulkCategoryPopover}
+                    onClose={() => {
+                        setShowBulkCategoryPopover(false);
+                        setBulkCategoryAnchor(null);
+                    }}
+                    anchorElement={bulkCategoryAnchor}
+                    currentCategory={''}
+                    onSelect={(categoryId) => {
+                        // Update all selected transactions to new category
+                        selectedTransactions.forEach(id => {
+                            updateTransactionFn(id, { category: categoryId });
+                        });
+                        setSelectedTransactions(new Set());
+                        setShowBulkCategoryPopover(false);
+                        setBulkCategoryAnchor(null);
+                    }}
+                />
+            )}
         </div>
     );
 };

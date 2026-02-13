@@ -342,15 +342,23 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">Category</label>
-                  {/* Simplified category dropdown for mobile or reuse existing editor component if simple enough */}
+                  {/* Use categories prop for proper IDs */}
                   <select
                     value={item.category}
                     onChange={(e) => handleFieldChange(index, 'category', e.target.value)}
                     className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
                   >
-                    {getCategoryOptions(item.type).map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
+                    {categories.length > 0 ? (
+                      categories
+                        .filter(cat => !cat.parentId) // Only show parent categories in simple dropdown
+                        .map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
+                        ))
+                    ) : (
+                      getCategoryOptions(item.type).map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>

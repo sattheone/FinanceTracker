@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, DollarSign, Repeat } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { Transaction, RecurringTransaction, Bill } from '../../types';
@@ -29,6 +29,7 @@ interface CalendarProps {
   showRecurring?: boolean;
   showBills?: boolean;
   viewMode?: 'chip' | 'icon';
+  defaultMonth?: Date;
 }
 
 const Calendar: React.FC<CalendarProps> = ({
@@ -41,11 +42,19 @@ const Calendar: React.FC<CalendarProps> = ({
   showTransactions = true,
   showRecurring = true,
   showBills = true,
-  viewMode = 'chip'
+  viewMode = 'chip',
+  defaultMonth
 }) => {
   const theme = useThemeClasses();
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(defaultMonth || new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (defaultMonth) {
+      setCurrentDate(defaultMonth);
+      setSelectedDate(null);
+    }
+  }, [defaultMonth]);
 
   // Get current month info
   const year = currentDate.getFullYear();

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Filter, LayoutGrid, List } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
@@ -21,7 +21,21 @@ interface CalendarEvent {
 
 const CalendarPage: React.FC = () => {
   const theme = useThemeClasses();
-  const { transactions, recurringTransactions, bills, categories, deleteTransaction, updateTransaction } = useData();
+  const { transactions, recurringTransactions, bills, categories, deleteTransaction, updateTransaction, loadRecurringTransactions, loadBills, userProfile } = useData();
+  const defaultTimePeriod = userProfile?.displayPreferences?.defaultTimePeriod || 'current';
+  const defaultMonth = useMemo(() => {
+    const date = new Date();
+    if (defaultTimePeriod === 'previous') {
+      date.setMonth(date.getMonth() - 1);
+    }
+    return date;
+  }, [defaultTimePeriod]);
+
+  useEffect(() => {
+    loadRecurringTransactions();
+    loadBills();
+  }, []);
+
   const [showFilters, setShowFilters] = useState(false);
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'chip' | 'icon'>('chip');
@@ -356,8 +370,15 @@ const CalendarPage: React.FC = () => {
         </div>
       </div>
 
+      {defaultTimePeriod === 'previous' && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          Defaulting to previous month based on your settings.
+        </p>
+      )}
+
       {/* Calendar */}
       <Calendar
+        key={defaultMonth.toISOString().slice(0, 7)}
         transactions={filteredTransactions}
         recurringTransactions={filteredRecurring}
         bills={filteredBills}
@@ -368,6 +389,7 @@ const CalendarPage: React.FC = () => {
         showRecurring={filters.showRecurring}
         showBills={filters.showBills}
         viewMode={viewMode}
+        defaultMonth={defaultMonth}
       />
 
       {/* Transaction List Overlay */}

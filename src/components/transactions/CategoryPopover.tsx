@@ -45,25 +45,47 @@ const CategoryPopover: React.FC<CategoryPopoverProps> = ({
         width: Math.max(256, rect.width),
         maxHeight: showAbove ? Math.min(POPOVER_HEIGHT, rect.top - GAP * 2) : Math.min(POPOVER_HEIGHT, viewportHeight - rect.bottom - GAP * 2)
       });
+    } else if (isOpen && !anchorElement) {
+      // Fallback: center in viewport when no anchor element
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const POPOVER_WIDTH = 280;
+      const POPOVER_HEIGHT = 300;
+      setPosition({
+        top: Math.max(100, (viewportHeight - POPOVER_HEIGHT) / 2),
+        left: Math.max(20, (viewportWidth - POPOVER_WIDTH) / 2),
+        width: POPOVER_WIDTH,
+        maxHeight: POPOVER_HEIGHT
+      });
     }
   }, [isOpen, anchorElement]);
 
   // Outside click to close
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Don't handle if position not set yet (popover just opened)
+      if (!position) return;
+      
       const target = event.target as Node;
       const inside = popoverRef.current?.contains(target);
       const insideAnchor = anchorElement?.contains(target);
       if (!inside && !insideAnchor) {
+        console.log('Click outside detected, closing popover');
         event.stopPropagation();
         onClose();
       }
     };
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      // Add small delay before listening to avoid catching the opening click
+      const timer = setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+      }, 100);
+      return () => {
+        clearTimeout(timer);
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
     }
-  }, [isOpen, onClose, anchorElement]);
+  }, [isOpen, onClose, anchorElement, position]);
 
   useEffect(() => {
     if (isOpen && position) {

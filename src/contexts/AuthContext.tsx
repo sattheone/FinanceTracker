@@ -13,7 +13,28 @@ import {
 import { auth } from '../config/firebase';
 import { User, AuthState } from '../types/user';
 import FirebaseService from '../services/firebaseService';
-import sendGridEmailService from '../services/sendGridEmailService';
+
+const updateLocalEmailNotificationSettings = (email: string) => {
+  try {
+    const saved = localStorage.getItem('emailNotificationSettings');
+    const existing = saved ? JSON.parse(saved) : {};
+
+    const next = {
+      enabled: true,
+      billReminders: { enabled: true, daysBefore: [7, 3, 1] },
+      recurringReminders: { enabled: true, daysBefore: [3, 1] },
+      budgetAlerts: { enabled: true, threshold: 80 },
+      monthlyReports: { enabled: false, dayOfMonth: 1 },
+      overdueAlerts: { enabled: true },
+      ...existing,
+      emailAddress: email,
+    };
+
+    localStorage.setItem('emailNotificationSettings', JSON.stringify(next));
+  } catch (error) {
+    console.warn('Unable to update local email notification settings:', error);
+  }
+};
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<boolean>;
@@ -102,18 +123,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      
-      // Ensure email notifications are set up for existing users
-      const currentSettings = sendGridEmailService.getSettings();
-      if (!currentSettings.emailAddress) {
-        const updatedSettings = {
-          ...currentSettings,
-          enabled: true,
-          emailAddress: email
-        };
-        sendGridEmailService.saveSettings(updatedSettings);
-        console.log('✅ Email notifications configured for existing user');
-      }
+      updateLocalEmailNotificationSettings(email);
       
       return true;
     } catch (error) {
@@ -148,34 +158,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       };
 
       await FirebaseService.createUserProfile(userCredential.user.uid, defaultProfile);
-      
-      // Enable email notifications by default with user's email
-      const defaultEmailSettings = {
-        enabled: true,
-        emailAddress: email,
-        billReminders: {
-          enabled: true,
-          daysBefore: [7, 3, 1]
-        },
-        recurringReminders: {
-          enabled: true,
-          daysBefore: [3, 1]
-        },
-        budgetAlerts: {
-          enabled: true,
-          threshold: 80
-        },
-        monthlyReports: {
-          enabled: false,
-          dayOfMonth: 1
-        },
-        overdueAlerts: {
-          enabled: true
-        }
-      };
-      
-      sendGridEmailService.saveSettings(defaultEmailSettings);
-      console.log('✅ Email notifications enabled by default for new user');
+      updateLocalEmailNotificationSettings(email);
       
       return true;
     } catch (error) {

@@ -20,6 +20,9 @@ export interface UserProfile {
     retirementAge: number;
     currentAge: number;
   };
+  displayPreferences?: {
+    defaultTimePeriod: 'current' | 'previous';
+  };
   onboardingStep: number;
 }
 

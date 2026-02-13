@@ -62,14 +62,60 @@ const Liabilities: React.FC = () => {
   };
 
   const handleLiabilitySubmit = (liabilityData: Omit<Liability, 'id'>) => {
-    console.log('Submitting liability:', liabilityData);
-    if (editingLiability) {
-      console.log('Updating liability:', editingLiability.id);
-      updateLiability(editingLiability.id, liabilityData);
+    // Handle marking past dues as paid
+    if ((liabilityData as any).markPastDuesAsPaid) {
+      const schedule = generateAmortizationSchedule(
+        liabilityData.principalAmount,
+        liabilityData.interestRate,
+        liabilityData.emiAmount,
+        liabilityData.startDate
+      );
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const paidInstallments: number[] = [];
+      let totalPrincipalPaid = 0;
+      
+      schedule.forEach((installment) => {
+        const dueDate = new Date(installment.installmentDate);
+        dueDate.setHours(0, 0, 0, 0);
+        
+        // Validate date and check if it's in the past
+        if (!isNaN(dueDate.getTime()) && dueDate < today) {
+          paidInstallments.push(installment.installmentNumber);
+          totalPrincipalPaid += installment.principalPaid;
+        }
+      });
+      
+      // Calculate remaining balance
+      const newBalance = Math.max(0, liabilityData.principalAmount - totalPrincipalPaid);
+      
+      const updatedData = {
+        ...liabilityData,
+        paidInstallments,
+        currentBalance: newBalance,
+      };
+      
+      // Remove the temporary flag before saving
+      delete (updatedData as any).markPastDuesAsPaid;
+      
+      if (editingLiability) {
+        updateLiability(editingLiability.id, updatedData);
+      } else {
+        addLiability(updatedData);
+      }
     } else {
-      console.log('Adding new liability');
-      addLiability(liabilityData);
+      // Remove the temporary flag before saving
+      const cleanedData = { ...liabilityData };
+      delete (cleanedData as any).markPastDuesAsPaid;
+      
+      if (editingLiability) {
+        updateLiability(editingLiability.id, cleanedData);
+      } else {
+        addLiability(cleanedData);
+      }
     }
+    
     setShowLiabilityForm(false);
     setEditingLiability(null);
   };
@@ -429,24 +475,45 @@ const Liabilities: React.FC = () => {
       </SidePanel>
 
       {/* Repayment Schedule Modal */}
-      {selectedLiabilityForSchedule && (
-        <RepaymentScheduleModal
-          isOpen={showScheduleModal}
-          onClose={() => {
-            setShowScheduleModal(false);
-            setSelectedLiabilityForSchedule(null);
-          }}
-          schedule={generateAmortizationSchedule(
-            selectedLiabilityForSchedule.principalAmount,
-            selectedLiabilityForSchedule.interestRate,
-            selectedLiabilityForSchedule.emiAmount,
-            selectedLiabilityForSchedule.startDate // Start from original loan start date (first installment)
-          )}
-          liabilityName={selectedLiabilityForSchedule.name}
-          paidInstallments={selectedLiabilityForSchedule.paidInstallments || []}
-          onMarkPaid={handleMarkInstallmentPaid}
-        />
-      )}
+      {selectedLiabilityForSchedule && (() => {
+        const schedule = generateAmortizationSchedule(
+          selectedLiabilityForSchedule.principalAmount,
+          selectedLiabilityForSchedule.interestRate,
+          selectedLiabilityForSchedule.emiAmount,
+          selectedLiabilityForSchedule.startDate
+        );
+        
+        // Calculate which installments should be marked as paid based on due date
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const paidInstallments = selectedLiabilityForSchedule.paidInstallments || [];
+        
+        // Add any past dues that aren't already marked as paid
+        const allPaidInstallments = new Set(paidInstallments);
+        schedule.forEach((installment) => {
+          const dueDate = new Date(installment.installmentDate);
+          dueDate.setHours(0, 0, 0, 0);
+          
+          // Mark as paid if due date is before or equal to today
+          if (dueDate <= today) {
+            allPaidInstallments.add(installment.installmentNumber);
+          }
+        });
+        
+        return (
+          <RepaymentScheduleModal
+            isOpen={showScheduleModal}
+            onClose={() => {
+              setShowScheduleModal(false);
+              setSelectedLiabilityForSchedule(null);
+            }}
+            schedule={schedule}
+            liabilityName={selectedLiabilityForSchedule.name}
+            paidInstallments={Array.from(allPaidInstallments)}
+            onMarkPaid={handleMarkInstallmentPaid}
+          />
+        );
+      })()}
     </div>
   );
 };

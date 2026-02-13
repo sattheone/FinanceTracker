@@ -7,6 +7,7 @@ import FirebaseService from '../services/firebaseService';
 import GoalMigrationService from '../services/goalMigration';
 import CategoryRuleService from '../services/categoryRuleService';
 import SIPAutoUpdateService from '../services/sipAutoUpdateService';
+import { incrementCategorySummary, decrementCategorySummary, updateCategorySummary, clearCategorySummaryCache } from '../services/categorySummaryService';
 
 
 // Utility function to calculate next due date
@@ -197,6 +198,9 @@ const getDefaultUserProfile = (): UserProfile => ({
     retirementAge: 60,
     currentAge: 30,
   },
+  displayPreferences: {
+    defaultTimePeriod: 'current',
+  },
   onboardingStep: 0,
 });
 
@@ -215,6 +219,8 @@ const getDefaultMonthlyBudget = (): MonthlyBudget => ({
 export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const { user } = useAuth();
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const initialTransactionsLoadedRef = useRef(false);
+  const loadedTransactionMonthsRef = useRef<Set<string>>(new Set());
 
   // User Profile
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -328,12 +334,46 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   }, [bills, recurringTransactions, transactions, isDataLoaded]);
 
+  // Cache essential data to localStorage for offline-first loading
+  useEffect(() => {
+    if (isDataLoaded && bankAccounts.length > 0) {
+      localStorage.setItem('bankAccounts', JSON.stringify(bankAccounts));
+    }
+  }, [bankAccounts, isDataLoaded]);
+
+  useEffect(() => {
+    if (isDataLoaded && categoryRules.length > 0) {
+      localStorage.setItem('categoryRules', JSON.stringify(categoryRules));
+    }
+  }, [categoryRules, isDataLoaded]);
+
+  useEffect(() => {
+    if (isDataLoaded && userProfile) {
+      localStorage.setItem('userProfile', JSON.stringify(userProfile));
+    }
+  }, [userProfile, isDataLoaded]);
+
+  useEffect(() => {
+    if (isDataLoaded && categories.length > 0) {
+      // Only cache custom categories (non-default)
+      const customCats = categories.filter(c => (c as any).isCustom || (c as any).userId);
+      if (customCats.length > 0) {
+        localStorage.setItem('customCategories', JSON.stringify(customCats));
+      }
+    }
+  }, [categories, isDataLoaded]);
+
   // Auto-update SIP investments when data is loaded (runs once per session)
   useEffect(() => {
     if (!isDataLoaded || sipAutoUpdateRan.current || !user) return;
 
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const lastRun = localStorage.getItem('sipAutoUpdateLastRun');
+    if (lastRun === todayKey) return;
+
     const processAutoSIP = async () => {
       sipAutoUpdateRan.current = true;
+      localStorage.setItem('sipAutoUpdateLastRun', todayKey);
 
       try {
         const { updates, results } = await SIPAutoUpdateService.processAllDueSIPs(assets, true);
@@ -344,7 +384,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           // Apply updates to each asset
           for (const [assetId, update] of updates) {
             await FirebaseService.updateAsset(assetId, update);
-            setAssets(prev => prev.map(a => a.id === assetId ? { ...a, ...update } : a));
+            setAssets(prev => {
+              const updated = prev.map(a => a.id === assetId ? { ...a, ...update } : a);
+              localStorage.setItem('assets', JSON.stringify(updated));
+              return updated;
+            });
           }
 
           // Log summary
@@ -371,37 +415,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const loadUserData = async (userId: string) => {
     try {
       setIsDataLoaded(false);
-
-      // Load user profile
-      const profile = await FirebaseService.getUserProfile(userId);
-      if (profile) {
-        setUserProfile(profile);
-      } else {
-        // Initialize with default data
-        const defaultProfile = getDefaultUserProfile();
-        if (user) {
-          defaultProfile.personalInfo.name = user.name;
-          defaultProfile.personalInfo.email = user.email;
-        }
-        setUserProfile(defaultProfile);
-        await FirebaseService.createUserProfile(userId, defaultProfile);
-      }
-
-      // Load only essential data on login (minimal reads)
-      // Page-specific data will be loaded lazily when needed
-      console.log('[DataContext] Loading essential data for user:', userId);
-      const [
-        bankAccountsData,
-        categoryRulesData,
-      ] = await Promise.all([
-        FirebaseService.getBankAccounts(userId),
-        FirebaseService.getCategoryRules(userId),
-      ]);
-
-      console.log('[DataContext] Loaded essential data:', {
-        bankAccounts: bankAccountsData.length,
-        categoryRules: categoryRulesData.length,
-      });
+      initialTransactionsLoadedRef.current = false;
+      loadedTransactionMonthsRef.current = new Set();
 
       // Initialize empty collections - will be loaded lazily by respective pages
       setAssets([]);
@@ -413,41 +428,160 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setSipRules([]);
       setMonthlyBudget(getDefaultMonthlyBudget());
       setLicPolicies([]);
+      setTags([]);
 
-      // Load bank accounts from Firebase
-      setBankAccounts(bankAccountsData);
-      setCategoryRules(categoryRulesData);
+      // ── PHASE 1: Load from localStorage cache (0 Firestore reads) ──
+      let hasCachedData = false;
 
-      // Load transactions from local storage (cache) first
+      // Load cached user profile
+      try {
+        const cachedProfile = localStorage.getItem('userProfile');
+        if (cachedProfile) {
+          setUserProfile(JSON.parse(cachedProfile));
+          hasCachedData = true;
+        }
+      } catch (e) { console.warn('Error parsing cached user profile', e); }
+
+      // Load cached bank accounts
+      try {
+        const cachedBankAccounts = localStorage.getItem('bankAccounts');
+        if (cachedBankAccounts) {
+          const parsed = JSON.parse(cachedBankAccounts);
+          if (parsed.length > 0) {
+            setBankAccounts(parsed);
+            hasCachedData = true;
+          }
+        }
+      } catch (e) { console.warn('Error parsing cached bank accounts', e); }
+
+      // Load cached category rules
+      try {
+        const cachedRules = localStorage.getItem('categoryRules');
+        if (cachedRules) {
+          const parsed = JSON.parse(cachedRules);
+          if (parsed.length > 0) {
+            setCategoryRules(parsed);
+          }
+        }
+      } catch (e) { console.warn('Error parsing cached category rules', e); }
+
+      // Load cached transactions
+      let hasCachedTransactions = false;
       try {
         const cachedTransactions = localStorage.getItem('transactions');
         if (cachedTransactions) {
           const parsed = JSON.parse(cachedTransactions);
-          console.log(`[DataContext] Loaded ${parsed.length} transactions from local cache`);
-          setTransactions(parsed);
-          // We don't verify hasMore/cursor from cache usually, or we can save it.
-          // For now, let's assume if we have cache, we still might want to fetch fresh "page 1".
-        } else {
-          setTransactions([]);
+          if (parsed.length > 0) {
+            console.log(`[DataContext] Loaded ${parsed.length} transactions from local cache`);
+            setTransactions(parsed);
+            hasCachedTransactions = true;
+            hasCachedData = true;
+
+            // Pre-populate month cache from cached transactions so period loads are skipped
+            parsed.forEach((t: Transaction) => {
+              if (t.date) {
+                const monthKey = getMonthKey(t.date);
+                if (monthKey !== 'invalid-date') {
+                  loadedTransactionMonthsRef.current.add(monthKey);
+                }
+              }
+            });
+            // Mark initial load as done since we have cache
+            initialTransactionsLoadedRef.current = true;
+            console.log(`[DataContext] Pre-populated ${loadedTransactionMonthsRef.current.size} month(s) from cache`);
+          }
         }
       } catch (e) {
         console.error('Error parsing cached transactions', e);
+      }
+
+      if (!hasCachedTransactions) {
         setTransactions([]);
       }
       setTransactionsCursor(null);
       setHasMoreTransactions(false);
 
-      // Load categories (use local defaults only, 0 reads)
-      console.log('[DataContext] Using local default categories (0 reads)');
+      // Load categories (defaults + cached custom categories)
       const { defaultCategories } = await import('../constants/categories');
-      setCategories(defaultCategories);
+      let customCategories: Category[] = [];
+      try {
+        const cachedCustomCats = localStorage.getItem('customCategories');
+        if (cachedCustomCats) {
+          customCategories = JSON.parse(cachedCustomCats);
+        }
+      } catch (e) { console.warn('Error parsing cached custom categories', e); }
 
-      // No more category migration loop! Categories are now loaded from local defaults.
-      // User customizations can be added later if needed.
+      const customIds = new Set(customCategories.map(c => c.id));
+      const mergedCategories = [
+        ...defaultCategories.filter(c => !customIds.has(c.id)),
+        ...customCategories
+      ];
+      setCategories(mergedCategories);
 
-      setTags([]);
-      setCategoryRules(categoryRulesData);
-      setIsDataLoaded(true);
+      // Mark as loaded immediately if we have cached data
+      if (hasCachedData) {
+        console.log('[DataContext] ✅ Loaded from cache (0 Firestore reads). Syncing in background...');
+        setIsDataLoaded(true);
+      }
+
+      // ── PHASE 2: Background sync from Firestore (updates cache silently) ──
+      // Only sync if cache is stale (older than 5 minutes) or no cache exists
+      const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+      const lastSyncTime = parseInt(localStorage.getItem('lastSyncTimestamp') || '0', 10);
+      const now = Date.now();
+      const shouldSync = !hasCachedData || (now - lastSyncTime) > SYNC_INTERVAL_MS;
+
+      if (shouldSync) {
+      try {
+        const [profile, bankAccountsData, categoryRulesData] = await Promise.all([
+          FirebaseService.getUserProfile(userId),
+          FirebaseService.getBankAccounts(userId),
+          FirebaseService.getCategoryRules(userId),
+        ]);
+
+        if (profile) {
+          setUserProfile(profile);
+        } else if (!hasCachedData) {
+          // First-time user with no cache
+          const defaultProfile = getDefaultUserProfile();
+          if (user) {
+            defaultProfile.personalInfo.name = user.name;
+            defaultProfile.personalInfo.email = user.email;
+          }
+          setUserProfile(defaultProfile);
+          await FirebaseService.createUserProfile(userId, defaultProfile);
+        }
+
+        setBankAccounts(bankAccountsData);
+        setCategoryRules(categoryRulesData);
+
+        // Sync custom categories from Firestore
+        try {
+          if (user?.id) {
+            const freshCustomCategories = await FirebaseService.getUserCustomCategories(user.id) as Category[];
+            const freshCustomIds = new Set(freshCustomCategories.map(c => c.id));
+            const freshMerged = [
+              ...defaultCategories.filter(c => !freshCustomIds.has(c.id)),
+              ...freshCustomCategories
+            ];
+            setCategories(freshMerged);
+          }
+        } catch (err) {
+          console.warn('[DataContext] Failed to sync custom categories:', err);
+        }
+
+        localStorage.setItem('lastSyncTimestamp', String(Date.now()));
+        console.log('[DataContext] ✅ Background sync complete');
+      } catch (error) {
+        console.error('[DataContext] Background sync error:', error);
+      }
+      } else {
+        console.log('[DataContext] ⏭️ Skipping background sync (last sync was recent)');
+      }
+
+      if (!hasCachedData) {
+        setIsDataLoaded(true);
+      }
     } catch (error) {
       console.error('[DataContext] Error loading user data:', error);
       setIsDataLoaded(true);
@@ -455,97 +589,171 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   // Lazy loading functions for page-specific data
+  // Each uses ref-based guard + localStorage cache to minimize Firestore reads
+  const lazyLoadedRef = useRef<Set<string>>(new Set());
+
   const loadGoals = async () => {
-    if (!user || goals.length > 0) return; // Already loaded
+    if (!user || lazyLoadedRef.current.has('goals')) return;
+    lazyLoadedRef.current.add('goals');
     try {
+      // Load from cache first
+      const cached = localStorage.getItem('goals');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.length > 0 && goals.length === 0) {
+          const migrated = GoalMigrationService.migrateGoals(parsed);
+          setGoals(migrated);
+        }
+      }
+      // Background sync from Firestore
       const goalsData = await FirebaseService.getGoals(user.id);
       const migratedGoals = GoalMigrationService.migrateGoals(goalsData);
       setGoals(migratedGoals);
-      console.log('[DataContext] Lazy loaded goals:', migratedGoals.length);
+      localStorage.setItem('goals', JSON.stringify(goalsData));
     } catch (error) {
+      lazyLoadedRef.current.delete('goals');
       console.error('[DataContext] Error loading goals:', error);
     }
   };
 
   const loadAssets = async () => {
-    if (!user || assets.length > 0) return; // Already loaded
+    if (!user || lazyLoadedRef.current.has('assets')) return;
+    lazyLoadedRef.current.add('assets');
     try {
+      const cached = localStorage.getItem('assets');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.length > 0 && assets.length === 0) {
+          setAssets(parsed);
+        }
+      }
       const assetsData = await FirebaseService.getAssets(user.id);
       setAssets(assetsData);
-      console.log('[DataContext] Lazy loaded assets:', assetsData.length);
+      localStorage.setItem('assets', JSON.stringify(assetsData));
     } catch (error) {
+      lazyLoadedRef.current.delete('assets');
       console.error('[DataContext] Error loading assets:', error);
     }
   };
 
   const loadInsurance = async () => {
-    if (!user || insurance.length > 0) return; // Already loaded
+    if (!user || lazyLoadedRef.current.has('insurance')) return;
+    lazyLoadedRef.current.add('insurance');
     try {
+      const cached = localStorage.getItem('insurance');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.length > 0 && insurance.length === 0) {
+          setInsurance(parsed);
+        }
+      }
       const insuranceData = await FirebaseService.getInsurance(user.id);
       setInsurance(insuranceData);
-      console.log('[DataContext] Lazy loaded insurance:', insuranceData.length);
+      localStorage.setItem('insurance', JSON.stringify(insuranceData));
     } catch (error) {
+      lazyLoadedRef.current.delete('insurance');
       console.error('[DataContext] Error loading insurance:', error);
     }
   };
 
   const loadLiabilities = async () => {
-    if (!user || liabilities.length > 0) return; // Already loaded
+    if (!user || lazyLoadedRef.current.has('liabilities')) return;
+    lazyLoadedRef.current.add('liabilities');
     try {
+      const cached = localStorage.getItem('liabilities');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.length > 0 && liabilities.length === 0) {
+          setLiabilities(parsed);
+        }
+      }
       const liabilitiesData = await FirebaseService.getLiabilities(user.id);
       setLiabilities(liabilitiesData);
-      console.log('[DataContext] Lazy loaded liabilities:', liabilitiesData.length);
+      localStorage.setItem('liabilities', JSON.stringify(liabilitiesData));
     } catch (error) {
+      lazyLoadedRef.current.delete('liabilities');
       console.error('[DataContext] Error loading liabilities:', error);
     }
   };
 
   const loadRecurringTransactions = async () => {
-    if (!user || recurringTransactions.length > 0) return; // Already loaded
+    if (!user || lazyLoadedRef.current.has('recurring')) return;
+    lazyLoadedRef.current.add('recurring');
     try {
+      const cached = localStorage.getItem('recurringTransactions');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.length > 0 && recurringTransactions.length === 0) {
+          setRecurringTransactions(parsed);
+        }
+      }
       const data = await FirebaseService.getRecurringTransactions(user.id);
       setRecurringTransactions(data);
-      console.log('[DataContext] Lazy loaded recurring transactions:', data.length);
+      localStorage.setItem('recurringTransactions', JSON.stringify(data));
     } catch (error) {
+      lazyLoadedRef.current.delete('recurring');
       console.error('[DataContext] Error loading recurring transactions:', error);
     }
   };
 
   const loadBills = async () => {
-    if (!user || bills.length > 0) return; // Already loaded
+    if (!user || lazyLoadedRef.current.has('bills')) return;
+    lazyLoadedRef.current.add('bills');
     try {
+      const cached = localStorage.getItem('bills');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.length > 0 && bills.length === 0) {
+          setBills(parsed);
+        }
+      }
       const data = await FirebaseService.getBills(user.id);
       setBills(data);
-      console.log('[DataContext] Lazy loaded bills:', data.length);
+      localStorage.setItem('bills', JSON.stringify(data));
     } catch (error) {
+      lazyLoadedRef.current.delete('bills');
       console.error('[DataContext] Error loading bills:', error);
     }
   };
 
   const loadSIPRules = async () => {
-    if (!user || sipRules.length > 0) return; // Already loaded
+    if (!user || lazyLoadedRef.current.has('sipRules')) return;
+    lazyLoadedRef.current.add('sipRules');
     try {
       const data = await FirebaseService.getSIPRules(user.id);
       setSipRules(data);
-      console.log('[DataContext] Lazy loaded SIP rules:', data.length);
     } catch (error) {
+      lazyLoadedRef.current.delete('sipRules');
       console.error('[DataContext] Error loading SIP rules:', error);
     }
   };
 
   const loadMonthlyBudget = async () => {
-    if (!user) return;
+    if (!user || lazyLoadedRef.current.has('budget')) return;
+    lazyLoadedRef.current.add('budget');
     try {
+      const cached = localStorage.getItem('monthlyBudget');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed) {
+          setMonthlyBudget(parsed);
+        }
+      }
       const budgetData = await FirebaseService.getMonthlyBudget(user.id);
-      setMonthlyBudget(budgetData || getDefaultMonthlyBudget());
-      console.log('[DataContext] Lazy loaded monthly budget');
+      const budget = budgetData || getDefaultMonthlyBudget();
+      setMonthlyBudget(budget);
+      localStorage.setItem('monthlyBudget', JSON.stringify(budget));
     } catch (error) {
+      lazyLoadedRef.current.delete('budget');
       console.error('[DataContext] Error loading monthly budget:', error);
     }
   };
 
   const loadInitialTransactions = async () => {
     if (!user) return;
+    if (initialTransactionsLoadedRef.current) return;
+    // Mark immediately to prevent duplicate calls
+    initialTransactionsLoadedRef.current = true;
     try {
       console.log(`[DataContext] Lazy loading initial transactions`);
       // Always fetch fresh data for page 1 to ensure sync
@@ -581,6 +789,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setHasMoreTransactions(initialPage.hasMore);
       console.log(`[DataContext] Loaded ${initialPage.transactions.length} transactions`);
     } catch (error) {
+      // Rollback so it can be retried
+      initialTransactionsLoadedRef.current = false;
       console.error('[DataContext] Error loading transactions:', error);
       setTransactions([]);
       setTransactionsCursor(null);
@@ -619,6 +829,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const loadTransactionsForPeriod = async (startDate: string, endDate: string) => {
     if (!user) return;
+    const monthKey = getMonthKey(startDate);
+    if (loadedTransactionMonthsRef.current.has(monthKey)) return;
+    // Mark immediately to prevent duplicate parallel fetches
+    loadedTransactionMonthsRef.current.add(monthKey);
     try {
       console.log(`[DataContext] Loading transactions for period: ${startDate} to ${endDate}`);
       const periodTransactions = await FirebaseService.getTransactionsByDateRange(user.id, startDate, endDate);
@@ -647,6 +861,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         });
       }
     } catch (error) {
+      // Rollback so it can be retried
+      loadedTransactionMonthsRef.current.delete(monthKey);
       console.error('[DataContext] Error loading detailed period transactions:', error);
     }
   };
@@ -658,7 +874,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     try {
       const id = await FirebaseService.addAsset(user.id, asset);
       const newAsset: Asset = { ...asset, id };
-      setAssets(prev => [...prev, newAsset]);
+      setAssets(prev => {
+        const updated = [...prev, newAsset];
+        localStorage.setItem('assets', JSON.stringify(updated));
+        return updated;
+      });
     } catch (error) {
       console.error('Error adding asset:', error);
     }
@@ -667,7 +887,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const updateAsset = async (id: string, asset: Partial<Asset>) => {
     try {
       await FirebaseService.updateAsset(id, asset);
-      setAssets(prev => prev.map(a => a.id === id ? { ...a, ...asset } : a));
+      setAssets(prev => {
+        const updated = prev.map(a => a.id === id ? { ...a, ...asset } : a);
+        localStorage.setItem('assets', JSON.stringify(updated));
+        return updated;
+      });
     } catch (error) {
       console.error('Error updating asset:', error);
     }
@@ -676,7 +900,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const deleteAsset = async (id: string) => {
     try {
       await FirebaseService.deleteAsset(id);
-      setAssets(prev => prev.filter(a => a.id !== id));
+      setAssets(prev => {
+        const updated = prev.filter(a => a.id !== id);
+        localStorage.setItem('assets', JSON.stringify(updated));
+        return updated;
+      });
     } catch (error) {
       console.error('Error deleting asset:', error);
     }
@@ -753,6 +981,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const newTransaction: Transaction = { ...transaction, id };
       setTransactions(prev => [...prev, newTransaction]);
 
+      // Update category summary
+      incrementCategorySummary(user.id, newTransaction).catch(err =>
+        console.warn('Failed to update category summary:', err)
+      );
+      clearCategorySummaryCache();
+
       // No need to update bank account balance - it's computed from initialBalance + transactions
     } catch (error) {
       console.error('Error adding transaction:', error);
@@ -761,18 +995,54 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   const updateTransaction = async (id: string, transaction: Partial<Transaction>) => {
+    if (!user) return;
+
+    const oldTransaction = transactions.find(t => t.id === id);
+    const optimisticTransaction = oldTransaction ? { ...oldTransaction, ...transaction } : undefined;
+
+    // Optimistic local update for immediate UI feedback (list + summary views)
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...transaction } : t));
+    clearCategorySummaryCache();
+
+    // Keep derived category summaries in sync with optimistic update
+    if (oldTransaction && optimisticTransaction) {
+      updateCategorySummary(user.id, oldTransaction, optimisticTransaction).catch(err =>
+        console.warn('Failed to update category summary:', err)
+      );
+    }
+
     try {
       await FirebaseService.updateTransaction(id, transaction);
-      setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...transaction } : t));
-
       // No need to update bank account balance - it's computed from initialBalance + transactions
     } catch (error) {
       console.error('Error updating transaction:', error);
+
+      // Roll back local transaction state on persistence failure
+      if (oldTransaction) {
+        setTransactions(prev => prev.map(t => t.id === id ? oldTransaction : t));
+        clearCategorySummaryCache();
+
+        // Best-effort rollback for summary docs as well
+        if (optimisticTransaction) {
+          updateCategorySummary(user.id, optimisticTransaction, oldTransaction).catch(err =>
+            console.warn('Failed to rollback category summary after transaction update error:', err)
+          );
+        }
+      }
     }
   };
 
   const bulkUpdateTransactions = async (ids: string[], update: Partial<Transaction>) => {
+    if (!user) return;
+    
     try {
+      // Get old transactions for category summary updates
+      const oldTransactionsMap = new Map<string, Transaction>();
+      ids.forEach(id => {
+        const t = transactions.find(tx => tx.id === id);
+        if (t) oldTransactionsMap.set(id, t);
+      });
+
       // 1. Update in Firebase (Batch)
       await FirebaseService.bulkUpdateTransactions(ids, update);
 
@@ -783,6 +1053,20 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
       setTransactions(updatedTransactions);
 
+      // 3. Update category summaries if category changed
+      if (update.category) {
+        for (const id of ids) {
+          const oldTransaction = oldTransactionsMap.get(id);
+          const newTransaction = updatedTransactions.find(t => t.id === id);
+          if (oldTransaction && newTransaction && oldTransaction.category !== newTransaction.category) {
+            updateCategorySummary(user.id, oldTransaction, newTransaction).catch(err =>
+              console.warn('Failed to update category summary for bulk update:', err)
+            );
+          }
+        }
+      }
+      clearCategorySummaryCache();
+
       // No need to update bank account balance - it's computed from initialBalance + transactions
 
     } catch (error) {
@@ -791,9 +1075,18 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   const bulkUpdateTransactionsById = async (updatesById: Record<string, Partial<Transaction>>) => {
+    if (!user) return;
+    
     try {
       const ids = Object.keys(updatesById);
       if (ids.length === 0) return;
+
+      // Get old transactions for category summary updates
+      const oldTransactionsMap = new Map<string, Transaction>();
+      ids.forEach(id => {
+        const t = transactions.find(tx => tx.id === id);
+        if (t) oldTransactionsMap.set(id, t);
+      });
 
       await FirebaseService.bulkUpdateTransactionsById(updatesById);
 
@@ -801,6 +1094,21 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         updatesById[t.id] ? { ...t, ...updatesById[t.id] } : t
       );
       setTransactions(updatedTransactions);
+
+      // Update category summaries for transactions where category changed
+      for (const id of ids) {
+        const update = updatesById[id];
+        if (update.category) {
+          const oldTransaction = oldTransactionsMap.get(id);
+          const newTransaction = updatedTransactions.find(t => t.id === id);
+          if (oldTransaction && newTransaction && oldTransaction.category !== newTransaction.category) {
+            updateCategorySummary(user.id, oldTransaction, newTransaction).catch(err =>
+              console.warn('Failed to update category summary for bulk update by ID:', err)
+            );
+          }
+        }
+      }
+      clearCategorySummaryCache();
 
       // No need to update bank account balance - it's computed from initialBalance + transactions
     } catch (error) {
@@ -861,8 +1169,37 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
       console.log('Calling FirebaseService.bulkAddTransactions with userId:', user.id);
 
+      // Validate and fix category IDs - ensure all categories exist
+      const categoryIds = new Set(categories.map(c => c.id));
+      const categoryNames = new Map(categories.map(c => [c.name.toLowerCase(), c.id]));
+      
+      const validatedTransactions = transactionsToImport.map(transaction => {
+        let categoryId = transaction.category;
+        
+        // If category exists as ID, use it
+        if (categoryId && categoryIds.has(categoryId)) {
+          return transaction;
+        }
+        
+        // If category is a name (not ID), try to find matching category by name
+        if (categoryId) {
+          const matchedId = categoryNames.get(categoryId.toLowerCase());
+          if (matchedId) {
+            console.log(`Mapped category name "${categoryId}" to ID "${matchedId}"`);
+            return { ...transaction, category: matchedId };
+          }
+        }
+        
+        // If category not found, default to 'uncategorized' or 'other'
+        const fallbackCategory = categoryIds.has('uncategorized') ? 'uncategorized' : 
+                                  categoryIds.has('other') ? 'other' : 
+                                  categories[0]?.id || 'other';
+        console.log(`Category "${categoryId}" not found, using fallback: "${fallbackCategory}"`);
+        return { ...transaction, category: fallbackCategory };
+      });
+
       // Clean transactions by removing undefined values
-      const cleanedTransactions = transactionsToImport.map(transaction => {
+      const cleanedTransactions = validatedTransactions.map(transaction => {
         const cleaned = Object.fromEntries(
           Object.entries(transaction).filter(([_, value]) => value !== undefined)
         );
@@ -948,6 +1285,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         }));
       }
 
+      clearCategorySummaryCache();
+
       return {
         success: true,
         summary: duplicateCheck || {
@@ -966,9 +1305,22 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   const deleteTransaction = async (id: string) => {
+    if (!user) return;
+    
     try {
+      // Get the transaction before deleting for summary update
+      const transactionToDelete = transactions.find(t => t.id === id);
+      
       await FirebaseService.deleteTransaction(id);
       setTransactions(prev => prev.filter(t => t.id !== id));
+
+      // Update category summary
+      if (transactionToDelete) {
+        decrementCategorySummary(user.id, transactionToDelete).catch(err =>
+          console.warn('Failed to update category summary:', err)
+        );
+      }
+      clearCategorySummaryCache();
 
       // No need to update bank account balance - it's computed from initialBalance + transactions
     } catch (error) {
@@ -983,6 +1335,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
       // 2. Update local state
       setTransactions(prev => prev.filter(t => !ids.includes(t.id)));
+      clearCategorySummaryCache();
 
       // No need to update bank account balance - it's computed from initialBalance + transactions
 
@@ -1460,7 +1813,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const updateCategoryRule = async (id: string, updates: Partial<CategoryRule>) => {
     try {
-      await FirebaseService.updateCategoryRule(id, updates);
+      if (!user) return;
+      await FirebaseService.updateCategoryRule(user.id, id, updates);
       setCategoryRules(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
     } catch (error) {
       console.error('Error updating category rule:', error);
@@ -1469,7 +1823,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const deleteCategoryRule = async (id: string) => {
     try {
-      await FirebaseService.deleteCategoryRule(id);
+      if (!user) return;
+      await FirebaseService.deleteCategoryRule(user.id, id);
       setCategoryRules(prev => prev.filter(r => r.id !== id));
     } catch (error) {
       console.error('Error deleting category rule:', error);
@@ -1537,6 +1892,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   const resetUserData = () => {
+    initialTransactionsLoadedRef.current = false;
+    loadedTransactionMonthsRef.current = new Set();
+    lazyLoadedRef.current = new Set();
     setUserProfile(getDefaultUserProfile());
     setAssets([]);
     setInsurance([]);
@@ -1553,6 +1911,20 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     setBills([]);
     setCategoryRules([]);
     setIsDataLoaded(false);
+    // Clear all localStorage caches
+    localStorage.removeItem('transactions');
+    localStorage.removeItem('bankAccounts');
+    localStorage.removeItem('categoryRules');
+    localStorage.removeItem('userProfile');
+    localStorage.removeItem('customCategories');
+    localStorage.removeItem('bills');
+    localStorage.removeItem('recurringTransactions');
+    localStorage.removeItem('lastSyncTimestamp');
+    localStorage.removeItem('goals');
+    localStorage.removeItem('assets');
+    localStorage.removeItem('insurance');
+    localStorage.removeItem('liabilities');
+    localStorage.removeItem('monthlyBudget');
   };
 
   const value: DataContextType = {

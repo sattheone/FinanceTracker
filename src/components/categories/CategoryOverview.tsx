@@ -1,91 +1,184 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
-import { Transaction, MonthlyBudget } from '../../types';
+import { useData } from '../../contexts/DataContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { MonthlyBudget, Transaction } from '../../types';
 import { Category } from '../../constants/categories';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { formatCurrency } from '../../utils/formatters';
+import { getOptimizedMonthlySummaries } from '../../services/categorySummaryService';
 
 interface CategoryOverviewProps {
-    transactions: Transaction[];
     categories: Category[];
     monthlyBudget?: MonthlyBudget;
+    transactions?: Transaction[];
 }
 
 const CategoryOverview: React.FC<CategoryOverviewProps> = ({
-    transactions,
     categories,
-    monthlyBudget
+    monthlyBudget,
+    transactions = []
 }) => {
+    const { userProfile } = useData();
+    const { user } = useAuth();
     const theme = useThemeClasses();
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentRealMonthIndex = today.getMonth(); // The actual current month
+    const defaultTimePeriod = userProfile?.displayPreferences?.defaultTimePeriod || 'current';
+    const actualDate = useMemo(() => new Date(), []);
+    const baseDate = useMemo(() => {
+        const date = new Date();
+        if (defaultTimePeriod === 'previous') {
+            date.setMonth(date.getMonth() - 1);
+        }
+        return date;
+    }, [defaultTimePeriod]);
+    const currentYear = baseDate.getFullYear();
+    const currentRealMonthIndex = baseDate.getMonth(); // The default month in view
+    const actualYear = actualDate.getFullYear();
+    const actualMonthIndex = actualDate.getMonth();
 
     // State for the selected month filter (default to current month)
-    const [selectedMonthIndex, setSelectedMonthIndex] = useState(currentRealMonthIndex);
+    const [selectedMonth, setSelectedMonth] = useState({ year: currentYear, month: currentRealMonthIndex });
 
-    // 1. Filter Expenses
-    const expenses = useMemo(() =>
-        transactions.filter(t => t.type === 'expense' && t.category && typeof t.category === 'string' && !t.category.toLowerCase().includes('transfer')),
-        [transactions]);
+    useEffect(() => {
+        setSelectedMonth({ year: currentYear, month: currentRealMonthIndex });
+    }, [currentYear, currentRealMonthIndex]);
+    
+    // State for how many months of history to show (start with 12, expand on scroll)
+    const [monthsToShow, setMonthsToShow] = useState(12);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const [optimizedSummaries, setOptimizedSummaries] = useState<
+        Array<{ year: number; month: number; totalSpent: number; categoryTotals: Record<string, number> }>
+    >([]);
 
-    // 2. Metrics Calculation
+    useEffect(() => {
+        if (!user?.id) return;
+        let cancelled = false;
+        getOptimizedMonthlySummaries(user.id, monthsToShow)
+            .then(list => {
+                if (!cancelled) setOptimizedSummaries(list);
+            })
+            .catch(err => {
+                console.warn('Failed to load optimized monthly summaries:', err);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [user?.id, monthsToShow]);
+    
+    // Calculate monthly summaries from local transactions for real-time accuracy
+    // and fill missing months using optimized summaries from Firestore.
+    const summaries = useMemo(() => {
+        const summaryMap = new Map<string, { categoryTotals: Record<string, number>; totalSpent: number; year: number; month: number }>();
+        
+        // Filter to expense and investment types only (not income)
+        transactions
+            .filter(t => t.type === 'expense' || t.type === 'investment' || t.type === 'transfer')
+            .forEach(t => {
+                const txDate = new Date(t.date);
+                const year = txDate.getFullYear();
+                const month = txDate.getMonth() + 1; // 1-based
+                const key = `${year}-${String(month).padStart(2, '0')}`;
+                
+                if (!summaryMap.has(key)) {
+                    summaryMap.set(key, { categoryTotals: {}, totalSpent: 0, year, month });
+                }
+                
+                const summary = summaryMap.get(key)!;
+                const categoryId = t.category || 'uncategorized';
+                summary.categoryTotals[categoryId] = (summary.categoryTotals[categoryId] || 0) + t.amount;
+                summary.totalSpent += t.amount;
+            });
+        
+        optimizedSummaries.forEach(summary => {
+            const key = `${summary.year}-${String(summary.month).padStart(2, '0')}`;
+            if (!summaryMap.has(key)) {
+                summaryMap.set(key, {
+                    categoryTotals: summary.categoryTotals || {},
+                    totalSpent: summary.totalSpent || 0,
+                    year: summary.year,
+                    month: summary.month
+                });
+            }
+        });
+
+        return Array.from(summaryMap.values());
+    }, [transactions, optimizedSummaries]);
+
+    // Generate array of months going backwards from actual current month
+    const monthsRange = useMemo(() => {
+        const months: { year: number; month: number; key: string }[] = [];
+        for (let i = monthsToShow - 1; i >= 0; i--) {
+            const date = new Date(actualYear, actualMonthIndex - i, 1);
+            months.push({
+                year: date.getFullYear(),
+                month: date.getMonth(),
+                key: `${date.getFullYear()}-${date.getMonth()}`
+            });
+        }
+        return months;
+    }, [monthsToShow, actualYear, actualMonthIndex]);
+
+    // Metrics Calculation from summaries
     const metrics = useMemo(() => {
         let spentSelectedMonth = 0;
         let spentYear = 0;
-        let monthsWithSpend = new Set<string>();
 
-        expenses.forEach(t => {
-            const date = new Date(t.date);
-            if (date.getFullYear() === currentYear) {
-                spentYear += t.amount;
-                monthsWithSpend.add(`${date.getMonth()}`);
-
-                if (date.getMonth() === selectedMonthIndex) {
-                    spentSelectedMonth += t.amount;
-                }
+        summaries.forEach(s => {
+            // Yearly total
+            if (s.year === currentYear) {
+                spentYear += s.totalSpent;
+            }
+            // Selected month total (MonthlySummary uses 1-based month, selectedMonth uses 0-based)
+            if (s.year === selectedMonth.year && s.month === selectedMonth.month + 1) {
+                spentSelectedMonth = s.totalSpent;
             }
         });
 
         // Average based on months passed so far in current year (YTD)
-        // We divide by (currentRealMonthIndex + 1) because if it's Feb (index 1), we have 2 months of data potentially
-        const avgMonthly = currentRealMonthIndex === 0 ? spentYear : spentYear / (currentRealMonthIndex + 1);
+        const avgMonthly = actualMonthIndex === 0 ? spentYear : spentYear / (actualMonthIndex + 1);
 
         return { spentSelectedMonth, spentYear, avgMonthly };
-    }, [expenses, currentYear, currentRealMonthIndex, selectedMonthIndex]);
+    }, [summaries, currentYear, actualMonthIndex, selectedMonth]);
 
-    // 3. Chart Data (Current Year Jan-Dec)
+    // Chart Data - Dynamic based on monthsRange and summaries
     const chartData = useMemo(() => {
-        const data = Array(12).fill(0).map((_, i) => ({
-            name: new Date(currentYear, i, 1).toLocaleString('default', { month: 'narrow' }),
-            fullMonth: new Date(currentYear, i, 1).toLocaleString('default', { month: 'short' }),
-            monthIndex: i,
-            amount: 0,
-            isCurrent: i === currentRealMonthIndex,
-            isSelected: i === selectedMonthIndex
-        }));
-
-        expenses.forEach(t => {
-            const date = new Date(t.date);
-            if (date.getFullYear() === currentYear) {
-                data[date.getMonth()].amount += t.amount;
-            }
+        // Create a lookup map for fast access
+        const summaryMap = new Map<string, typeof summaries[number]>();
+        summaries.forEach(s => {
+            summaryMap.set(`${s.year}-${s.month}`, s);
         });
 
-        return data;
-    }, [expenses, currentYear, currentRealMonthIndex, selectedMonthIndex]);
+        return monthsRange.map(({ year, month, key }) => {
+            const isCurrent = year === actualYear && month === actualMonthIndex;
+            const isSelected = year === selectedMonth.year && month === selectedMonth.month;
+            
+            // Get amount from summary (summaries use 1-based month, monthsRange uses 0-based)
+            const summary = summaryMap.get(`${year}-${month + 1}`);
+            const amount = summary?.totalSpent || 0;
 
-    // 4. Top Categories Pill Data (Selected Month)
+            return {
+                key,
+                year,
+                month,
+                name: new Date(year, month, 1).toLocaleString('default', { month: 'narrow' }),
+                fullMonth: new Date(year, month, 1).toLocaleString('default', { month: 'short', year: 'numeric' }),
+                amount,
+                isCurrent,
+                isSelected
+            };
+        });
+    }, [monthsRange, summaries, actualYear, actualMonthIndex, selectedMonth]);
+
+    // Top Categories Pill Data (Selected Month) from summaries
     const topCategories = useMemo(() => {
-        const catMap = new Map<string, number>();
-        expenses.forEach(t => {
-            const date = new Date(t.date);
-            if (date.getFullYear() === currentYear && date.getMonth() === selectedMonthIndex) {
-                catMap.set(t.category, (catMap.get(t.category) || 0) + t.amount);
-            }
-        });
-
-        return Array.from(catMap.entries())
+        // Find the summary for the selected month
+        const selectedSummary = summaries.find(
+            s => s.year === selectedMonth.year && s.month === selectedMonth.month + 1
+        );
+        
+        if (!selectedSummary?.categoryTotals) return [];
+        
+        return Object.entries(selectedSummary.categoryTotals)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 4)
             .map(([id, amount]) => {
@@ -97,10 +190,10 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                     icon: cat?.icon
                 };
             });
-    }, [expenses, categories, currentYear, selectedMonthIndex]);
+    }, [summaries, categories, selectedMonth]);
 
 
-    // 5. Grouped Categories Data (Selected Month)
+    // Grouped Categories Data (Selected Month) from summaries
     const groupedData = useMemo(() => {
         // Map to store grouped data: ParentID -> { parent details, children: [] }
         const groups: Record<string, {
@@ -110,14 +203,11 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
             categories: any[]
         }> = {};
 
-        // Aggregate spend per category for SELECTED month
-        const categorySpend: Record<string, number> = {};
-        expenses.forEach(t => {
-            const date = new Date(t.date);
-            if (date.getFullYear() === currentYear && date.getMonth() === selectedMonthIndex) {
-                categorySpend[t.category] = (categorySpend[t.category] || 0) + t.amount;
-            }
-        });
+        // Find the summary for the selected month and get category totals
+        const selectedSummary = summaries.find(
+            s => s.year === selectedMonth.year && s.month === selectedMonth.month + 1
+        );
+        const categorySpend: Record<string, number> = selectedSummary?.categoryTotals || {};
 
         // Initialize groups based on Root Categories or Orphan Holders
         categories.forEach(cat => {
@@ -177,42 +267,60 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
             .filter(g => g.totalSpent > 0 || g.categories.some(c => c.budget > 0))
             .sort((a, b) => b.totalSpent - a.totalSpent);
 
-    }, [categories, expenses, currentYear, selectedMonthIndex, monthlyBudget]);
+    }, [categories, summaries, selectedMonth, monthlyBudget]);
 
-
-    const CustomTooltip = ({ active, payload }: any) => {
-        if (active && payload && payload.length) {
-            return (
-                <div className="bg-white dark:bg-gray-800 p-3 border border-gray-100 dark:border-gray-700 shadow-xl rounded-lg">
-                    <p className="text-sm font-medium mb-1">{payload[0].payload.fullMonth}</p>
-                    <p className="text-blue-600 dark:text-blue-400 font-bold">
-                        {formatCurrency(payload[0].value)}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">Click to filter</p>
-                </div>
-            );
+    // Handle scroll to load more months - expands the visible range
+    const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+        const container = e.currentTarget;
+        // Load more when scrolled to the left (near the beginning)
+        if (container.scrollLeft < 100 && !isLoadingMore && monthsToShow < 120) {
+            setIsLoadingMore(true);
+            
+            // Calculate the new range to load
+            const newMonthsToShow = Math.min(monthsToShow + 12, 120);
+            
+            // Preserve scroll position by calculating offset
+            const oldScrollWidth = container.scrollWidth;
+            setMonthsToShow(newMonthsToShow);
+            
+            // After state update, adjust scroll to keep the same bars visible
+            requestAnimationFrame(() => {
+                const newScrollWidth = container.scrollWidth;
+                const addedWidth = newScrollWidth - oldScrollWidth;
+                container.scrollLeft = container.scrollLeft + addedWidth;
+                setIsLoadingMore(false);
+            });
         }
-        return null;
+    }, [isLoadingMore, monthsToShow]);
+
+    // Scroll to the end (current month) on initial render
+    useEffect(() => {
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth;
+        }
+    }, [transactions.length]);
+
+    const handleBarClick = (data: typeof chartData[0]) => {
+        setSelectedMonth({ year: data.year, month: data.month });
     };
 
-    const handleBarClick = (data: any) => {
-        if (data && data.monthIndex !== undefined) {
-            setSelectedMonthIndex(data.monthIndex);
-        }
-    };
+    // Calculate max amount for scaling bars
+    const maxAmount = useMemo(() => {
+        return Math.max(...chartData.map(d => d.amount), 1);
+    }, [chartData]);
 
     return (
-        <div className="h-full overflow-y-scroll p-6 md:p-8 space-y-8 custom-scrollbar">
+        <div className="h-full w-full min-w-0 overflow-y-scroll overflow-x-hidden p-6 md:p-8 space-y-8 custom-scrollbar">
 
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-                <div>
+            <div className="flex flex-col md:flex-row justify-between md:items-end gap-6">
+                <div className="min-w-0">
                     <h2 className={cn(theme.textPrimary, "text-2xl font-bold mb-4")}>All Regular Categories</h2>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 max-w-full">
                         {topCategories.map((cat, i) => (
-                            <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-xs font-medium text-gray-700 dark:text-gray-300">
+                            <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 text-xs font-medium text-gray-700 dark:text-gray-300 max-w-[10rem]">
                                 <span>{cat.icon || '🏷️'}</span>
-                                <span>{cat.name.toUpperCase()}</span>
+                                <span className="truncate">{cat.name.toUpperCase()}</span>
                             </div>
                         ))}
                         {topCategories.length > 0 && (
@@ -222,10 +330,15 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                         )}
                     </div>
                 </div>
-                <div className="text-right">
+                <div className="w-full md:w-auto md:text-right">
                     <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">
-                        Spent in {new Date(currentYear, selectedMonthIndex, 1).toLocaleString('default', { month: 'short' })}
+                        Spent in {new Date(selectedMonth.year, selectedMonth.month, 1).toLocaleString('default', { month: 'short', year: 'numeric' })}
                     </p>
+                    {defaultTimePeriod === 'previous' && selectedMonth.year === currentYear && selectedMonth.month === currentRealMonthIndex && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Showing previous month by default
+                        </p>
+                    )}
                     <p className={cn(theme.textPrimary, "text-3xl font-bold")}>
                         {formatCurrency(metrics.spentSelectedMonth)}
                     </p>
@@ -237,48 +350,76 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                 </div>
             </div>
 
-            {/* Chart Section */}
-            <div className="h-48 w-full mt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} onClick={(data) => {
-                        if (data && data.activePayload && data.activePayload.length > 0) {
-                            handleBarClick(data.activePayload[0].payload);
-                        }
-                    }}>
-                        <XAxis
-                            dataKey="name"
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fontSize: 10, fill: '#94a3b8' }}
-                            dy={10}
-                        />
-                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
-                        <Bar dataKey="amount" radius={[4, 4, 4, 4]} barSize={12}>
-                            {chartData.map((entry, index) => (
-                                <Cell
-                                    key={`cell-${index}`}
-                                    fill={
-                                        entry.isSelected
-                                            ? '#22c55e' // Selected: Green
-                                            : index > currentRealMonthIndex
-                                                ? '#e2e8f0' // Future: Gray
-                                                : '#cbd5e1' // Past/Other: Darker Gray
-                                    }
-                                    className={cn(
-                                        "transition-all duration-300 cursor-pointer hover:opacity-80",
-                                        entry.isSelected && "dark:fill-green-500", // Selected Dark Mode
-                                        !entry.isSelected && index <= currentRealMonthIndex && "dark:fill-gray-600", // Past Dark Mode
-                                        index > currentRealMonthIndex && "dark:fill-gray-800" // Future Dark Mode
+            {/* Chart Section - Horizontally Scrollable */}
+            <div className="relative mt-4 min-w-0">
+                {isLoadingMore && (
+                    <div className="absolute left-0 top-0 bottom-0 w-16 flex items-center justify-center bg-gradient-to-r from-white dark:from-gray-900 to-transparent z-10">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
+                    </div>
+                )}
+                <div 
+                    ref={scrollContainerRef}
+                    onScroll={handleScroll}
+                    className="w-full max-w-full min-w-0 overflow-x-auto pb-2 custom-scrollbar"
+                    style={{ scrollBehavior: 'auto' }}
+                >
+                    <div className="flex items-end gap-1 h-40 min-w-max px-2">
+                        {chartData.map((data, index) => {
+                            const barHeight = maxAmount > 0 ? (data.amount / maxAmount) * 120 : 0;
+                            const isFuture = data.year > currentYear || (data.year === currentYear && data.month > currentRealMonthIndex);
+                            const showYear = index === 0 || data.month === 0; // Show year label on Jan or first bar
+                            
+                            return (
+                                <div 
+                                    key={data.key} 
+                                    className="flex flex-col items-center group cursor-pointer"
+                                    onClick={() => handleBarClick(data)}
+                                >
+                                    {/* Tooltip on hover */}
+                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity mb-1 bg-white dark:bg-gray-800 px-2 py-1 rounded shadow-lg border border-gray-100 dark:border-gray-700 text-xs whitespace-nowrap z-20">
+                                        <p className="font-medium">{data.fullMonth}</p>
+                                        <p className="text-primary-600 dark:text-primary-400 font-bold">{formatCurrency(data.amount)}</p>
+                                    </div>
+                                    
+                                    {/* Bar */}
+                                    <div 
+                                        className={cn(
+                                            "w-6 rounded-t transition-all duration-200 hover:opacity-80",
+                                            data.isSelected 
+                                                ? "bg-green-500" 
+                                                : isFuture 
+                                                    ? "bg-gray-200 dark:bg-gray-800" 
+                                                    : "bg-gray-300 dark:bg-gray-600"
+                                        )}
+                                        style={{ height: Math.max(barHeight, 4) }}
+                                    />
+                                    
+                                    {/* Month Label */}
+                                    <span className={cn(
+                                        "text-[10px] mt-1",
+                                        data.isSelected ? "text-green-600 dark:text-green-400 font-bold" : "text-gray-400"
+                                    )}>
+                                        {data.name}
+                                    </span>
+                                    
+                                    {/* Year Label */}
+                                    {showYear && (
+                                        <span className="text-[9px] text-gray-400 -mt-0.5">
+                                            {data.year}
+                                        </span>
                                     )}
-                                />
-                            ))}
-                        </Bar>
-                    </BarChart>
-                </ResponsiveContainer>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+                {monthsToShow < 120 && (
+                    <p className="text-xs text-gray-400 text-center mt-2">← Scroll left to load more months</p>
+                )}
             </div>
 
             {/* Metrics Row */}
-            <div className="grid grid-cols-2 gap-8 border-t border-b border-gray-100 dark:border-gray-800 py-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-8 border-t border-b border-gray-100 dark:border-gray-800 py-6">
                 <div>
                     <p className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
                         Spent per year
@@ -287,7 +428,7 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                     <p className={cn(theme.textPrimary, "text-xl font-bold")}>{formatCurrency(metrics.spentYear)}</p>
                     <p className="text-xs text-gray-400 mt-1">{currentYear}</p>
                 </div>
-                <div className="text-right md:text-left">
+                <div className="text-right sm:text-left">
                     <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
                         Avg monthly spend
                     </p>
@@ -298,9 +439,9 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
 
             {/* Categories Table */}
             <div>
-                <div className="flex justify-between items-center mb-4 px-2">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 px-2 gap-2">
                     <h3 className={cn(theme.textPrimary, "text-base font-bold")}>Regular Categories</h3>
-                    <div className="flex gap-8 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    <div className="hidden sm:flex gap-6 md:gap-8 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                         <span className="w-24 text-right">Spent</span>
                         <span className="w-24 text-right">Budget</span>
                         <span className="w-24 text-right">Left</span>
@@ -310,7 +451,7 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                 <div className="space-y-4">
                     {groupedData.length === 0 ? (
                         <div className="text-center py-8 text-gray-400 text-sm">
-                            No spending in {new Date(currentYear, selectedMonthIndex, 1).toLocaleString('default', { month: 'long' })}
+                            No spending in {new Date(selectedMonth.year, selectedMonth.month, 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
                         </div>
                     ) : (
                         groupedData.map((group) => (
@@ -321,7 +462,7 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                                         <span className="text-base">{group.icon || '📁'}</span>
                                         <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{group.name}</span>
                                     </div>
-                                    <div className="flex gap-8 text-xs font-semibold text-gray-500 dark:text-gray-400 opacity-75">
+                                    <div className="hidden sm:flex gap-6 md:gap-8 text-xs font-semibold text-gray-500 dark:text-gray-400 opacity-75">
                                         <span className="w-24 text-right">{formatCurrency(group.totalSpent)}</span>
                                         <span className="w-24 text-right">-</span>
                                         <span className="w-24 text-right">-</span>
@@ -340,14 +481,14 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                                                 </span>
                                             </div>
 
-                                            <div className="flex gap-8 text-sm">
-                                                <span className={cn(theme.textPrimary, "w-24 text-right font-medium text-xs")}>
+                                            <div className="flex gap-4 sm:gap-6 md:gap-8 text-sm">
+                                                <span className={cn(theme.textPrimary, "w-20 sm:w-24 text-right font-medium text-xs")}>
                                                     {formatCurrency(cat.spent)}
                                                 </span>
-                                                <span className="w-24 text-right text-gray-500 font-medium text-xs hidden md:block">
+                                                <span className="w-20 sm:w-24 text-right text-gray-500 font-medium text-xs hidden sm:block">
                                                     {formatCurrency(cat.budget)}
                                                 </span>
-                                                <span className={cn("w-24 text-right font-medium text-xs", cat.left < 0 ? "text-red-500" : "text-green-500")}>
+                                                <span className={cn("w-20 sm:w-24 text-right font-medium text-xs", cat.left < 0 ? "text-red-500" : "text-green-500")}>
                                                     {formatCurrency(cat.left)}
                                                 </span>
                                             </div>

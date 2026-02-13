@@ -1,11 +1,17 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { TrendingUp, PieChart as PieChartIcon, BarChart3, Target } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, formatLargeNumber } from '../utils/formatters';
 
 const Reports: React.FC = () => {
-  const { assets, goals, monthlyBudget, licPolicies } = useData();
+  const { assets, goals, monthlyBudget, licPolicies, loadAssets, loadGoals, loadMonthlyBudget } = useData();
+
+  useEffect(() => {
+    loadAssets();
+    loadGoals();
+    loadMonthlyBudget();
+  }, []);
   
   // Asset allocation data for pie chart
   const assetAllocation = assets.reduce((acc, asset) => {

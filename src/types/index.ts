@@ -2,6 +2,7 @@ export interface Transaction {
   id: string;
   date: string;
   description: string;
+  merchantKey?: string;
   category: string;
   type: 'income' | 'expense' | 'investment' | 'insurance' | 'transfer';
   amount: number;
@@ -64,6 +65,7 @@ export interface Asset {
   name: string;
   category: 'stocks' | 'mutual_funds' | 'fixed_deposit' | 'gold' | 'cash' | 'epf' | 'other';
   currentValue: number;
+  manualCurrentValue?: boolean; // When true, keep currentValue from user entry
   purchaseValue?: number; // Deprecated: use investedValue instead
   investedValue?: number; // Total amount invested (replaces purchaseValue)
   purchaseDate?: string;

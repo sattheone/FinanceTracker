@@ -84,12 +84,15 @@ export class MarketDataService {
         if (asset.category === 'stocks' && asset.symbol) {
           const data = stockMap.get(asset.symbol.toUpperCase());
           if (data) {
+            const hasQuantity = asset.quantity && asset.quantity > 0;
+            const useManual = !!asset.manualCurrentValue;
+            if (!hasQuantity || useManual) return asset;
             return {
               ...asset,
               marketPrice: data.price,
               dayChange: data.change,
               dayChangePercent: data.changePercent,
-              currentValue: (asset.quantity || 0) * data.price,
+              currentValue: asset.quantity! * data.price,
               lastUpdated: data.lastUpdated
             };
           }
@@ -97,10 +100,13 @@ export class MarketDataService {
         if (asset.category === 'mutual_funds' && asset.schemeCode) {
           const data = mfMap.get(asset.schemeCode);
           if (data) {
+            const hasQuantity = asset.quantity && asset.quantity > 0;
+            const useManual = !!asset.manualCurrentValue;
+            if (!hasQuantity || useManual) return asset;
             return {
               ...asset,
               marketPrice: data.nav,
-              currentValue: (asset.quantity || 0) * data.nav,
+              currentValue: asset.quantity! * data.nav,
               lastUpdated: data.date
             };
           }

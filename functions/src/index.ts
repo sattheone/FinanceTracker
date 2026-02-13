@@ -2,6 +2,7 @@ import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall } from "firebase-functions/v2/https";
+import { onDocumentCreated, onDocumentUpdated, onDocumentDeleted } from "firebase-functions/v2/firestore";
 import { defineString } from "firebase-functions/params";
 import axios from "axios";
 import * as JSZip from "jszip";
@@ -16,6 +17,210 @@ const db = admin.firestore();
 
 // Define SendGrid API key parameter
 const sendgridApiKey = defineString("SENDGRID_API_KEY");
+
+// ============================================================
+// MONTHLY SUMMARY CLOUD FUNCTIONS
+// Automatically maintain monthlySummaries when transactions change
+// ============================================================
+
+interface TransactionData {
+  amount: number;
+  category: string;
+  type: string;
+  date: string;
+}
+
+/**
+ * Helper: Update monthly summary for a transaction
+ * @param userId - The user's ID
+ * @param txData - Transaction data
+ * @param isAdd - true to add, false to subtract
+ */
+async function updateMonthlySummary(
+  userId: string,
+  txData: TransactionData,
+  isAdd: boolean
+): Promise<void> {
+  // Only track expense, investment, and transfer types
+  if (!["expense", "investment", "transfer"].includes(txData.type)) {
+    return;
+  }
+
+  const txDate = new Date(txData.date);
+  const year = txDate.getFullYear();
+  const month = txDate.getMonth() + 1; // 1-based
+  const summaryId = `${year}-${String(month).padStart(2, "0")}`;
+  const categoryId = txData.category || "uncategorized";
+  const amount = txData.amount || 0;
+  const delta = isAdd ? amount : -amount;
+
+  const summaryRef = db.doc(`users/${userId}/monthlySummaries/${summaryId}`);
+
+  await db.runTransaction(async (transaction) => {
+    const summaryDoc = await transaction.get(summaryRef);
+
+    if (summaryDoc.exists) {
+      const data = summaryDoc.data()!;
+      const currentCategoryTotal = data.categoryTotals?.[categoryId] || 0;
+      const newCategoryTotal = Math.max(0, currentCategoryTotal + delta);
+      const currentTotal = data.totalSpent || 0;
+      const newTotal = Math.max(0, currentTotal + delta);
+
+      transaction.update(summaryRef, {
+        [`categoryTotals.${categoryId}`]: newCategoryTotal,
+        totalSpent: newTotal,
+        lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } else if (isAdd) {
+      // Create new summary document
+      transaction.set(summaryRef, {
+        userId,
+        year,
+        month,
+        categoryTotals: { [categoryId]: amount },
+        totalSpent: amount,
+        lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+  });
+}
+
+/**
+ * Trigger: When a transaction is created
+ */
+export const onTransactionCreated = onDocumentCreated(
+  "users/{userId}/transactions/{transactionId}",
+  async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) return;
+
+    const userId = event.params.userId;
+    const txData = snapshot.data() as TransactionData;
+
+    console.log(`Transaction created for user ${userId}:`, txData);
+
+    await updateMonthlySummary(userId, txData, true);
+  }
+);
+
+/**
+ * Trigger: When a transaction is updated
+ */
+export const onTransactionUpdated = onDocumentUpdated(
+  "users/{userId}/transactions/{transactionId}",
+  async (event) => {
+    const beforeSnap = event.data?.before;
+    const afterSnap = event.data?.after;
+    if (!beforeSnap || !afterSnap) return;
+
+    const userId = event.params.userId;
+    const beforeData = beforeSnap.data() as TransactionData;
+    const afterData = afterSnap.data() as TransactionData;
+
+    // Check if relevant fields changed
+    const dateChanged = beforeData.date !== afterData.date;
+    const categoryChanged = beforeData.category !== afterData.category;
+    const amountChanged = beforeData.amount !== afterData.amount;
+    const typeChanged = beforeData.type !== afterData.type;
+
+    if (!dateChanged && !categoryChanged && !amountChanged && !typeChanged) {
+      return; // No relevant changes
+    }
+
+    console.log(`Transaction updated for user ${userId}:`, { before: beforeData, after: afterData });
+
+    // Subtract old values
+    await updateMonthlySummary(userId, beforeData, false);
+    // Add new values
+    await updateMonthlySummary(userId, afterData, true);
+  }
+);
+
+/**
+ * Trigger: When a transaction is deleted
+ */
+export const onTransactionDeleted = onDocumentDeleted(
+  "users/{userId}/transactions/{transactionId}",
+  async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) return;
+
+    const userId = event.params.userId;
+    const txData = snapshot.data() as TransactionData;
+
+    console.log(`Transaction deleted for user ${userId}:`, txData);
+
+    await updateMonthlySummary(userId, txData, false);
+  }
+);
+
+/**
+ * Callable function to rebuild all monthly summaries for a user
+ * Use this to fix any inconsistencies or after bulk imports
+ */
+export const rebuildMonthlySummaries = onCall(async (request) => {
+  const userId = request.auth?.uid;
+  if (!userId) {
+    throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+  }
+
+  console.log(`Rebuilding monthly summaries for user ${userId}`);
+
+  // Get all transactions
+  const transactionsSnap = await db.collection(`users/${userId}/transactions`).get();
+  
+  // Calculate summaries in memory
+  const summaries: Record<string, { categoryTotals: Record<string, number>; totalSpent: number; year: number; month: number }> = {};
+
+  transactionsSnap.forEach((doc) => {
+    const tx = doc.data() as TransactionData;
+    
+    // Only track expense, investment, and transfer types
+    if (!["expense", "investment", "transfer"].includes(tx.type)) {
+      return;
+    }
+
+    const txDate = new Date(tx.date);
+    const year = txDate.getFullYear();
+    const month = txDate.getMonth() + 1;
+    const summaryId = `${year}-${String(month).padStart(2, "0")}`;
+    const categoryId = tx.category || "uncategorized";
+    const amount = tx.amount || 0;
+
+    if (!summaries[summaryId]) {
+      summaries[summaryId] = { categoryTotals: {}, totalSpent: 0, year, month };
+    }
+
+    summaries[summaryId].categoryTotals[categoryId] = 
+      (summaries[summaryId].categoryTotals[categoryId] || 0) + amount;
+    summaries[summaryId].totalSpent += amount;
+  });
+
+  // Write all summaries in a batch
+  const batch = db.batch();
+  
+  for (const [summaryId, data] of Object.entries(summaries)) {
+    const summaryRef = db.doc(`users/${userId}/monthlySummaries/${summaryId}`);
+    batch.set(summaryRef, {
+      userId,
+      year: data.year,
+      month: data.month,
+      categoryTotals: data.categoryTotals,
+      totalSpent: data.totalSpent,
+      lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  await batch.commit();
+
+  console.log(`Rebuilt ${Object.keys(summaries).length} monthly summaries for user ${userId}`);
+
+  return { 
+    success: true, 
+    summariesCount: Object.keys(summaries).length,
+    transactionsProcessed: transactionsSnap.size 
+  };
+});
 
 export const testEmail = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {

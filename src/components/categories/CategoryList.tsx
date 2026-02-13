@@ -13,7 +13,7 @@ interface CategoryListProps {
     investmentSpending?: Record<string, number>;
     monthlyBudget: MonthlyBudget | null;
     displayMode?: 'flat' | 'grouped';
-    viewMode?: 'month' | 'year' | 'prevYear';
+    viewMode?: 'month' | 'prevMonth' | 'year' | 'prevYear';
     includeTransfer?: boolean;
     includeInvestments?: boolean;
 }
@@ -49,24 +49,20 @@ const CategoryList: React.FC<CategoryListProps> = ({
                     return; // skip transfer when not included
                 }
                 system.push(cat);
-            } else if (hasInvestment) {
-                investments.push(cat);
-            } else if (hasExpense || cat.isSystem) { // Keep existing logic for active
-                active.push(cat);
             } else {
-                // If 0 spend, fallback to original logic or put in active if not hidden?
-                // Original logic: if (cat.isSystem) active else...
-                // Actually original logic pushed ALL non-system to active.
-                // Let's preserve that: if not investment, put in active (which handles 0 spend items).
-                active.push(cat);
+                // A category can appear in both sections if it has both expense and investment transactions
+                if (hasExpense) {
+                    active.push(cat);
+                }
+                if (hasInvestment) {
+                    investments.push(cat);
+                }
+                // If neither, still show in active (for categories with 0 spend)
+                if (!hasExpense && !hasInvestment) {
+                    active.push(cat);
+                }
             }
         });
-
-        // Filter out investments from active if we pushed them there by default fallback
-        // Actually, let's look at the logic above.
-        // If hasInvestment -> investments.
-        // Else -> active.
-        // This effectively moves them.
 
         // Sort active categories by spend (high to low)
         active.sort((a, b) => {
@@ -141,7 +137,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
                 ? category.budget
                 : (monthlyBudget?.categoryBudgets?.[category.id] || 0))
             : 0;
-        const monthsMultiplier = viewMode === 'month' ? 1 : 12;
+        const monthsMultiplier = (viewMode === 'month' || viewMode === 'prevMonth') ? 1 : 12;
         const budgetAmount = baseMonthlyBudget * monthsMultiplier;
         const isSelected = selectedCategoryId === category.id;
 

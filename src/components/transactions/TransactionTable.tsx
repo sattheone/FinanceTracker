@@ -24,6 +24,7 @@ interface TransactionTableProps {
     onBulkTagClick?: (anchorElement: HTMLElement) => void;
     onBulkTypeClick?: (anchorElement: HTMLElement) => void;
     onBulkDelete?: () => void;
+    highlightTransactionId?: string | null;
 }
 
 type SortKey = 'date' | 'description' | 'category' | 'type' | 'amount';
@@ -40,6 +41,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     onUpdateTransaction,
     onContextMenu,
     onTagClick,
+    highlightTransactionId,
     onBulkCategoryClick,
     onBulkTagClick,
     // onBulkTypeClick,
@@ -170,8 +172,8 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     );
 
     return (
-        <div className="overflow-x-auto">
-            <table className="min-w-full">
+        <div className="w-full max-w-full min-w-0 overflow-x-auto">
+            <table className="w-full table-fixed">
                 <thead className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                     <tr>
                         <th className={cn(theme.tableHeader, '!py-2 !px-3 text-xs w-10')}>
@@ -197,13 +199,17 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                         return (
                             <tr
                                 key={transaction.id}
+                                data-transaction-id={transaction.id}
                                 onMouseEnter={() => setHoveredTransactionId(transaction.id)}
                                 onMouseLeave={() => setHoveredTransactionId(null)}
                                 onContextMenu={(e) => onContextMenu?.(e, transaction)}
                                 onClick={() => onTransactionClick?.(transaction)}
-                                className="hover:bg-gray-50 dark:hover:bg-gray-900/40"
+                                className={cn(
+                                    "hover:bg-gray-50 dark:hover:bg-gray-900/40",
+                                    highlightTransactionId === transaction.id && "bg-yellow-50/70 dark:bg-yellow-900/20 ring-1 ring-yellow-200 dark:ring-yellow-800 transition-colors"
+                                )}
                             >
-                                <td className={cn(theme.tableCell, '!py-2 !px-3 text-xs w-10')}>
+                                <td className={cn(theme.tableCell, '!py-2 !px-3 text-xs w-10')} onClick={(e) => e.stopPropagation()}>
                                     <input
                                         type="checkbox"
                                         checked={selectedTransactions.has(transaction.id)}
@@ -216,12 +222,12 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                         {date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                                     </span>
                                 </td>
-                                <td className={cn(theme.tableCell, '!py-2 !px-3 text-xs font-medium max-w-xs')} title={transaction.description}>
+                                <td className={cn(theme.tableCell, '!py-2 !px-3 text-xs font-medium max-w-xs overflow-hidden')} title={transaction.description}>
                                     <div className="flex items-center gap-2">
                                         <span className={cn(theme.textPrimary, 'truncate')}>{transaction.description}</span>
                                     </div>
                                 </td>
-                                <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap text-xs')}>
+                                <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap text-xs overflow-hidden')}>
                                     {onUpdateTransaction ? (
                                         <InlineCategoryEditor
                                             currentCategory={transaction.category || 'other'}
@@ -233,7 +239,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                         </span>
                                     )}
                                 </td>
-                                <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap')}>
+                                <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap overflow-hidden')}>
                                     {onUpdateTransaction ? (
                                         <InlineTypeEditor
                                             currentType={transaction.type}

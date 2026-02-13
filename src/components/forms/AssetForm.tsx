@@ -24,15 +24,25 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
     quantity: 0,
     averagePrice: 0, // NEW field for Input
     marketPrice: 0, // Live price if fetched
+    broker: '', // Broker/Platform field
+    notes: '', // Notes field
+    // FD specific fields
+    principalAmount: 0,
+    interestRate: 0,
+    maturityDate: '',
+    fdNumber: '',
+    interestPayoutFrequency: 'At Maturity',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+    const [isManualCurrentValue, setIsManualCurrentValue] = useState(false);
 
   // Autocomplete state
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const userIsTypingRef = useRef(false); // Only search when user is actively typing
 
   // Close suggestions on click outside
   useEffect(() => {
@@ -45,8 +55,13 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Search effect (unchanged search logic)
+  // Search effect — only runs when user is actively typing in the name field
   useEffect(() => {
+    if (!userIsTypingRef.current) {
+      return;
+    }
+    userIsTypingRef.current = false;
+
     const query = formData.name;
     const category = formData.category;
 
@@ -88,8 +103,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
         name: item.symbol,
         symbol: item.symbol,
         marketPrice: livePrice,
-        // Update current value based on new live price * quantity
-        currentValue: prev.quantity > 0 ? parseFloat((prev.quantity * livePrice).toFixed(2)) : 0
+        currentValue: prev.quantity > 0 ? parseFloat((prev.quantity * livePrice).toFixed(2)) : prev.currentValue
       }));
     } else {
       setFormData(prev => ({
@@ -97,7 +111,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
         name: item.name,
         schemeCode: item.code,
         marketPrice: livePrice,
-        currentValue: prev.quantity > 0 ? parseFloat((prev.quantity * livePrice).toFixed(2)) : (livePrice || 0)
+        currentValue: prev.quantity > 0 ? parseFloat((prev.quantity * livePrice).toFixed(2)) : prev.currentValue
       }));
     }
     setShowSuggestions(false);
@@ -105,6 +119,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
 
   useEffect(() => {
     if (asset) {
+      setIsManualCurrentValue(!!(asset as any).manualCurrentValue);
       setFormData({
         name: asset.name,
         category: asset.category,
@@ -116,37 +131,42 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
         isSIP: (asset as any).isSIP || false,
         sipAmount: (asset as any).sipAmount || 0,
         sipDate: (asset as any).sipDate || 1,
-        quantity: (asset as any).quantity || 0,
-        averagePrice: (asset as any).averagePrice || ((asset.purchaseValue && (asset as any).quantity) ? asset.purchaseValue / (asset as any).quantity : 0),
+        quantity: 0, // Optional — user can fill manually if needed
+        averagePrice: 0,
         marketPrice: (asset as any).marketPrice || 0,
+        broker: (asset as any).broker || '',
+        notes: (asset as any).notes || '',
+        principalAmount: (asset as any).principalAmount || 0,
+        interestRate: (asset as any).interestRate || 0,
+        maturityDate: (asset as any).maturityDate || '',
+        fdNumber: (asset as any).fdNumber || '',
+        interestPayoutFrequency: (asset as any).interestPayoutFrequency || 'At Maturity',
       });
     }
   }, [asset]);
 
-  // Auto-calculate Invested Value = Quantity * Avg Price
+  // Auto-calculate Invested Value = Quantity * Purchase Price (only for stocks or when quantity is being used)
   useEffect(() => {
+    // Skip auto-calculation for MF without quantity (amount-based entry)
+    if (formData.category === 'mutual_funds' && !formData.quantity) return;
+    
     if ((formData.category === 'stocks' || formData.category === 'mutual_funds') && formData.quantity > 0 && formData.averagePrice > 0) {
       const invested = formData.quantity * formData.averagePrice;
-      if (Math.abs(invested - formData.investedValue) > 0.01) {
-        setFormData(prev => ({ ...prev, investedValue: parseFloat(invested.toFixed(2)) }));
-      }
+      setFormData(prev => ({ ...prev, investedValue: parseFloat(invested.toFixed(2)) }));
     }
   }, [formData.quantity, formData.averagePrice, formData.category]);
 
-  // Auto-calculate Current Value if we have Live Market Price
+  // Auto-calculate Current Value if we have Market Price (only for stocks or when quantity is being used)
   useEffect(() => {
+    if (isManualCurrentValue) return;
+    // Skip auto-calculation for MF without quantity (amount-based entry)
+    if (formData.category === 'mutual_funds' && !formData.quantity) return;
+    
     if ((formData.category === 'stocks' || formData.category === 'mutual_funds') && formData.quantity > 0 && formData.marketPrice > 0) {
-      // If we have live price, update current value
       const current = formData.quantity * formData.marketPrice;
-      // Only update if explicit mode or initial load? For now auto-update
-      if (Math.abs(current - formData.currentValue) > 0.01) {
-        setFormData(prev => ({ ...prev, currentValue: parseFloat(current.toFixed(2)) }));
-      }
-    } else if (!asset && formData.investedValue > 0 && formData.currentValue === 0) {
-      // Fallback: If no live price, set Current = Invested initially
-      setFormData(prev => ({ ...prev, currentValue: prev.investedValue }));
+      setFormData(prev => ({ ...prev, currentValue: parseFloat(current.toFixed(2)) }));
     }
-  }, [formData.quantity, formData.marketPrice, formData.investedValue]);
+  }, [formData.quantity, formData.marketPrice, formData.category, isManualCurrentValue]);
 
 
   const assetCategories = [
@@ -166,8 +186,24 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
       newErrors.name = 'Asset name is required';
     }
 
-    if (formData.quantity <= 0 && (formData.category === 'stocks' || formData.category === 'mutual_funds')) {
-      newErrors.quantity = 'Quantity is required';
+    if (formData.category === 'fixed_deposit') {
+      if (formData.principalAmount <= 0) {
+        newErrors.principalAmount = 'Principal amount is required';
+      }
+      if (formData.interestRate <= 0) {
+        newErrors.interestRate = 'Interest rate is required';
+      }
+    } else {
+      if (formData.currentValue <= 0) {
+        newErrors.currentValue = 'Current value is required';
+      }
+      
+      // For stocks/MF, check investedValue if they're using the amount fields (not quantity-based)
+      if (formData.category === 'stocks' && formData.investedValue <= 0 && formData.quantity === 0) {
+        newErrors.investedValue = 'Invested amount is required';
+      } else if (formData.category === 'mutual_funds' && formData.investedValue <= 0 && formData.quantity === 0) {
+        newErrors.investedValue = 'Invested amount is required';
+      }
     }
 
     setErrors(newErrors);
@@ -181,18 +217,46 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
       return;
     }
 
+    // For Fixed Deposits, set currentValue and investedValue from principalAmount
+    let finalInvestedValue = formData.investedValue;
+    let finalCurrentValue = formData.currentValue;
+    
+    if (formData.category === 'fixed_deposit') {
+      finalInvestedValue = formData.principalAmount;
+      finalCurrentValue = formData.principalAmount; // Can be enhanced later to calculate with interest
+    } else if (formData.category === 'mutual_funds') {
+      // For mutual funds, if no quantity/price specified, ensure both investedValue and currentValue are set
+      if (!formData.quantity && !formData.averagePrice) {
+        // Both values should already be set from the form inputs
+        finalInvestedValue = formData.investedValue;
+        finalCurrentValue = formData.currentValue;
+      }
+    } else if (formData.category !== 'stocks') {
+      // For other assets (EPF, gold, cash, other), set investedValue = currentValue if not provided
+      finalInvestedValue = formData.investedValue || formData.currentValue;
+    }
+
     const assetData: any = {
       name: formData.name.trim(),
       category: formData.category,
-      quantity: formData.quantity || undefined,
-      averagePrice: formData.averagePrice || undefined,
-      purchaseValue: formData.investedValue || undefined, // Store Invested Value in purchaseValue
-      investedValue: formData.investedValue || undefined,
-      currentValue: formData.currentValue || formData.investedValue, // Default to invested if 0
-      marketPrice: formData.marketPrice || undefined, // Store live price if known
+      // Persist null for optional numeric fields when left empty so old values are cleared
+      quantity: formData.quantity > 0 ? formData.quantity : null,
+      averagePrice: formData.averagePrice > 0 ? formData.averagePrice : null,
+      purchaseValue: finalInvestedValue || undefined, // Store Invested Value in purchaseValue
+      investedValue: finalInvestedValue || undefined,
+      currentValue: finalCurrentValue || undefined,
+      marketPrice: formData.marketPrice > 0 ? formData.marketPrice : null, // Store live price if known
       purchaseDate: formData.purchaseDate || undefined,
       symbol: formData.symbol || undefined,
       schemeCode: formData.schemeCode || undefined,
+      broker: formData.broker || undefined,
+      notes: formData.notes || undefined,
+      // FD specific fields
+      principalAmount: formData.principalAmount || undefined,
+      interestRate: formData.interestRate || undefined,
+      maturityDate: formData.maturityDate || undefined,
+      fdNumber: formData.fdNumber || undefined,
+      interestPayoutFrequency: formData.interestPayoutFrequency || undefined,
     };
 
     // Add SIP/Contribution data
@@ -220,15 +284,15 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div ref={wrapperRef} className="relative">
           <label className="form-label">
-            Asset Name *
+            {formData.category === 'stocks' ? 'Stock Name / Symbol *' : formData.category === 'mutual_funds' ? 'Fund Name *' : 'Asset Name *'}
           </label>
           <div className="relative">
             <input
               type="text"
               value={formData.name}
               onChange={(e) => {
+                userIsTypingRef.current = true;
                 handleChange('name', e.target.value);
-                setShowSuggestions(true);
               }}
               className={`input-field theme-input ${errors.name ? 'border-red-500' : ''}`}
               placeholder={formData.category === 'stocks' ? "e.g. RELIANCE (Search available)" : "e.g. SBI Blue Chip (Search available)"}
@@ -286,90 +350,316 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
           </select>
         </div>
 
-        {/* Stock Specific Fields */}
+        {/* Stock/MF Specific Fields */}
         {(formData.category === 'stocks' || formData.category === 'mutual_funds') && (
           <>
             <div>
               <label className="form-label">
-                Quantity *
+                {formData.category === 'stocks' ? 'Number of Shares *' : 'Number of Units'}
               </label>
               <input
                 type="number"
                 value={formData.quantity || ''}
                 onChange={(e) => handleChange('quantity', Number(e.target.value))}
                 className="input-field theme-input"
-                placeholder="0"
+                placeholder="100"
                 min="0"
                 step="1"
               />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Auto-update requires quantity. Leave empty to keep manual values.
+              </p>
             </div>
 
-            <div>
+            {/* For Stocks: Purchase Price and Current Price */}
+            {formData.category === 'stocks' && (
+              <>
+                <div>
+                  <label className="form-label">
+                    Purchase Price (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.averagePrice || ''}
+                    onChange={(e) => handleChange('averagePrice', Number(e.target.value))}
+                    className="input-field theme-input"
+                    placeholder="1500.00"
+                    min="0"
+                    step="any"
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">
+                    Purchase Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.purchaseDate}
+                    onChange={(e) => handleChange('purchaseDate', e.target.value)}
+                    className="input-field theme-input"
+                    max={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label">
+                    Current Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.marketPrice || ''}
+                    onChange={(e) => handleChange('marketPrice', Number(e.target.value))}
+                    className="input-field theme-input"
+                    placeholder="1650.00"
+                    min="0"
+                    step="any"
+                  />
+                  {formData.marketPrice > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      <span className="text-green-600 font-medium">● Live</span> - Auto-updated from market data
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* For Mutual Funds: Invested Amount and Current Amount fields */}
+            {formData.category === 'mutual_funds' && (
+              <>
+                <div>
+                  <label className="form-label">
+                    Invested Amount (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.investedValue || ''}
+                    onChange={(e) => handleChange('investedValue', Number(e.target.value))}
+                    className={`input-field theme-input ${errors.investedValue ? 'border-red-500' : ''}`}
+                    placeholder="50000.00"
+                    min="0"
+                    step="any"
+                  />
+                  {errors.investedValue && <p className="text-red-500 text-sm mt-1">{errors.investedValue}</p>}
+                </div>
+
+                <div>
+                  <label className="form-label">
+                    Current Amount (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.currentValue || ''}
+                    onChange={(e) => {
+                      setIsManualCurrentValue(true);
+                      handleChange('currentValue', Number(e.target.value));
+                    }}
+                    className={`input-field theme-input ${errors.currentValue ? 'border-red-500' : ''}`}
+                    placeholder="55000.00"
+                    min="0"
+                    step="any"
+                  />
+                  {errors.currentValue && <p className="text-red-500 text-sm mt-1">{errors.currentValue}</p>}
+                </div>
+
+                <div>
+                  <label className="form-label">
+                    Purchase Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.purchaseDate}
+                    onChange={(e) => handleChange('purchaseDate', e.target.value)}
+                    className="input-field theme-input"
+                    max={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+              </>
+            )}
+            {/* Broker/Platform */}
+            <div className="md:col-span-2">
               <label className="form-label">
-                Average Buy Price (₹) *
+                Broker / Platform
               </label>
               <input
-                type="number"
-                value={formData.averagePrice || ''}
-                onChange={(e) => handleChange('averagePrice', Number(e.target.value))}
+                type="text"
+                value={formData.broker}
+                onChange={(e) => handleChange('broker', e.target.value)}
                 className="input-field theme-input"
-                placeholder="0.00"
-                min="0"
-                step="0.01"
+                placeholder="e.g., Zerodha, Upstox"
               />
-              <p className="text-xs text-gray-500 mt-1">Your average purchase price per share/unit</p>
             </div>
 
-            {/* Read-only Invested Amount */}
-            <div>
+            {/* Notes */}
+            <div className="md:col-span-2">
               <label className="form-label">
-                Invested Amount (Calculated)
+                Notes
               </label>
-              <input
-                type="number"
-                value={formData.investedValue || ''}
-                readOnly
-                className="input-field theme-input bg-gray-50 dark:bg-gray-700 cursor-not-allowed"
-              />
-              <p className="text-xs text-gray-500 mt-1">Quantity × Avg. Buy Price</p>
-            </div>
-
-            {/* Live/Current Price - Optional override */}
-            <div>
-              <label className="form-label flex justify-between">
-                <span>Current Market Price (₹)</span>
-                {formData.marketPrice > 0 && <span className="text-green-600 text-xs font-medium">Live</span>}
-              </label>
-              <input
-                type="number"
-                value={formData.marketPrice || ''}
-                onChange={(e) => handleChange('marketPrice', Number(e.target.value))}
+              <textarea
+                value={formData.notes}
+                onChange={(e) => handleChange('notes', e.target.value)}
                 className="input-field theme-input"
-                placeholder="0.00"
-                min="0"
-                step="0.01"
+                placeholder="Any additional notes..."
+                rows={3}
               />
-              <p className="text-xs text-gray-500 mt-1">Auto-updates if you select a stock/fund</p>
             </div>
           </>
         )}
 
-        {/* For non-stock assets */}
-        {formData.category !== 'stocks' && formData.category !== 'mutual_funds' && (
-          <div>
-            <label className="form-label">
-              Current Value *
-            </label>
-            <input
-              type="number"
-              value={formData.currentValue || ''}
-              onChange={(e) => handleChange('currentValue', Number(e.target.value))}
-              className={`input-field theme-input ${errors.currentValue ? 'border-red-500' : ''}`}
-              placeholder="0"
-              min="0"
-              step="0.01"
-            />
-          </div>
+        {/* For Fixed Deposit */}
+        {formData.category === 'fixed_deposit' && (
+          <>
+            <div>
+              <label className="form-label">
+                Principal Amount (₹) *
+              </label>
+              <input
+                type="number"
+                value={formData.principalAmount || ''}
+                onChange={(e) => handleChange('principalAmount', Number(e.target.value))}
+                className={`input-field theme-input ${errors.principalAmount ? 'border-red-500' : ''}`}
+                placeholder="100000"
+                min="0"
+                step="any"
+              />
+              {errors.principalAmount && <p className="text-red-500 text-sm mt-1">{errors.principalAmount}</p>}
+            </div>
+
+            <div>
+              <label className="form-label">
+                Interest Rate (%) *
+              </label>
+              <input
+                type="number"
+                value={formData.interestRate || ''}
+                onChange={(e) => handleChange('interestRate', Number(e.target.value))}
+                className={`input-field theme-input ${errors.interestRate ? 'border-red-500' : ''}`}
+                placeholder="6.5"
+                min="0"
+                max="100"
+                step="0.01"
+              />
+              {errors.interestRate && <p className="text-red-500 text-sm mt-1">{errors.interestRate}</p>}
+            </div>
+
+            <div>
+              <label className="form-label">
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={formData.purchaseDate}
+                onChange={(e) => handleChange('purchaseDate', e.target.value)}
+                className="input-field theme-input"
+                max={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+
+            <div>
+              <label className="form-label">
+                Maturity Date
+              </label>
+              <input
+                type="date"
+                value={formData.maturityDate}
+                onChange={(e) => handleChange('maturityDate', e.target.value)}
+                className="input-field theme-input"
+                min={formData.purchaseDate || undefined}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="form-label">
+                FD Number / Reference
+              </label>
+              <input
+                type="text"
+                value={formData.fdNumber}
+                onChange={(e) => handleChange('fdNumber', e.target.value)}
+                className="input-field theme-input"
+                placeholder="FD reference number"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="form-label">
+                Interest Payout Frequency
+              </label>
+              <select
+                value={formData.interestPayoutFrequency}
+                onChange={(e) => handleChange('interestPayoutFrequency', e.target.value)}
+                className="input-field theme-input"
+              >
+                <option value="At Maturity">At Maturity</option>
+                <option value="Monthly">Monthly</option>
+                <option value="Quarterly">Quarterly</option>
+                <option value="Half-Yearly">Half-Yearly</option>
+                <option value="Yearly">Yearly</option>
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="form-label">
+                Notes
+              </label>
+              <textarea
+                value={formData.notes}
+                onChange={(e) => handleChange('notes', e.target.value)}
+                className="input-field theme-input"
+                placeholder="Any additional notes..."
+                rows={3}
+              />
+            </div>
+          </>
+        )}
+
+        {/* For other non-stock/MF assets, show simplified fields */}
+        {formData.category !== 'stocks' && formData.category !== 'mutual_funds' && formData.category !== 'fixed_deposit' && (
+          <>
+            <div>
+              <label className="form-label">
+                Current Value (₹) *
+              </label>
+              <input
+                type="number"
+                value={formData.currentValue || ''}
+                onChange={(e) => {
+                  setIsManualCurrentValue(true);
+                  handleChange('currentValue', Number(e.target.value));
+                }}
+                className={`input-field theme-input ${errors.currentValue ? 'border-red-500' : ''}`}
+                placeholder="0.00"
+                min="0"
+                step="any"
+              />
+            </div>
+
+            <div>
+              <label className="form-label">
+                Purchase Date
+              </label>
+              <input
+                type="date"
+                value={formData.purchaseDate}
+                onChange={(e) => handleChange('purchaseDate', e.target.value)}
+                className="input-field theme-input"
+                max={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="form-label">
+                Notes
+              </label>
+              <textarea
+                value={formData.notes}
+                onChange={(e) => handleChange('notes', e.target.value)}
+                className="input-field theme-input"
+                placeholder="Any additional notes..."
+                rows={3}
+              />
+            </div>
+          </>
         )}
 
 
@@ -448,18 +738,6 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
           </>
         )}
 
-        <div className="md:col-span-2">
-          <label className="form-label">
-            Purchase Date (Optional)
-          </label>
-          <input
-            type="date"
-            value={formData.purchaseDate}
-            onChange={(e) => handleChange('purchaseDate', e.target.value)}
-            className="input-field theme-input"
-            max={new Date().toISOString().split('T')[0]}
-          />
-        </div>
       </div>
     </form>
   );

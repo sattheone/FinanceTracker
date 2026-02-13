@@ -8,6 +8,20 @@ export interface DuplicateCheckResult {
   confidence: number; // 0-100, how confident we are it's a duplicate
 }
 
+// Paired duplicate info for UI display
+export interface DuplicatePair {
+  fileTransaction: Transaction;      // Transaction from import file
+  existingTransaction: Transaction;  // Matching transaction in database
+  confidence: number;                 // Match confidence (0-100)
+}
+
+// Internal duplicate within the same import file
+export interface InternalDuplicate {
+  transaction: Transaction;          // The duplicate transaction
+  duplicateOf: Transaction;          // The original transaction it duplicates
+  confidence: number;
+}
+
 export interface ImportSummary {
   totalTransactions: number;
   newTransactions: number;
@@ -15,6 +29,8 @@ export interface ImportSummary {
   skippedTransactions: number;
   importedTransactions: Transaction[];
   duplicates: Transaction[];
+  duplicatePairs?: DuplicatePair[];           // Paired duplicates with existing transactions
+  internalDuplicates?: InternalDuplicate[];   // Duplicates within the import file
 }
 
 class DuplicateDetectionService {
@@ -55,8 +71,27 @@ class DuplicateDetectionService {
   }
 
   /**
+   * Find the best matching existing transaction for a new transaction
+   */
+  private findBestMatch(newTransaction: Transaction, existingTransactions: Transaction[]): { match: Transaction | null; confidence: number } {
+    let bestMatch: Transaction | null = null;
+    let bestConfidence = 0;
+
+    for (const existing of existingTransactions) {
+      const confidence = this.calculateSimilarity(newTransaction, existing);
+      if (confidence > bestConfidence) {
+        bestConfidence = confidence;
+        bestMatch = existing;
+      }
+    }
+
+    return { match: bestMatch, confidence: bestConfidence };
+  }
+
+  /**
    * Check multiple transactions for duplicates (bulk import)
    * Now uses smart filtering to reduce false positives
+   * Returns paired duplicate information for better UI display
    */
   public checkBulkDuplicates(
     newTransactions: Transaction[], 
@@ -65,23 +100,29 @@ class DuplicateDetectionService {
   ): ImportSummary {
     const importedTransactions: Transaction[] = [];
     const duplicates: Transaction[] = [];
-    let skippedCount = 0;
-
+    const duplicatePairs: DuplicatePair[] = [];
+    const internalDuplicates: InternalDuplicate[] = [];
+    
     // Also check for duplicates within the new transactions themselves
-    const processedTransactions = this.removeDuplicatesWithinSet(newTransactions);
-    skippedCount += newTransactions.length - processedTransactions.length;
+    const { unique: processedTransactions, internalDuplicates: internals } = this.removeDuplicatesWithinSetDetailed(newTransactions);
+    internalDuplicates.push(...internals);
 
     for (const transaction of processedTransactions) {
-      const duplicateCheck = this.checkDuplicate(transaction, existingTransactions);
+      const { match, confidence } = this.findBestMatch(transaction, existingTransactions);
       
       // In smart mode, only flag as duplicate if confidence is very high (98%+) 
       // or if it's an exact match
       const isDuplicateInSmartMode = smartMode 
-        ? duplicateCheck.confidence >= 98 || duplicateCheck.confidence === 100
-        : duplicateCheck.isDuplicate;
+        ? confidence >= 98 || confidence === 100
+        : confidence >= this.HIGH_CONFIDENCE_THRESHOLD;
       
-      if (isDuplicateInSmartMode) {
+      if (isDuplicateInSmartMode && match) {
         duplicates.push(transaction);
+        duplicatePairs.push({
+          fileTransaction: transaction,
+          existingTransaction: match,
+          confidence
+        });
       } else {
         importedTransactions.push(transaction);
       }
@@ -90,19 +131,18 @@ class DuplicateDetectionService {
     // Only show duplicate warning if there are actual high-confidence duplicates
     const shouldShowWarning = duplicates.length > 0 && (
       !smartMode || 
-      duplicates.some(dup => {
-        const check = this.checkDuplicate(dup, existingTransactions);
-        return check.confidence >= 98;
-      })
+      duplicatePairs.some(pair => pair.confidence >= 98)
     );
 
     return {
       totalTransactions: newTransactions.length,
       newTransactions: importedTransactions.length,
       duplicateTransactions: shouldShowWarning ? duplicates.length : 0,
-      skippedTransactions: skippedCount,
+      skippedTransactions: internalDuplicates.length,
       importedTransactions: shouldShowWarning ? importedTransactions : [...importedTransactions, ...duplicates],
-      duplicates: shouldShowWarning ? duplicates : []
+      duplicates: shouldShowWarning ? duplicates : [],
+      duplicatePairs: shouldShowWarning ? duplicatePairs : [],
+      internalDuplicates: internalDuplicates.length > 0 ? internalDuplicates : undefined
     };
   }
 
@@ -261,22 +301,40 @@ class DuplicateDetectionService {
   }
 
   /**
-   * Remove duplicates within a set of new transactions
+   * Remove duplicates within a set of new transactions with detailed info
+   * Returns both unique transactions and info about internal duplicates
    */
-  private removeDuplicatesWithinSet(transactions: Transaction[]): Transaction[] {
+  private removeDuplicatesWithinSetDetailed(transactions: Transaction[]): {
+    unique: Transaction[];
+    internalDuplicates: InternalDuplicate[];
+  } {
     const unique: Transaction[] = [];
+    const internalDuplicates: InternalDuplicate[] = [];
     
     for (const transaction of transactions) {
-      const isDuplicate = unique.some(existing => 
-        this.calculateSimilarity(transaction, existing) >= this.HIGH_CONFIDENCE_THRESHOLD
-      );
+      let bestMatch: Transaction | null = null;
+      let bestConfidence = 0;
       
-      if (!isDuplicate) {
+      for (const existing of unique) {
+        const similarity = this.calculateSimilarity(transaction, existing);
+        if (similarity >= this.HIGH_CONFIDENCE_THRESHOLD && similarity > bestConfidence) {
+          bestMatch = existing;
+          bestConfidence = similarity;
+        }
+      }
+      
+      if (bestMatch) {
+        internalDuplicates.push({
+          transaction,
+          duplicateOf: bestMatch,
+          confidence: bestConfidence
+        });
+      } else {
         unique.push(transaction);
       }
     }
     
-    return unique;
+    return { unique, internalDuplicates };
   }
 
   /**
