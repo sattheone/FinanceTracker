@@ -6,7 +6,6 @@ import { useAuth } from './AuthContext';
 import FirebaseService from '../services/firebaseService';
 import GoalMigrationService from '../services/goalMigration';
 import CategoryRuleService from '../services/categoryRuleService';
-import SIPAutoUpdateService from '../services/sipAutoUpdateService';
 import { incrementCategorySummary, decrementCategorySummary, updateCategorySummary, clearCategorySummaryCache } from '../services/categorySummaryService';
 
 
@@ -148,6 +147,7 @@ interface DataContextType {
   // Utility
   resetUserData: () => void;
   isDataLoaded: boolean;
+  categorySummaryVersion: number;
   indexes: {
     categoriesById: Map<string, Category>;
     bankAccountsById: Map<string, BankAccount>;
@@ -219,6 +219,7 @@ const getDefaultMonthlyBudget = (): MonthlyBudget => ({
 export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const { user } = useAuth();
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [categorySummaryVersion, setCategorySummaryVersion] = useState(0);
   const initialTransactionsLoadedRef = useRef(false);
   const loadedTransactionMonthsRef = useRef<Set<string>>(new Set());
 
@@ -322,9 +323,6 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     };
   }, [categories, bankAccounts, transactions]);
 
-  // Track if SIP auto-update has run this session
-  const sipAutoUpdateRan = useRef(false);
-
   // Update localStorage for notification scheduler whenever data changes
   useEffect(() => {
     if (isDataLoaded) {
@@ -362,46 +360,6 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       }
     }
   }, [categories, isDataLoaded]);
-
-  // Auto-update SIP investments when data is loaded (runs once per session)
-  useEffect(() => {
-    if (!isDataLoaded || sipAutoUpdateRan.current || !user) return;
-
-    const todayKey = new Date().toISOString().slice(0, 10);
-    const lastRun = localStorage.getItem('sipAutoUpdateLastRun');
-    if (lastRun === todayKey) return;
-
-    const processAutoSIP = async () => {
-      sipAutoUpdateRan.current = true;
-      localStorage.setItem('sipAutoUpdateLastRun', todayKey);
-
-      try {
-        const { updates, results } = await SIPAutoUpdateService.processAllDueSIPs(assets, true);
-
-        if (results.length > 0) {
-          console.log(`📊 SIP Auto-Update: Processing ${results.length} SIP(s)`);
-
-          // Apply updates to each asset
-          for (const [assetId, update] of updates) {
-            await FirebaseService.updateAsset(assetId, update);
-            setAssets(prev => {
-              const updated = prev.map(a => a.id === assetId ? { ...a, ...update } : a);
-              localStorage.setItem('assets', JSON.stringify(updated));
-              return updated;
-            });
-          }
-
-          // Log summary
-          const totalAdded = results.reduce((sum, r) => sum + r.addedAmount, 0);
-          console.log(`✅ SIP Auto-Update complete: Added ₹${totalAdded.toLocaleString()} across ${results.length} SIP(s)`);
-        }
-      } catch (error) {
-        console.error('SIP Auto-Update failed:', error);
-      }
-    };
-
-    processAutoSIP();
-  }, [isDataLoaded, user, assets]);
 
   // Load user data when user changes
   useEffect(() => {
@@ -986,6 +944,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         console.warn('Failed to update category summary:', err)
       );
       clearCategorySummaryCache();
+      setCategorySummaryVersion(prev => prev + 1);
 
       // No need to update bank account balance - it's computed from initialBalance + transactions
     } catch (error) {
@@ -1003,6 +962,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     // Optimistic local update for immediate UI feedback (list + summary views)
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...transaction } : t));
     clearCategorySummaryCache();
+    setCategorySummaryVersion(prev => prev + 1);
 
     // Keep derived category summaries in sync with optimistic update
     if (oldTransaction && optimisticTransaction) {
@@ -1021,6 +981,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       if (oldTransaction) {
         setTransactions(prev => prev.map(t => t.id === id ? oldTransaction : t));
         clearCategorySummaryCache();
+        setCategorySummaryVersion(prev => prev + 1);
 
         // Best-effort rollback for summary docs as well
         if (optimisticTransaction) {
@@ -1066,6 +1027,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         }
       }
       clearCategorySummaryCache();
+      setCategorySummaryVersion(prev => prev + 1);
 
       // No need to update bank account balance - it's computed from initialBalance + transactions
 
@@ -1109,6 +1071,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         }
       }
       clearCategorySummaryCache();
+      setCategorySummaryVersion(prev => prev + 1);
 
       // No need to update bank account balance - it's computed from initialBalance + transactions
     } catch (error) {
@@ -1286,6 +1249,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       }
 
       clearCategorySummaryCache();
+      setCategorySummaryVersion(prev => prev + 1);
 
       return {
         success: true,
@@ -1321,6 +1285,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         );
       }
       clearCategorySummaryCache();
+      setCategorySummaryVersion(prev => prev + 1);
 
       // No need to update bank account balance - it's computed from initialBalance + transactions
     } catch (error) {
@@ -1336,6 +1301,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       // 2. Update local state
       setTransactions(prev => prev.filter(t => !ids.includes(t.id)));
       clearCategorySummaryCache();
+      setCategorySummaryVersion(prev => prev + 1);
 
       // No need to update bank account balance - it's computed from initialBalance + transactions
 
@@ -2008,6 +1974,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     // Utility
     resetUserData,
     isDataLoaded,
+    categorySummaryVersion,
     indexes,
     bulkUpdateTransactions,
     bulkUpdateTransactionsById,

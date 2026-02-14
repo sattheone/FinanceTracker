@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Loader2, Check, Scissors, Repeat, Trash2, Folder, Tag, TrendingUp, MoreHorizontal } from 'lucide-react';
+import { Loader2, Check, Scissors, Repeat, Folder, Tag, TrendingUp, MoreHorizontal } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -31,11 +31,14 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
   onTransactionClick
 }) => {
   const { user } = useAuth();
-  const { transactions: allTransactions, updateTransaction, deleteTransaction, categories: contextCategories } = useData();
+  const { transactions: allTransactions, updateTransaction, deleteTransaction, categories: contextCategories, assets, loadAssets } = useData();
   const theme = useThemeClasses();
   const formRef = useRef<SimpleTransactionFormHandle>(null);
   const [showSplitModal, setShowSplitModal] = useState(false);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
+  const [showAssetLinkPicker, setShowAssetLinkPicker] = useState(false);
+  const [headerMoreOpen, setHeaderMoreOpen] = useState(false);
+  const headerMoreRef = useRef<HTMLDivElement | null>(null);
 
   // LIVE DATA
   const transaction = allTransactions.find(t => t.id === passedTransaction.id) || passedTransaction;
@@ -49,6 +52,13 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
   const [showTagSettings, setShowTagSettings] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreContainerRef = useRef<HTMLDivElement | null>(null);
+  const linkedAsset = assets.find(a => a.id === transaction.linkedAssetId);
+
+  useEffect(() => {
+    if (isOpen && assets.length === 0) {
+      loadAssets();
+    }
+  }, [isOpen, assets.length, loadAssets]);
 
   // Clear selection when opening a new transaction
   useEffect(() => {
@@ -178,6 +188,18 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
     document.addEventListener('mousedown', handleOutside);
     return () => document.removeEventListener('mousedown', handleOutside);
   }, [moreOpen]);
+
+  useEffect(() => {
+    if (!headerMoreOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!headerMoreRef.current?.contains(target)) {
+        setHeaderMoreOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [headerMoreOpen]);
 
   const handleBulkToggleTag = (tagId: string, shouldAdd: boolean) => {
     selectedTxns.forEach(t => {
@@ -363,19 +385,53 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
               <Repeat className="w-4 h-4" />
               <span className="text-xs font-medium">Recurring</span>
             </button>
-            <button
-              onClick={() => {
-                if (confirm('Are you sure you want to delete this transaction?')) {
-                  deleteTransaction(transaction.id);
-                  onClose();
-                }
-              }}
-              className="px-2 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center gap-1"
-              title="Delete"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span className="text-xs font-medium">Delete</span>
-            </button>
+
+            <div className="relative" ref={headerMoreRef}>
+              <button
+                onClick={() => setHeaderMoreOpen(prev => !prev)}
+                className="px-2 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 flex items-center gap-1"
+                title="More actions"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+                <span className="text-xs font-medium">More</span>
+              </button>
+
+              {headerMoreOpen && (
+                <div className="absolute right-0 mt-2 w-44 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-50 py-1">
+                  <button
+                    onClick={() => {
+                      setHeaderMoreOpen(false);
+                      setShowAssetLinkPicker(true);
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    Link to Asset
+                  </button>
+                  {transaction.linkedAssetId && (
+                    <button
+                      onClick={async () => {
+                        await updateTransaction(transaction.id, { linkedAssetId: undefined });
+                        setHeaderMoreOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                    >
+                      Remove Link
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      if (confirm('Are you sure you want to delete this transaction?')) {
+                        deleteTransaction(transaction.id);
+                        onClose();
+                      }
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       }
@@ -391,6 +447,14 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
           autoSave={true}
           onSaveStatusChange={setSaveStatus}
         />
+
+        {linkedAsset && (
+          <div className="px-1">
+            <span className="inline-flex items-center gap-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-3 py-1.5 text-xs font-medium">
+              Linked Asset: {linkedAsset.name}
+            </span>
+          </div>
+        )}
 
         {/* History List */}
         <div className="mt-4">
@@ -652,6 +716,46 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
         transaction={transaction}
         onSave={() => setShowRecurringModal(false)}
       />
+    )}
+
+    {showAssetLinkPicker && (
+      <div className="fixed inset-0 z-[90] bg-black/40 flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xl">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Link transaction to asset</h3>
+            <button
+              onClick={() => setShowAssetLinkPicker(false)}
+              className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+            >
+              Close
+            </button>
+          </div>
+          <div className="max-h-[340px] overflow-y-auto p-2">
+            {assets.length === 0 ? (
+              <p className="text-sm text-gray-500 px-2 py-3">No assets available.</p>
+            ) : (
+              assets.map(asset => (
+                <button
+                  key={asset.id}
+                  onClick={async () => {
+                    await updateTransaction(transaction.id, { linkedAssetId: asset.id });
+                    setShowAssetLinkPicker(false);
+                  }}
+                  className={cn(
+                    'w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between',
+                    transaction.linkedAssetId === asset.id
+                      ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
+                  )}
+                >
+                  <span>{asset.name}</span>
+                  <span className="text-xs opacity-70 capitalize">{asset.category.replace('_', ' ')}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
     )}
     </>
   );

@@ -32,6 +32,11 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
     maturityDate: '',
     fdNumber: '',
     interestPayoutFrequency: 'At Maturity',
+    // Chit specific fields
+    chitGroupName: '',
+    chitTicketValue: 0,
+    chitDurationMonths: 0,
+    chitStartDate: '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -141,6 +146,10 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
         maturityDate: (asset as any).maturityDate || '',
         fdNumber: (asset as any).fdNumber || '',
         interestPayoutFrequency: (asset as any).interestPayoutFrequency || 'At Maturity',
+        chitGroupName: (asset as any).chitGroupName || '',
+        chitTicketValue: (asset as any).chitTicketValue || 0,
+        chitDurationMonths: (asset as any).chitDurationMonths || 0,
+        chitStartDate: (asset as any).chitStartDate || '',
       });
     }
   }, [asset]);
@@ -176,6 +185,7 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
     { value: 'epf', label: 'EPF (Provident Fund)', icon: '🏛️' },
     { value: 'gold', label: 'Gold', icon: '🥇' },
     { value: 'cash', label: 'Cash/Savings', icon: '💰' },
+    { value: 'chit', label: 'Chit', icon: '🪙' },
     { value: 'other', label: 'Other', icon: '💼' },
   ];
 
@@ -192,6 +202,13 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
       }
       if (formData.interestRate <= 0) {
         newErrors.interestRate = 'Interest rate is required';
+      }
+    } else if (formData.category === 'chit') {
+      if (formData.chitTicketValue <= 0) {
+        newErrors.chitTicketValue = 'Chit ticket value is required';
+      }
+      if (formData.chitDurationMonths <= 0) {
+        newErrors.chitDurationMonths = 'Duration is required';
       }
     } else {
       if (formData.currentValue <= 0) {
@@ -224,6 +241,9 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
     if (formData.category === 'fixed_deposit') {
       finalInvestedValue = formData.principalAmount;
       finalCurrentValue = formData.principalAmount; // Can be enhanced later to calculate with interest
+    } else if (formData.category === 'chit') {
+      finalCurrentValue = formData.chitTicketValue || 0;
+      finalInvestedValue = formData.chitTicketValue || 0;
     } else if (formData.category === 'mutual_funds') {
       // For mutual funds, if no quantity/price specified, ensure both investedValue and currentValue are set
       if (!formData.quantity && !formData.averagePrice) {
@@ -257,6 +277,11 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
       maturityDate: formData.maturityDate || undefined,
       fdNumber: formData.fdNumber || undefined,
       interestPayoutFrequency: formData.interestPayoutFrequency || undefined,
+      // Chit specific fields
+      chitGroupName: formData.chitGroupName || undefined,
+      chitTicketValue: formData.chitTicketValue || undefined,
+      chitDurationMonths: formData.chitDurationMonths || undefined,
+      chitStartDate: formData.chitStartDate || undefined,
     };
 
     // Add SIP/Contribution data
@@ -613,8 +638,84 @@ const AssetForm: React.FC<AssetFormProps> = ({ asset, onSubmit }) => {
           </>
         )}
 
+        {/* For Chit */}
+        {formData.category === 'chit' && (
+          <>
+            <div>
+              <label className="form-label">
+                Chit Group Name
+              </label>
+              <input
+                type="text"
+                value={formData.chitGroupName}
+                onChange={(e) => handleChange('chitGroupName', e.target.value)}
+                className="input-field theme-input"
+                placeholder="e.g., ABC Chit Group"
+              />
+            </div>
+
+            <div>
+              <label className="form-label">
+                Chit Ticket Value (₹) *
+              </label>
+              <input
+                type="number"
+                value={formData.chitTicketValue || ''}
+                onChange={(e) => handleChange('chitTicketValue', Number(e.target.value))}
+                className={`input-field theme-input ${errors.chitTicketValue ? 'border-red-500' : ''}`}
+                placeholder="500000"
+                min="0"
+                step="any"
+              />
+              {errors.chitTicketValue && <p className="text-red-500 text-sm mt-1">{errors.chitTicketValue}</p>}
+            </div>
+
+            <div>
+              <label className="form-label">
+                Duration (Months) *
+              </label>
+              <input
+                type="number"
+                value={formData.chitDurationMonths || ''}
+                onChange={(e) => handleChange('chitDurationMonths', Number(e.target.value))}
+                className={`input-field theme-input ${errors.chitDurationMonths ? 'border-red-500' : ''}`}
+                placeholder="20"
+                min="1"
+                step="1"
+              />
+              {errors.chitDurationMonths && <p className="text-red-500 text-sm mt-1">{errors.chitDurationMonths}</p>}
+            </div>
+
+            <div>
+              <label className="form-label">
+                Chit Start Date
+              </label>
+              <input
+                type="date"
+                value={formData.chitStartDate}
+                onChange={(e) => handleChange('chitStartDate', e.target.value)}
+                className="input-field theme-input"
+                max={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="form-label">
+                Notes
+              </label>
+              <textarea
+                value={formData.notes}
+                onChange={(e) => handleChange('notes', e.target.value)}
+                className="input-field theme-input"
+                placeholder="Track variable monthly chit payment details via linked transactions."
+                rows={3}
+              />
+            </div>
+          </>
+        )}
+
         {/* For other non-stock/MF assets, show simplified fields */}
-        {formData.category !== 'stocks' && formData.category !== 'mutual_funds' && formData.category !== 'fixed_deposit' && (
+        {formData.category !== 'stocks' && formData.category !== 'mutual_funds' && formData.category !== 'fixed_deposit' && formData.category !== 'chit' && (
           <>
             <div>
               <label className="form-label">

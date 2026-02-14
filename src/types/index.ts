@@ -3,6 +3,7 @@ export interface Transaction {
   date: string;
   description: string;
   merchantKey?: string;
+  linkedAssetId?: string;
   category: string;
   type: 'income' | 'expense' | 'investment' | 'insurance' | 'transfer';
   amount: number;
@@ -63,7 +64,7 @@ export const assetCategories = [
 export interface Asset {
   id: string;
   name: string;
-  category: 'stocks' | 'mutual_funds' | 'fixed_deposit' | 'gold' | 'cash' | 'epf' | 'other';
+  category: 'stocks' | 'mutual_funds' | 'fixed_deposit' | 'gold' | 'cash' | 'epf' | 'chit' | 'other';
   currentValue: number;
   manualCurrentValue?: boolean; // When true, keep currentValue from user entry
   purchaseValue?: number; // Deprecated: use investedValue instead
@@ -95,6 +96,11 @@ export interface Asset {
   targetAllocation?: number; // Target allocation percentage
   currentAllocation?: number; // Current allocation percentage
   rebalanceAction?: 'buy' | 'sell' | 'hold'; // Rebalancing suggestion
+  // Chit-specific metadata
+  chitGroupName?: string;
+  chitTicketValue?: number;
+  chitDurationMonths?: number;
+  chitStartDate?: string;
 }
 
 export interface SIPTransaction {

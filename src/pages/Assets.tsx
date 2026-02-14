@@ -10,6 +10,7 @@ import AssetForm from '../components/forms/AssetForm';
 import MarketDataService from '../services/marketDataService';
 import XIRRService from '../services/xirrService';
 import PortfolioRebalancingService from '../services/portfolioRebalancingService';
+import { getChitSummary } from '../services/chitService';
 // PriceService removed
 // AI service will be imported dynamically when needed
 import { MarketDataStatus } from '../components/dashboard/MarketDataStatus';
@@ -53,6 +54,7 @@ const Assets: React.FC = () => {
       case 'stocks': return '📈';
       case 'mutual_funds': return '📊';
       case 'fixed_deposit': return '🏦';
+      case 'chit': return '🪙';
       case 'gold': return '🥇';
       case 'cash': return '💰';
       default: return '💼';
@@ -64,6 +66,7 @@ const Assets: React.FC = () => {
       case 'stocks': return 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700';
       case 'mutual_funds': return 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700';
       case 'fixed_deposit': return 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700';
+      case 'chit': return 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700';
       case 'gold': return 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700';
       case 'cash': return 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600';
       default: return 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700';
@@ -608,6 +611,12 @@ const Assets: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {assets.map((asset) => {
                     const livePriceData = (asset as any).livePriceData;
+                    const chitSummary = asset.category === 'chit' ? getChitSummary(transactions, asset.id) : null;
+                    const chitTicketValue = Number((asset as any).chitTicketValue || asset.currentValue || 0);
+                    const chitPending = chitSummary ? Math.max(0, chitTicketValue - chitSummary.totalPaid) : 0;
+                    const linkedTransactions = transactions
+                      .filter(t => t.linkedAssetId === asset.id)
+                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
                     const hasLiveData = livePriceData && (asset.category === 'stocks' || asset.category === 'mutual_funds');
 
@@ -623,6 +632,28 @@ const Assets: React.FC = () => {
                       // Simple interest calculation (can be changed to compound if needed)
                       fdMaturityAmount = principal * (1 + rate * years);
                     }
+
+
+                        {linkedTransactions.length > 0 && (
+                          <div className="mx-5 mb-4 mt-2 rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Linked transaction history</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">{linkedTransactions.length} total</span>
+                            </div>
+                            <div className="space-y-1.5">
+                              {linkedTransactions.slice(0, 3).map(txn => (
+                                <div key={txn.id} className="flex items-center justify-between text-xs">
+                                  <span className="truncate max-w-[65%] text-gray-700 dark:text-gray-200" title={txn.description}>
+                                    {txn.description}
+                                  </span>
+                                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                                    {formatCurrency(txn.amount)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                     return (
                       <div key={asset.id} className="group relative flex flex-col overflow-hidden rounded-xl bg-white dark:bg-gray-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-slate-900/5 dark:ring-gray-700 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
@@ -679,6 +710,13 @@ const Assets: React.FC = () => {
                                   {formatCurrency(fdMaturityAmount)}
                                 </p>
                                 <span className="text-xs text-gray-500 dark:text-gray-400">Maturity Amount</span>
+                              </>
+                            ) : asset.category === 'chit' ? (
+                              <>
+                                <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                                  {formatCurrency(chitTicketValue)}
+                                </p>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">Ticket Value</span>
                               </>
                             ) : asset.category === 'mutual_funds' && !(asset as any).quantity ? (
                               // For MF without quantity, don't show NAV/price
@@ -774,6 +812,38 @@ const Assets: React.FC = () => {
                                 </p>
                               </div>
                             </div>
+                          ) : asset.category === 'chit' ? (
+                            <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Paid via linked txns</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {formatCurrency(chitSummary?.totalPaid || 0)}
+                                </p>
+                              </div>
+
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Pending</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {formatCurrency(chitPending)}
+                                </p>
+                              </div>
+
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Contributions</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {chitSummary?.contributionCount || 0}
+                                </p>
+                              </div>
+
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Last Paid</span>
+                                <p className="font-display text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  {chitSummary?.lastPaymentDate
+                                    ? new Date(chitSummary.lastPaymentDate).toLocaleDateString()
+                                    : '-'}
+                                </p>
+                              </div>
+                            </div>
                           ) : (
                             // Stocks/MF metrics
                             <div className="grid grid-cols-2 gap-x-8 gap-y-6">
@@ -817,7 +887,7 @@ const Assets: React.FC = () => {
                         </div>
 
                         {/* Total Returns Section (Styled with visual flair) - Hide for FDs and EPF as returns are 0 */}
-                        {asset.purchaseValue && asset.category !== 'fixed_deposit' && asset.category !== 'epf' && (
+                        {asset.purchaseValue && asset.category !== 'fixed_deposit' && asset.category !== 'epf' && asset.category !== 'chit' && (
                           <div className="mx-5 mb-5 mt-4 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 p-4 relative overflow-hidden">
                             {/* Background blob effect */}
                             <div className={cn(

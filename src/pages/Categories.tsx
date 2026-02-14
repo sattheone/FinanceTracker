@@ -17,7 +17,7 @@ import { Transaction } from '../types';
 const yearCategoryCache = new Map<string, Transaction[]>();
 
 const Categories: React.FC = () => {
-    const { categories, transactions, monthlyBudget, bankAccounts, addCategory, loadTransactionsForPeriod, userProfile, updateTransaction } = useData();
+    const { categories, transactions, monthlyBudget, bankAccounts, addCategory, loadTransactionsForPeriod, userProfile, updateTransaction, categorySummaryVersion } = useData();
     const { user } = useAuth();
     const theme = useThemeClasses();
     const [searchParams] = useSearchParams();
@@ -97,7 +97,14 @@ const Categories: React.FC = () => {
         setViewMode(preferred);
     }, [userProfile?.displayPreferences?.defaultTimePeriod, searchParams]);
 
+    // Invalidate year category detail cache whenever summaries/transactions are updated.
+    useEffect(() => {
+        yearCategoryCache.clear();
+    }, [categorySummaryVersion]);
+
     // Load category summaries for sidebar based on view mode (using optimized structure)
+    const summaryRefreshTrigger = (viewMode === 'year' || viewMode === 'prevYear') ? categorySummaryVersion : 0;
+
     useEffect(() => {
         if (!user?.id) return;
         
@@ -133,7 +140,7 @@ const Categories: React.FC = () => {
                 console.error('Failed to load category summaries:', err);
                 setIsSummariesLoading(false);
             });
-    }, [user?.id, viewMode]);
+    }, [user?.id, viewMode, summaryRefreshTrigger]);
 
     // Filter transactions by account first (only used when category is selected)
     const filteredTransactions = useMemo(() => {
@@ -255,7 +262,7 @@ const Categories: React.FC = () => {
                 setYearCategoryTransactions(fallback);
             })
             .finally(() => setIsLoadingCategoryTransactions(false));
-    }, [selectedCategoryId, viewMode, user?.id]);
+    }, [selectedCategoryId, viewMode, user?.id, categorySummaryVersion]);
 
     const selectedCategory = useMemo(() =>
         categories.find(c => c.id === selectedCategoryId),
