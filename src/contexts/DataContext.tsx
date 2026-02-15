@@ -217,7 +217,7 @@ const getDefaultMonthlyBudget = (): MonthlyBudget => ({
 });
 
 export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [categorySummaryVersion, setCategorySummaryVersion] = useState(0);
   const initialTransactionsLoadedRef = useRef(false);
@@ -363,12 +363,18 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   // Load user data when user changes
   useEffect(() => {
+    // Important: wait for auth resolution before clearing cache.
+    // Otherwise a hard refresh briefly sees `user=null` and wipes localStorage.
+    if (isAuthLoading) {
+      return;
+    }
+
     if (user) {
       loadUserData(user.id);
     } else {
       resetUserData();
     }
-  }, [user]);
+  }, [user, isAuthLoading]);
 
   const loadUserData = async (userId: string) => {
     try {

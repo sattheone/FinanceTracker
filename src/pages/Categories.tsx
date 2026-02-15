@@ -9,7 +9,12 @@ import { useThemeClasses, cn } from '../hooks/useThemeClasses';
 import { X, ChevronDown, Filter, Building2, TrendingUp, Plus, List, Layers } from 'lucide-react';
 import SidePanel from '../components/common/SidePanel';
 import CategoryForm, { CategoryFormHandle } from '../components/categories/CategoryForm';
-import { getOptimizedCategorySummariesByMonth, getOptimizedCategorySummariesByYear } from '../services/categorySummaryService';
+import {
+    getOptimizedCategorySummariesByMonth,
+    getOptimizedCategorySummariesByYear,
+    getCategorySummariesByMonth,
+    getCategorySummariesByYear
+} from '../services/categorySummaryService';
 import { FirebaseService } from '../services/firebaseService';
 import { Transaction } from '../types';
 
@@ -39,6 +44,7 @@ const Categories: React.FC = () => {
     // Category summaries state for sidebar
     const [categorySummaries, setCategorySummaries] = useState<Map<string, number>>(new Map());
     const [_isSummariesLoading, setIsSummariesLoading] = useState(true);
+    const summaryRequestSeq = useRef(0);
 
     // Close popover when clicking outside
     useEffect(() => {
@@ -102,11 +108,15 @@ const Categories: React.FC = () => {
         yearCategoryCache.clear();
     }, [categorySummaryVersion]);
 
-    // Load category summaries for sidebar based on view mode (using optimized structure)
-    const summaryRefreshTrigger = (viewMode === 'year' || viewMode === 'prevYear') ? categorySummaryVersion : 0;
+    // Load category summaries for sidebar based on view mode.
+    // On mutation-triggered refreshes, read from `categorySummaries` collection for immediate consistency.
+    const summaryRefreshTrigger = categorySummaryVersion;
 
     useEffect(() => {
         if (!user?.id) return;
+
+        const requestSeq = ++summaryRequestSeq.current;
+        let isActive = true;
         
         setIsSummariesLoading(true);
         const now = new Date();
@@ -115,31 +125,44 @@ const Categories: React.FC = () => {
         
         let loadPromise: Promise<Map<string, number>>;
         
+        const useImmediateSource = summaryRefreshTrigger > 0;
+
         if (viewMode === 'month') {
-            // 1 read only
-            loadPromise = getOptimizedCategorySummariesByMonth(user.id, year, month);
+            loadPromise = useImmediateSource
+                ? getCategorySummariesByMonth(user.id, year, month)
+                : getOptimizedCategorySummariesByMonth(user.id, year, month);
         } else if (viewMode === 'prevMonth') {
             // 1 read only - previous month
             const prevMonth = month === 1 ? 12 : month - 1;
             const prevYear = month === 1 ? year - 1 : year;
-            loadPromise = getOptimizedCategorySummariesByMonth(user.id, prevYear, prevMonth);
+            loadPromise = useImmediateSource
+                ? getCategorySummariesByMonth(user.id, prevYear, prevMonth)
+                : getOptimizedCategorySummariesByMonth(user.id, prevYear, prevMonth);
         } else if (viewMode === 'year') {
-            // 12 reads max
-            loadPromise = getOptimizedCategorySummariesByYear(user.id, year);
+            loadPromise = useImmediateSource
+                ? getCategorySummariesByYear(user.id, year)
+                : getOptimizedCategorySummariesByYear(user.id, year);
         } else { // prevYear
-            // 12 reads max
-            loadPromise = getOptimizedCategorySummariesByYear(user.id, year - 1);
+            loadPromise = useImmediateSource
+                ? getCategorySummariesByYear(user.id, year - 1)
+                : getOptimizedCategorySummariesByYear(user.id, year - 1);
         }
         
         loadPromise
             .then(summaries => {
+                if (!isActive || summaryRequestSeq.current !== requestSeq) return;
                 setCategorySummaries(summaries);
                 setIsSummariesLoading(false);
             })
             .catch(err => {
+                if (!isActive || summaryRequestSeq.current !== requestSeq) return;
                 console.error('Failed to load category summaries:', err);
                 setIsSummariesLoading(false);
             });
+
+        return () => {
+            isActive = false;
+        };
     }, [user?.id, viewMode, summaryRefreshTrigger]);
 
     // Filter transactions by account first (only used when category is selected)

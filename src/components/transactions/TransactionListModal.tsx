@@ -71,17 +71,17 @@ const TransactionListModal: React.FC<TransactionListModalProps> = ({
     >
       <div className="space-y-4">
         {/* Header with summary */}
-        <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-600">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-gray-200 dark:border-gray-600">
           <div>
             {subtitle && (
               <p className={cn(theme.textSecondary, 'text-sm mb-1')}>{subtitle}</p>
             )}
-            <div className="flex items-center space-x-4">
-              <span className={cn(theme.textPrimary, 'text-lg font-semibold')}>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+              <span className={cn(theme.textPrimary, 'text-base sm:text-lg font-semibold')}>
                 {freshTransactions.length} transaction{freshTransactions.length !== 1 ? 's' : ''}
               </span>
               <span className={cn(
-                'text-lg font-bold',
+                'text-base sm:text-lg font-bold',
                 freshTransactions[0]?.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
               )}>
                 {freshTransactions[0]?.type === 'income' ? '+' : '-'}{formatCurrency(totalAmount)}

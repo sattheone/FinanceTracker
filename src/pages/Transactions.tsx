@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Plus, Search, Edit3, Trash2, FileSpreadsheet, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown, MoreVertical, Table } from 'lucide-react';
+import { Plus, Search, Edit3, Trash2, FileSpreadsheet, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown, MoreVertical, Table, Calendar } from 'lucide-react';
 import { Transaction, BankAccount } from '../types';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency } from '../utils/formatters';
@@ -94,6 +94,7 @@ const Transactions: React.FC = () => {
 
 
   const formRef = useRef<SimpleTransactionFormHandle>(null);
+  const monthSelectRef = useRef<HTMLSelectElement>(null);
 
 
   const navigate = useNavigate();
@@ -1135,10 +1136,10 @@ const Transactions: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-700 dark:bg-gray-900 -m-4 lg:-m-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-700 dark:bg-gray-900 m-0 lg:-m-6 overflow-x-hidden">
       {/* Compact Top Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 px-4 sm:px-6 py-2">
-        <div className="grid grid-cols-1 gap-y-3 sm:grid-cols-3 items-center">
+        <div className="grid grid-cols-1 gap-y-3 md:grid-cols-3 items-center">
           {/* Left: Account Dropdown */}
           <div className="relative" ref={accountDropdownRef}>
             <button
@@ -1150,7 +1151,7 @@ const Transactions: React.FC = () => {
             </button>
 
             {showAccountDropdown && (
-              <div className="absolute left-0 mt-2 min-w-[200px] bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+              <div className="absolute left-0 mt-2 w-[min(220px,calc(100vw-2rem))] bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
                 {bankAccounts.length > 1 && (
                   <button
                     onClick={() => {
@@ -1184,19 +1185,20 @@ const Transactions: React.FC = () => {
             )}
           </div>
 
+          <div className="flex items-center justify-between gap-2 min-w-0 md:contents">
           {/* Center: Segmented Tabs */}
-          <div className="flex justify-center">
-            <div className="bg-gray-100 dark:bg-gray-700 rounded-full p-1 flex gap-1">
+          <div className="flex justify-start md:justify-center min-w-0">
+            <div className="bg-gray-100 dark:bg-gray-700 rounded-full p-1 flex gap-1 shrink-0">
               <button
                 onClick={() => setActiveTab('transactions')}
-                className={`px-3 py-1.5 text-sm rounded-full transition-colors ${activeTab === 'transactions' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'
+                className={`px-2.5 sm:px-3 py-1.5 text-sm rounded-full transition-colors ${activeTab === 'transactions' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'
                   }`}
               >
                 Transactions
               </button>
               <button
                 onClick={() => setActiveTab('summary')}
-                className={`px-3 py-1.5 text-sm rounded-full transition-colors ${activeTab === 'summary' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'
+                className={`px-2.5 sm:px-3 py-1.5 text-sm rounded-full transition-colors ${activeTab === 'summary' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'
                   }`}
               >
                 Summary
@@ -1205,18 +1207,41 @@ const Transactions: React.FC = () => {
           </div>
 
           {/* Right: Actions */}
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-end gap-2 min-w-0">
+            <Button
+              variant="primary"
+              size="icon"
+              className="sm:hidden"
+              onClick={() => handleImportClick('file')}
+              aria-label="Import"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+            </Button>
             <Button
               variant="primary"
               size="sm"
+              className="hidden sm:inline-flex"
               onClick={() => handleImportClick('file')}
               leftIcon={<FileSpreadsheet className="h-4 w-4" />}
             >
               Import
             </Button>
+
+            <Button
+              variant="secondary"
+              size="icon"
+              className="sm:hidden"
+              onClick={() => {
+                setShowManualAddModal(true);
+              }}
+              aria-label="Add transaction"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
             <Button
               variant="secondary"
               size="sm"
+              className="hidden sm:inline-flex"
               onClick={() => {
                 setShowManualAddModal(true);
               }}
@@ -1282,6 +1307,7 @@ const Transactions: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -1779,8 +1805,8 @@ const Transactions: React.FC = () => {
                     </div>
                   )}
                 {/* Search, Filters, Month */}
-                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-center">
-                  <div className="flex-1 w-full">
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                  <div className="flex-1 min-w-0">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                       <input
@@ -1792,7 +1818,7 @@ const Transactions: React.FC = () => {
                       />
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <TransactionFilters
                       selectedCategories={selectedCategories}
                       selectedTags={selectedTags}
@@ -1803,13 +1829,15 @@ const Transactions: React.FC = () => {
                       onTypeChange={setSelectedTypes}
                       onAccountChange={setSelectedAccounts}
                       showAccountFilter={selectedAccount === 'all_accounts'}
+                      compactMobile
                     />
                     {/* Month Dropdown */}
                     <div className="relative">
                       <select
+                        ref={monthSelectRef}
                         value={selectedTransactionMonth}
                         onChange={(e) => setSelectedTransactionMonth(e.target.value)}
-                        className="w-full sm:w-auto px-3 py-2 pr-8 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 appearance-none text-sm"
+                        className="hidden sm:block w-full sm:w-auto px-3 py-2 pr-8 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 appearance-none text-sm"
                       >
                         {monthOptions.map(option => (
                           <option key={option.value} value={option.value}>
@@ -1817,14 +1845,31 @@ const Transactions: React.FC = () => {
                           </option>
                         ))}
                       </select>
-                      <ChevronDown className="absolute right-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                      <button
+                        type="button"
+                        className="sm:hidden inline-flex items-center justify-center h-9 w-9 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300"
+                        onClick={() => {
+                          const selectEl = monthSelectRef.current as any;
+                          if (selectEl?.showPicker) {
+                            selectEl.showPicker();
+                          } else {
+                            monthSelectRef.current?.focus();
+                            monthSelectRef.current?.click();
+                          }
+                        }}
+                        aria-label="Select month"
+                        title="Select month"
+                      >
+                        <Calendar className="h-4 w-4" />
+                      </button>
+                      <ChevronDown className="hidden sm:block absolute right-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                     </div>
                   </div>
                 </div>
 
                 {/* Transaction Count */}
-                <div className="flex items-center justify-between">
-                  <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 flex items-center flex-wrap gap-2">
+                <div className="flex items-center justify-between min-w-0">
+                  <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 flex items-center flex-wrap gap-x-2 gap-y-1 min-w-0 w-full">
                     {(() => {
                       const totalIncome = filteredTransactions
                         .filter(t => t.type === 'income' && t.category !== 'transfer')
@@ -1838,24 +1883,26 @@ const Transactions: React.FC = () => {
 
                       return (
                         <>
-                          <span>{filteredTransactions.length} txn{filteredTransactions.length !== 1 ? 's' : ' '} • {monthLabel}</span>
+                          <span className="w-full sm:w-auto truncate">
+                            {filteredTransactions.length} txn{filteredTransactions.length !== 1 ? 's' : ' '} • {monthLabel}
+                          </span>
 
                           {(totalIncome > 0 || totalExpenses > 0) && (
                             <>
-                              <span className="text-gray-400 mx-1">•</span>
+                              <span className="hidden sm:inline text-gray-400 mx-1">•</span>
                               {totalIncome > 0 && (
-                                <span className="flex items-center text-green-600 dark:text-green-400">
+                                <span className="flex items-center text-green-600 dark:text-green-400 whitespace-nowrap">
                                   <TrendingUp className="h-3 w-3 mr-1" />
                                   {formatCurrency(totalIncome)}
                                 </span>
                               )}
 
                               {totalIncome > 0 && totalExpenses > 0 && (
-                                <span className="text-gray-400 mx-1">•</span>
+                                <span className="hidden sm:inline text-gray-400 mx-1">•</span>
                               )}
 
                               {totalExpenses > 0 && (
-                                <span className="flex items-center text-red-600 dark:text-red-400">
+                                <span className="flex items-center text-red-600 dark:text-red-400 whitespace-nowrap">
                                   <TrendingDown className="h-3 w-3 mr-1" />
                                   {formatCurrency(totalExpenses)}
                                 </span>
@@ -1863,8 +1910,8 @@ const Transactions: React.FC = () => {
                             </>
                           )}
 
-                          <span className="text-gray-400 mx-1">•</span>
-                          <span className="font-medium text-gray-900 dark:text-white">
+                          <span className="hidden sm:inline text-gray-400 mx-1">•</span>
+                          <span className="font-medium text-gray-900 dark:text-white w-full sm:w-auto truncate">
                             Current Balance: {formatCurrency(calculatedBalance)}
                           </span>
                         </>
@@ -1897,6 +1944,7 @@ const Transactions: React.FC = () => {
                       <TransactionTable
                         transactions={filteredTransactions}
                         selectedTransactions={selectedTransactions}
+                        showLocalCacheIndicator
                         onSelectTransaction={handleSelectTransaction}
                         onSelectTransactionsRange={handleSelectTransactionRange}
                         onSelectAll={handleSelectAll}

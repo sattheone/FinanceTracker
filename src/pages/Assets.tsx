@@ -7,6 +7,7 @@ import ImageUploader from '../components/common/ImageUploader';
 import DataConfirmationDialog from '../components/common/DataConfirmationDialog';
 import SidePanel from '../components/common/SidePanel';
 import AssetForm from '../components/forms/AssetForm';
+import TransactionListModal from '../components/transactions/TransactionListModal';
 import MarketDataService from '../services/marketDataService';
 import XIRRService from '../services/xirrService';
 import PortfolioRebalancingService from '../services/portfolioRebalancingService';
@@ -14,7 +15,7 @@ import { getChitSummary } from '../services/chitService';
 // PriceService removed
 // AI service will be imported dynamically when needed
 import { MarketDataStatus } from '../components/dashboard/MarketDataStatus';
-import { Asset } from '../types';
+import { Asset, Transaction } from '../types';
 
 const Assets: React.FC = () => {
   const { assets, addAsset, updateAsset, deleteAsset, transactions, userProfile, loadAssets } = useData();
@@ -23,11 +24,15 @@ const Assets: React.FC = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showAssetForm, setShowAssetForm] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [extractedData, setExtractedData] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'overview' | 'performance' | 'rebalancing' | 'analytics'>('overview');
   const [isUpdatingPrices, setIsUpdatingPrices] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [priceUpdateProgress, setPriceUpdateProgress] = useState({ current: 0, total: 0 });
+  const [showLinkedTransactionsModal, setShowLinkedTransactionsModal] = useState(false);
+  const [linkedTransactionsModalTitle, setLinkedTransactionsModalTitle] = useState('Linked Transactions');
+  const [linkedTransactionsModalTransactions, setLinkedTransactionsModalTransactions] = useState<Transaction[]>([]);
 
   // Lazy load assets data when page mounts
   useEffect(() => {
@@ -87,6 +92,79 @@ const Assets: React.FC = () => {
     count: assets.length,
     assets
   })).sort((a, b) => b.total - a.total);
+
+  const selectedAssetLinkedTransactions = selectedAsset
+    ? transactions
+      .filter(t => t.linkedAssetId === selectedAsset.id)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    : [];
+
+  const selectedAssetLinkedTransactionsByMonth = selectedAssetLinkedTransactions.reduce((acc, txn) => {
+    const txnDate = new Date(txn.date);
+    const monthKey = `${txnDate.getFullYear()}-${String(txnDate.getMonth() + 1).padStart(2, '0')}`;
+
+    if (!acc[monthKey]) {
+      acc[monthKey] = {
+        label: txnDate.toLocaleString('en-IN', { month: 'long', year: 'numeric' }),
+        transactions: [] as typeof selectedAssetLinkedTransactions,
+      };
+    }
+
+    acc[monthKey].transactions.push(txn);
+    return acc;
+  }, {} as Record<string, { label: string; transactions: typeof selectedAssetLinkedTransactions }>);
+
+  const selectedAssetChitSummary = selectedAsset?.category === 'chit'
+    ? getChitSummary(transactions, selectedAsset.id)
+    : null;
+
+  const selectedAssetTicketValue = selectedAsset
+    ? Number((selectedAsset as any).chitTicketValue || selectedAsset.currentValue || 0)
+    : 0;
+
+  const selectedAssetPending = selectedAssetChitSummary
+    ? Math.max(0, selectedAssetTicketValue - selectedAssetChitSummary.totalPaid)
+    : 0;
+
+  const selectedAssetReturn = selectedAsset && selectedAsset.purchaseValue
+    ? selectedAsset.currentValue - selectedAsset.purchaseValue
+    : 0;
+
+  const selectedAssetReturnPercent = selectedAsset && selectedAsset.purchaseValue
+    ? (selectedAssetReturn / selectedAsset.purchaseValue) * 100
+    : 0;
+
+  const selectedAssetAllocation = selectedAsset && totalAssets > 0
+    ? (selectedAsset.currentValue / totalAssets) * 100
+    : 0;
+
+  const selectedAssetXIRR = selectedAsset
+    ? XIRRService.calculateAssetXIRR(selectedAsset, transactions)
+    : null;
+
+  const selectedAssetFDMaturityAmount = (() => {
+    if (!selectedAsset || selectedAsset.category !== 'fixed_deposit' || !(selectedAsset as any).principalAmount || !(selectedAsset as any).interestRate) {
+      return 0;
+    }
+
+    const principal = Number((selectedAsset as any).principalAmount || 0);
+    const rate = Number((selectedAsset as any).interestRate || 0) / 100;
+    const startDate = selectedAsset.purchaseDate ? new Date(selectedAsset.purchaseDate) : new Date();
+    const maturityDate = (selectedAsset as any).maturityDate ? new Date((selectedAsset as any).maturityDate) : new Date();
+    const years = (maturityDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+
+    return principal * (1 + rate * years);
+  })();
+
+  const selectedAssetNotes = selectedAsset && typeof (selectedAsset as any).notes === 'string'
+    ? (selectedAsset as any).notes.trim()
+    : '';
+
+  const isSelectedAssetChit = selectedAsset?.category === 'chit';
+  const isSelectedAssetFD = selectedAsset?.category === 'fixed_deposit';
+  const isSelectedAssetEPF = selectedAsset?.category === 'epf';
+  const isSelectedAssetCashLike = selectedAsset ? ['cash', 'other'].includes(selectedAsset.category) : false;
+  const isSelectedAssetMarketLinked = selectedAsset ? ['stocks', 'mutual_funds'].includes(selectedAsset.category) : false;
 
   // Handler functions
   const handleImageAnalyzed = (data: any[]) => {
@@ -236,6 +314,16 @@ const Assets: React.FC = () => {
   const handleAssetCancel = () => {
     setShowAssetForm(false);
     setEditingAsset(null);
+  };
+
+  const handleAssetCardClick = (asset: Asset) => {
+    setSelectedAsset(asset);
+  };
+
+  const openLinkedTransactionsModal = (title: string, txns: Transaction[]) => {
+    setLinkedTransactionsModalTitle(title);
+    setLinkedTransactionsModalTransactions(txns);
+    setShowLinkedTransactionsModal(true);
   };
 
   const refreshAllPrices = async () => {
@@ -656,7 +744,11 @@ const Assets: React.FC = () => {
                         )}
 
                     return (
-                      <div key={asset.id} className="group relative flex flex-col overflow-hidden rounded-xl bg-white dark:bg-gray-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-slate-900/5 dark:ring-gray-700 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+                      <div
+                        key={asset.id}
+                        onClick={() => handleAssetCardClick(asset)}
+                        className="group relative flex flex-col overflow-hidden rounded-xl bg-white dark:bg-gray-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-1 ring-slate-900/5 dark:ring-gray-700 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] cursor-pointer"
+                      >
                         {/* Header Section */}
                         <div className="flex items-start justify-between border-b border-gray-100 dark:border-gray-700 p-5">
                           <div className="flex flex-col">
@@ -1371,7 +1463,306 @@ const Assets: React.FC = () => {
       )}
 
       {/* Modals */}
+      <SidePanel
+        isOpen={!!selectedAsset}
+        onClose={() => setSelectedAsset(null)}
+        title={selectedAsset ? `${selectedAsset.name} Details` : 'Asset Details'}
+        size="lg"
+        footer={selectedAsset ? (
+          <div className="flex justify-end w-full gap-2">
+            <button
+              onClick={() => setSelectedAsset(null)}
+              className="btn-secondary"
+            >
+              Close
+            </button>
+            <button
+              onClick={() => {
+                if (!selectedAsset) return;
+                setSelectedAsset(null);
+                handleEditAsset(selectedAsset);
+              }}
+              className="btn-primary"
+            >
+              Edit Asset
+            </button>
+          </div>
+        ) : undefined}
+      >
+        {selectedAsset && (
+          <div className="space-y-6">
+            <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/40">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">Category</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize">
+                    {selectedAsset.category.replace('_', ' ')}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    {isSelectedAssetChit ? 'Ticket Value' : isSelectedAssetFD ? 'Maturity Value' : 'Current Value'}
+                  </p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                    {isSelectedAssetChit
+                      ? formatCurrency(selectedAssetTicketValue)
+                      : isSelectedAssetFD
+                        ? formatCurrency(selectedAssetFDMaturityAmount || selectedAsset.currentValue)
+                        : formatCurrency(selectedAsset.currentValue)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {isSelectedAssetChit ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Paid via Linked Transactions</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{formatCurrency(selectedAssetChitSummary?.totalPaid || 0)}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Pending</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{formatCurrency(selectedAssetPending)}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Contributions</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{selectedAssetChitSummary?.contributionCount || 0}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Last Paid</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                    {selectedAssetChitSummary?.lastPaymentDate ? new Date(selectedAssetChitSummary.lastPaymentDate).toLocaleDateString() : '-'}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Start Date</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                    {(selectedAsset as any).chitStartDate ? new Date((selectedAsset as any).chitStartDate).toLocaleDateString() : '-'}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Duration</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                    {(selectedAsset as any).chitDurationMonths ? `${(selectedAsset as any).chitDurationMonths} months` : '-'}
+                  </p>
+                </div>
+              </div>
+            ) : isSelectedAssetFD ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Principal Amount</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{formatCurrency((selectedAsset as any).principalAmount || selectedAsset.purchaseValue || 0)}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Interest Rate</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{(selectedAsset as any).interestRate ? `${(selectedAsset as any).interestRate}%` : '-'}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Maturity Date</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{(selectedAsset as any).maturityDate ? new Date((selectedAsset as any).maturityDate).toLocaleDateString() : '-'}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Estimated Maturity Value</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{selectedAssetFDMaturityAmount ? formatCurrency(selectedAssetFDMaturityAmount) : '-'}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Portfolio Allocation</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{selectedAssetAllocation.toFixed(2)}%</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Start Date</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{selectedAsset.purchaseDate ? new Date(selectedAsset.purchaseDate).toLocaleDateString() : '-'}</p>
+                </div>
+              </div>
+            ) : isSelectedAssetEPF ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Current Balance</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{formatCurrency(selectedAsset.currentValue)}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Monthly Contribution</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{(selectedAsset as any).sipAmount ? formatCurrency((selectedAsset as any).sipAmount) : '-'}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Contribution Date</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{(selectedAsset as any).sipDate ? `${(selectedAsset as any).sipDate} of every month` : '-'}</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Portfolio Allocation</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{selectedAssetAllocation.toFixed(2)}%</p>
+                </div>
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Start Date</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{selectedAsset.purchaseDate ? new Date(selectedAsset.purchaseDate).toLocaleDateString() : '-'}</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Invested</p>
+                    <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{formatCurrency(selectedAsset.purchaseValue || 0)}</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Portfolio Allocation</p>
+                    <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{selectedAssetAllocation.toFixed(2)}%</p>
+                  </div>
+                  {!isSelectedAssetCashLike && (
+                    <>
+                      <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Total Return</p>
+                        <p className={cn(
+                          "text-base font-semibold",
+                          selectedAssetReturn >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                        )}>
+                          {selectedAsset.purchaseValue ? `${selectedAssetReturn >= 0 ? '+' : ''}${formatCurrency(selectedAssetReturn)}` : '-'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Return %</p>
+                        <p className={cn(
+                          "text-base font-semibold",
+                          selectedAssetReturnPercent >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                        )}>
+                          {selectedAsset.purchaseValue ? `${selectedAssetReturnPercent >= 0 ? '+' : ''}${selectedAssetReturnPercent.toFixed(2)}%` : '-'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">XIRR</p>
+                        <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                          {selectedAssetXIRR ? `${selectedAssetXIRR.toFixed(2)}%` : 'N/A'}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Purchase Date</p>
+                    <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                      {selectedAsset.purchaseDate ? new Date(selectedAsset.purchaseDate).toLocaleDateString() : '-'}
+                    </p>
+                  </div>
+                </div>
+
+                {isSelectedAssetMarketLinked && (
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Market Data</h4>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-gray-500 dark:text-gray-400">Symbol</p>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">{(selectedAsset as any).symbol || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 dark:text-gray-400">Scheme Code</p>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">{(selectedAsset as any).schemeCode || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 dark:text-gray-400">ISIN</p>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">{(selectedAsset as any).isin || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 dark:text-gray-400">Quantity</p>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">{(selectedAsset as any).quantity ?? '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 dark:text-gray-400">Average Price</p>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">
+                          {(selectedAsset as any).averagePrice ? formatCurrency((selectedAsset as any).averagePrice) : '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 dark:text-gray-400">Market Price</p>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">
+                          {(selectedAsset as any).marketPrice ? formatCurrency((selectedAsset as any).marketPrice) : '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 dark:text-gray-400">Last Updated</p>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">
+                          {selectedAsset.lastUpdated ? new Date(selectedAsset.lastUpdated).toLocaleString() : '-'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {isSelectedAssetChit && (
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Chit Profile</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-gray-500 dark:text-gray-400">Group Name</p>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{(selectedAsset as any).chitGroupName || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 dark:text-gray-400">Ticket Value</p>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{formatCurrency(selectedAssetTicketValue)}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {selectedAssetNotes && (
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Notes</h4>
+                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
+                  {selectedAssetNotes}
+                </p>
+              </div>
+            )}
+
+            {(isSelectedAssetChit || selectedAssetLinkedTransactions.length > 0) && (
+            <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Linked Transactions</h4>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{selectedAssetLinkedTransactions.length} total</span>
+              </div>
+              {selectedAssetLinkedTransactions.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No linked transactions yet.</p>
+              ) : (
+                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                  {(isSelectedAssetChit
+                    ? (Object.entries(selectedAssetLinkedTransactionsByMonth) as [string, { label: string; transactions: Transaction[] }][])
+                    : ([['all', { label: 'All Transactions', transactions: selectedAssetLinkedTransactions }]] as [string, { label: string; transactions: Transaction[] }][])
+                  ).map(([groupKey, group]) => (
+                    <div key={groupKey} className="space-y-2">
+                      <button
+                        onClick={() => openLinkedTransactionsModal(
+                          isSelectedAssetChit ? `${selectedAsset.name} • ${group.label}` : `${selectedAsset.name} • Linked Transactions`,
+                          group.transactions
+                        )}
+                        className="w-full text-left rounded-lg border border-gray-100 dark:border-gray-700 p-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {isSelectedAssetChit ? group.label : 'View transactions'}
+                          </span>
+                          <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                            {formatCurrency(group.transactions.reduce((sum, txn: Transaction) => sum + (txn.amount || 0), 0))}
+                          </span>
+                        </div>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            )}
+          </div>
+        )}
+      </SidePanel>
+
       {/* Image Uploader Modal */}
+      <TransactionListModal
+        transactions={linkedTransactionsModalTransactions}
+        isOpen={showLinkedTransactionsModal}
+        onClose={() => setShowLinkedTransactionsModal(false)}
+        title={linkedTransactionsModalTitle}
+        subtitle={selectedAsset ? selectedAsset.name : undefined}
+      />
+
       {showImageUploader && (
         <SidePanel
           isOpen={showImageUploader}

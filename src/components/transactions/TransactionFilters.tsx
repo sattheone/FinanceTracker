@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Filter, ChevronRight } from 'lucide-react';
 import { useData } from '../../contexts/DataContext';
+import { cn } from '../../hooks/useThemeClasses';
 
 interface TransactionFiltersProps {
   selectedCategories: Set<string>;
@@ -12,6 +13,7 @@ interface TransactionFiltersProps {
   onTypeChange: (types: Set<string>) => void;
   onAccountChange: (accounts: Set<string>) => void;
   showAccountFilter: boolean;
+  compactMobile?: boolean;
 }
 
 const TransactionFilters: React.FC<TransactionFiltersProps> = ({
@@ -23,7 +25,8 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
   onTagChange,
   onTypeChange,
   onAccountChange,
-  showAccountFilter
+  showAccountFilter,
+  compactMobile = false
 }) => {
   const { categories, tags, bankAccounts } = useData();
   const [showFilters, setShowFilters] = useState(false);
@@ -128,12 +131,16 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
       {/* Filter Button */}
       <button
         onClick={() => setShowFilters(!showFilters)}
-        className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+        className={cn(
+          "flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors",
+          compactMobile && "px-2.5 sm:px-3"
+        )}
+        aria-label="Filter transactions"
       >
         <Filter className="h-4 w-4" />
-        Filter
+        <span className={compactMobile ? 'hidden sm:inline' : ''}>Filter</span>
         {activeFilterCount > 0 && (
-          <span className="ml-1 px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full">
+          <span className={cn("px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full", compactMobile ? 'ml-0 sm:ml-1' : 'ml-1')}>
             {activeFilterCount}
           </span>
         )}
