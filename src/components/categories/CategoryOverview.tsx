@@ -1,11 +1,11 @@
-import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { MonthlyBudget, Transaction } from '../../types';
 import { Category } from '../../constants/categories';
 import { formatCurrency } from '../../utils/formatters';
-import { getOptimizedMonthlySummaries } from '../../services/categorySummaryService';
+import { getAllOptimizedMonthlySummaries } from '../../services/categorySummaryService';
 
 interface CategoryOverviewProps {
     categories: Category[];
@@ -42,9 +42,6 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
         setSelectedMonth({ year: currentYear, month: currentRealMonthIndex });
     }, [currentYear, currentRealMonthIndex]);
     
-    // State for how many months of history to show (start with 12, expand on scroll)
-    const [monthsToShow, setMonthsToShow] = useState(12);
-    const [isLoadingMore, setIsLoadingMore] = useState(false);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [optimizedSummaries, setOptimizedSummaries] = useState<
         Array<{ year: number; month: number; totalSpent: number; categoryTotals: Record<string, number> }>
@@ -53,7 +50,7 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
     useEffect(() => {
         if (!user?.id) return;
         let cancelled = false;
-        getOptimizedMonthlySummaries(user.id, monthsToShow)
+        getAllOptimizedMonthlySummaries(user.id)
             .then(list => {
                 if (!cancelled) setOptimizedSummaries(list);
             })
@@ -63,7 +60,7 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
         return () => {
             cancelled = true;
         };
-    }, [user?.id, monthsToShow]);
+    }, [user?.id]);
     
     // Calculate monthly summaries from local transactions for real-time accuracy
     // and fill missing months using optimized summaries from Firestore.
@@ -104,41 +101,79 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
         return Array.from(summaryMap.values());
     }, [transactions, optimizedSummaries]);
 
-    // Generate array of months going backwards from actual current month
+    // Generate array of months from earliest available data month to current month
     const monthsRange = useMemo(() => {
+        const sorted = [...summaries].sort((a, b) => {
+            if (a.year !== b.year) return a.year - b.year;
+            return a.month - b.month;
+        });
+
+        const earliest = sorted[0]
+            ? new Date(sorted[0].year, sorted[0].month - 1, 1)
+            : new Date(actualYear, actualMonthIndex, 1);
+
+        const current = new Date(actualYear, actualMonthIndex, 1);
         const months: { year: number; month: number; key: string }[] = [];
-        for (let i = monthsToShow - 1; i >= 0; i--) {
-            const date = new Date(actualYear, actualMonthIndex - i, 1);
+
+        for (let date = new Date(earliest); date <= current; date = new Date(date.getFullYear(), date.getMonth() + 1, 1)) {
             months.push({
                 year: date.getFullYear(),
                 month: date.getMonth(),
                 key: `${date.getFullYear()}-${date.getMonth()}`
             });
         }
+
         return months;
-    }, [monthsToShow, actualYear, actualMonthIndex]);
+    }, [summaries, actualYear, actualMonthIndex]);
 
     // Metrics Calculation from summaries
     const metrics = useMemo(() => {
         let spentSelectedMonth = 0;
-        let spentYear = 0;
 
         summaries.forEach(s => {
-            // Yearly total
-            if (s.year === currentYear) {
-                spentYear += s.totalSpent;
-            }
             // Selected month total (MonthlySummary uses 1-based month, selectedMonth uses 0-based)
             if (s.year === selectedMonth.year && s.month === selectedMonth.month + 1) {
                 spentSelectedMonth = s.totalSpent;
             }
         });
 
-        // Average based on months passed so far in current year (YTD)
-        const avgMonthly = actualMonthIndex === 0 ? spentYear : spentYear / (actualMonthIndex + 1);
+        // Expense-only yearly totals and average monthly spend
+        const thisYearSpent = transactions
+            .filter(t => t.type === 'expense')
+            .filter(t => new Date(t.date).getFullYear() === currentYear)
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-        return { spentSelectedMonth, spentYear, avgMonthly };
-    }, [summaries, currentYear, actualMonthIndex, selectedMonth]);
+        const thisYearSpentYtd = transactions
+            .filter(t => t.type === 'expense')
+            .filter(t => {
+                const txDate = new Date(t.date);
+                return txDate.getFullYear() === currentYear && txDate.getMonth() <= actualMonthIndex;
+            })
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+        const prevYear = currentYear - 1;
+        const prevYearSpent = transactions
+            .filter(t => t.type === 'expense')
+            .filter(t => new Date(t.date).getFullYear() === prevYear)
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+        const thisYearAvgMonthly = thisYearSpentYtd / (actualMonthIndex + 1);
+        const prevYearAvgMonthly = prevYearSpent / 12;
+
+        return {
+            spentSelectedMonth,
+            thisYear: {
+                year: currentYear,
+                spent: thisYearSpent,
+                avgMonthly: thisYearAvgMonthly
+            },
+            prevYear: {
+                year: prevYear,
+                spent: prevYearSpent,
+                avgMonthly: prevYearAvgMonthly
+            }
+        };
+    }, [summaries, currentYear, actualMonthIndex, selectedMonth, transactions]);
 
     // Chart Data - Dynamic based on monthsRange and summaries
     const chartData = useMemo(() => {
@@ -269,36 +304,12 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
 
     }, [categories, summaries, selectedMonth, monthlyBudget]);
 
-    // Handle scroll to load more months - expands the visible range
-    const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-        const container = e.currentTarget;
-        // Load more when scrolled to the left (near the beginning)
-        if (container.scrollLeft < 100 && !isLoadingMore && monthsToShow < 120) {
-            setIsLoadingMore(true);
-            
-            // Calculate the new range to load
-            const newMonthsToShow = Math.min(monthsToShow + 12, 120);
-            
-            // Preserve scroll position by calculating offset
-            const oldScrollWidth = container.scrollWidth;
-            setMonthsToShow(newMonthsToShow);
-            
-            // After state update, adjust scroll to keep the same bars visible
-            requestAnimationFrame(() => {
-                const newScrollWidth = container.scrollWidth;
-                const addedWidth = newScrollWidth - oldScrollWidth;
-                container.scrollLeft = container.scrollLeft + addedWidth;
-                setIsLoadingMore(false);
-            });
-        }
-    }, [isLoadingMore, monthsToShow]);
-
     // Scroll to the end (current month) on initial render
     useEffect(() => {
         if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth;
         }
-    }, [transactions.length]);
+    }, [chartData.length]);
 
     const handleBarClick = (data: typeof chartData[0]) => {
         setSelectedMonth({ year: data.year, month: data.month });
@@ -334,11 +345,6 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                     <p className="text-sm text-gray-500 dark:text-gray-400 font-medium mb-1">
                         Spent in {new Date(selectedMonth.year, selectedMonth.month, 1).toLocaleString('default', { month: 'short', year: 'numeric' })}
                     </p>
-                    {defaultTimePeriod === 'previous' && selectedMonth.year === currentYear && selectedMonth.month === currentRealMonthIndex && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Showing previous month by default
-                        </p>
-                    )}
                     <p className={cn(theme.textPrimary, "text-3xl font-bold")}>
                         {formatCurrency(metrics.spentSelectedMonth)}
                     </p>
@@ -352,14 +358,8 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
 
             {/* Chart Section - Horizontally Scrollable */}
             <div className="relative mt-4 min-w-0">
-                {isLoadingMore && (
-                    <div className="absolute left-0 top-0 bottom-0 w-16 flex items-center justify-center bg-gradient-to-r from-white dark:from-gray-900 to-transparent z-10">
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
-                    </div>
-                )}
                 <div 
                     ref={scrollContainerRef}
-                    onScroll={handleScroll}
                     className="w-full max-w-full min-w-0 overflow-x-auto pb-2 custom-scrollbar"
                     style={{ scrollBehavior: 'auto' }}
                 >
@@ -413,27 +413,24 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                         })}
                     </div>
                 </div>
-                {monthsToShow < 120 && (
-                    <p className="text-xs text-gray-400 text-center mt-2">← Scroll left to load more months</p>
-                )}
             </div>
 
             {/* Metrics Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-8 border-t border-b border-gray-100 dark:border-gray-800 py-6">
-                <div>
-                    <p className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                        Spent per year
-                        {/* Help Icon can go here */}
-                    </p>
-                    <p className={cn(theme.textPrimary, "text-xl font-bold")}>{formatCurrency(metrics.spentYear)}</p>
-                    <p className="text-xs text-gray-400 mt-1">{currentYear}</p>
+            <div className="border-t border-b border-gray-100 dark:border-gray-800 py-6">
+                <div className="grid grid-cols-3 gap-4 md:gap-8 mb-3">
+                    <div></div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Spent per year</p>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 text-right sm:text-left">Avg monthly spend</p>
                 </div>
-                <div className="text-right sm:text-left">
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                        Avg monthly spend
-                    </p>
-                    <p className={cn(theme.textPrimary, "text-xl font-bold")}>{formatCurrency(metrics.avgMonthly)}</p>
-                    <p className="text-xs text-gray-400 mt-1">based on YTD</p>
+
+                <div className="space-y-3">
+                    {[metrics.thisYear, metrics.prevYear].map(row => (
+                        <div key={row.year} className="grid grid-cols-3 gap-4 md:gap-8 items-center">
+                            <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">{row.year}</p>
+                            <p className={cn(theme.textPrimary, "text-xl font-bold")}>{formatCurrency(row.spent)}</p>
+                            <p className={cn(theme.textPrimary, "text-xl font-bold text-right sm:text-left")}>{formatCurrency(row.avgMonthly)}</p>
+                        </div>
+                    ))}
                 </div>
             </div>
 

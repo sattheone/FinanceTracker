@@ -17,54 +17,28 @@ import SpendingInsightsWidget from '../components/insights/SpendingInsightsWidge
 import SmartAlertsWidget from '../components/dashboard/SmartAlertsWidget';
 import UnifiedGoalCard from '../components/goals/UnifiedGoalCard';
 
-import MarketDataService from '../services/marketDataService';
-
 const Dashboard: React.FC = () => {
-  const { assets, goals, insurance, transactions, bankAccounts, liabilities, recurringTransactions, categories, getAccountBalance, updateAsset, loadAssets, loadGoals, loadInsurance, loadLiabilities, loadRecurringTransactions, loadBills, userProfile } = useData();
+  const {
+    assets,
+    goals,
+    insurance,
+    transactions,
+    bankAccounts,
+    liabilities,
+    recurringTransactions,
+    categories,
+    getAccountBalance,
+    userProfile,
+    dashboardSummary,
+    loadDashboardSummary
+  } = useData();
   const navigate = useNavigate();
   const theme = useThemeClasses();
 
-  // Ensure data is loaded for dashboard
+  // Load precomputed dashboard summary (single document read)
   React.useEffect(() => {
-    loadAssets();
-    loadGoals();
-    loadInsurance();
-    loadLiabilities();
-    loadRecurringTransactions();
-    loadBills();
+    loadDashboardSummary();
   }, []);
-
-  // Auto-refresh asset prices (Stocks/MF) on Dashboard load
-  const processedRef = React.useRef(false);
-
-  React.useEffect(() => {
-    if (assets.length > 0 && !processedRef.current) {
-      processedRef.current = true;
-      const refreshMarketData = async () => {
-        console.log('🔄 Checking for live market updates...');
-        const updated = await MarketDataService.updatePortfolioValues(assets);
-
-        let updates = 0;
-        updated.forEach((newAsset, index) => {
-          const oldAsset = assets[index];
-          if (newAsset !== oldAsset) {
-            // Price changed
-            updateAsset(newAsset.id, {
-              marketPrice: newAsset.marketPrice,
-              currentValue: newAsset.currentValue,
-              dayChange: newAsset.dayChange,
-              dayChangePercent: newAsset.dayChangePercent,
-              lastUpdated: newAsset.lastUpdated
-            });
-            updates++;
-          }
-        });
-        if (updates > 0) console.log(`✅ Updated ${updates} assets with latest prices`);
-      };
-
-      refreshMarketData();
-    }
-  }, [assets.length]);
 
   const sipAssets = assets.filter(a => a.isSIP && (a.category === 'mutual_funds' || a.category === 'epf'));
 
@@ -76,14 +50,36 @@ const Dashboard: React.FC = () => {
       maturityYear: p.maturityDate ? new Date(p.maturityDate).getFullYear() : 0,
     }));
 
-  const totalAssets = assets.reduce((sum, asset) => sum + (Number(asset.currentValue) || 0), 0);
-  const totalBankBalance = bankAccounts.reduce((sum, account) => sum + getAccountBalance(account.id), 0);
-  const totalLiabilities = liabilities.reduce((sum, liability) => sum + (Number(liability.currentBalance) || 0), 0);
-  const netWorth = totalAssets + totalBankBalance - totalLiabilities;
+  const calculatedTotalAssets = assets.reduce((sum, asset) => sum + (Number(asset.currentValue) || 0), 0);
+  const calculatedTotalBankBalance = bankAccounts.reduce((sum, account) => sum + getAccountBalance(account.id), 0);
+  const calculatedTotalLiabilities = liabilities.reduce((sum, liability) => sum + (Number(liability.currentBalance) || 0), 0);
+  const calculatedNetWorth = calculatedTotalAssets + calculatedTotalBankBalance - calculatedTotalLiabilities;
+
+  const hasBalanceSourceData = assets.length > 0 || bankAccounts.length > 0 || liabilities.length > 0;
+
+  const totalAssets = hasBalanceSourceData
+    ? calculatedTotalAssets
+    : (dashboardSummary?.totalAssets ?? 0);
+  const totalBankBalance = hasBalanceSourceData
+    ? calculatedTotalBankBalance
+    : (dashboardSummary?.totalBankBalance ?? 0);
+  const totalLiabilities = hasBalanceSourceData
+    ? calculatedTotalLiabilities
+    : (dashboardSummary?.totalLiabilities ?? 0);
+  const netWorth = hasBalanceSourceData
+    ? calculatedNetWorth
+    : (dashboardSummary?.netWorth ?? 0);
 
   const retirementGoal = goals.find(g => g.category === 'retirement');
-  const retirementProgress = retirementGoal ? (retirementGoal.currentAmount / retirementGoal.targetAmount) * 100 : 0;
-  const totalLICMaturity = licPoliciesFromInsurance.reduce((sum, policy) => sum + (policy.maturityAmount || 0), 0);
+  const calculatedRetirementProgress = retirementGoal ? (retirementGoal.currentAmount / retirementGoal.targetAmount) * 100 : 0;
+  const calculatedTotalLICMaturity = licPoliciesFromInsurance.reduce((sum, policy) => sum + (policy.maturityAmount || 0), 0);
+
+  const retirementProgress = goals.length > 0
+    ? calculatedRetirementProgress
+    : (dashboardSummary?.retirementProgress ?? 0);
+  const totalLICMaturity = insurance.length > 0
+    ? calculatedTotalLICMaturity
+    : (dashboardSummary?.totalLICMaturity ?? 0);
 
   // Calculate default period cash flow from actual transactions
   const defaultTimePeriod = userProfile?.displayPreferences?.defaultTimePeriod || 'current';
@@ -109,26 +105,36 @@ const Dashboard: React.FC = () => {
 
 
   // Use React.useMemo to ensure calculations update when transactions change
-  const currentMonthIncome = React.useMemo(() => {
+  const calculatedCurrentMonthIncome = React.useMemo(() => {
     return currentMonthTransactions
       .filter(t => t.type === 'income')
       .reduce((sum, t) => sum + t.amount, 0);
   }, [currentMonthTransactions]);
 
-  const currentMonthExpenses = React.useMemo(() => {
+  const calculatedCurrentMonthExpenses = React.useMemo(() => {
     return currentMonthTransactions
       .filter(t => t.type === 'expense')
       .reduce((sum, t) => sum + t.amount, 0);
   }, [currentMonthTransactions]);
 
-  const currentMonthInvestments = React.useMemo(() => {
+  const calculatedCurrentMonthInvestments = React.useMemo(() => {
     return currentMonthTransactions
       .filter(t => t.type === 'investment')
       .reduce((sum, t) => sum + t.amount, 0);
   }, [currentMonthTransactions]);
 
-  // Cash flow = Income - Expenses - Investments
-  const currentMonthSurplus = currentMonthIncome - currentMonthExpenses - currentMonthInvestments;
+  const currentMonthIncome = transactions.length > 0
+    ? calculatedCurrentMonthIncome
+    : (dashboardSummary?.currentMonthIncome ?? 0);
+  const currentMonthExpenses = transactions.length > 0
+    ? calculatedCurrentMonthExpenses
+    : (dashboardSummary?.currentMonthExpenses ?? 0);
+  const currentMonthInvestments = transactions.length > 0
+    ? calculatedCurrentMonthInvestments
+    : (dashboardSummary?.currentMonthInvestments ?? 0);
+  const currentMonthSurplus = transactions.length > 0
+    ? (calculatedCurrentMonthIncome - calculatedCurrentMonthExpenses - calculatedCurrentMonthInvestments)
+    : (dashboardSummary?.currentMonthSurplus ?? 0);
 
   // Recurring transactions and bills data
   const activeRecurringTransactions = recurringTransactions.filter(rt => rt.isActive);

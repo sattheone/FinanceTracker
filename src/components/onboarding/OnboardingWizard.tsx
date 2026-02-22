@@ -7,7 +7,6 @@ import AssetsStep from './steps/AssetsStep';
 import LiabilitiesStep from './steps/LiabilitiesStep';
 import GoalsStep from './steps/GoalsStep';
 import InsuranceStep from './steps/InsuranceStep';
-import ReviewStep from './steps/ReviewStep';
 
 const OnboardingWizard: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
@@ -19,7 +18,6 @@ const OnboardingWizard: React.FC = () => {
     { id: 2, title: 'Liabilities & Debts', component: LiabilitiesStep },
     { id: 3, title: 'Financial Goals', component: GoalsStep },
     { id: 4, title: 'Insurance Policies', component: InsuranceStep },
-    { id: 5, title: 'Review & Complete', component: ReviewStep },
   ];
 
   const handleNext = () => {

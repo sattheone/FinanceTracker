@@ -457,12 +457,12 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                 </td>
                 <td className="px-3 py-2">
                   <div className="relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 text-xs">₹</span>
+                    <span className="currency-prefix text-xs">₹</span>
                     <input
                       type="number"
                       value={item.amount}
                       onChange={(e) => handleFieldChange(index, 'amount', Number(e.target.value))}
-                      className="w-full pl-5 pr-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm"
+                      className="w-full currency-input pr-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm"
                       min="0"
                       step="0.01"
                     />

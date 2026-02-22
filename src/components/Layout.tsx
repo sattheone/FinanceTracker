@@ -105,7 +105,7 @@ const Layout: React.FC = () => {
   }
 
   return (
-    <div className={theme.page}>
+    <div className={cn(theme.page, 'h-screen flex flex-col overflow-hidden')}>
       {/* Skip to main content link for screen readers */}
       <a
         href="#main-content"
@@ -176,13 +176,13 @@ const Layout: React.FC = () => {
         />
       )}
 
-      <div className="flex">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Sidebar - Hidden on mobile, shown on lg+ */}
         <nav
           className={cn(
             theme.bgElevated,
             theme.border,
-            'fixed lg:static inset-y-0 left-0 z-50 shadow-lg lg:shadow-sm min-h-screen border-r flex-shrink-0 lg:relative',
+            'fixed lg:static inset-y-0 left-0 z-50 shadow-lg lg:shadow-sm h-full border-r flex-shrink-0 lg:relative',
             'transform transition-transform duration-300 ease-in-out lg:transform-none',
             // Visibility: slide off-screen on mobile when closed
             sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
@@ -208,7 +208,7 @@ const Layout: React.FC = () => {
             </button>
           </div>
 
-          <div className="p-4 overflow-y-auto h-[calc(100vh-3.5rem)] lg:h-auto">
+          <div className="p-4 overflow-y-auto h-[calc(100%-3.5rem)] lg:h-full">
             <ul className="space-y-1" role="list">
               {navItems.map((item) => (
                 <li key={item.to} role="listitem">
@@ -254,7 +254,7 @@ const Layout: React.FC = () => {
           id="main-content"
           className={cn(
             theme.bgPrimary,
-            'flex-1 min-h-screen',
+            'flex-1 overflow-y-auto',
             isCategoriesPage ? 'p-0 overflow-hidden' : 'p-4 lg:p-6'
           )}
           role="main"

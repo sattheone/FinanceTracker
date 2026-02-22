@@ -255,6 +255,25 @@ export interface Bill {
   updatedAt: string;
 }
 
+export interface DashboardSummary {
+  totalAssets: number;
+  totalBankBalance: number;
+  totalLiabilities: number;
+  netWorth: number;
+  retirementProgress: number;
+  totalLICMaturity: number;
+  currentMonthIncome: number;
+  currentMonthExpenses: number;
+  currentMonthInvestments: number;
+  currentMonthSurplus: number;
+  accountCount: number;
+  goalCount: number;
+  recurringCount: number;
+  periodType: 'current' | 'previous';
+  periodMonthLabel: string;
+  updatedAt: string;
+}
+
 // Alert System
 export type AlertType =
   | 'budget_warning'

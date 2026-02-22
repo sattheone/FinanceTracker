@@ -53,7 +53,7 @@ const CategoriesWithMigration: React.FC = () => {
 };
 
 const Settings: React.FC = () => {
-  const { user, deleteAccount } = useAuth();
+  const { user, deleteAccount, updateUser } = useAuth();
   const { userProfile, bankAccounts, getAccountBalance, updateUserProfile } = useData();
   const { theme, setTheme } = useTheme();
 
@@ -104,6 +104,13 @@ const Settings: React.FC = () => {
     setSettings(prev => ({ ...prev, defaultTimePeriod: pref }));
   }, [userProfile?.displayPreferences?.defaultTimePeriod]);
 
+  // Sync name and phone once the user / userProfile data loads
+  React.useEffect(() => {
+    const name = userProfile?.personalInfo?.name || user?.name || '';
+    const phone = userProfile?.personalInfo?.phone || '';
+    setSettings(prev => ({ ...prev, name, phone }));
+  }, [user?.name, userProfile?.personalInfo?.name, userProfile?.personalInfo?.phone]);
+
 
 
   const tabs = [
@@ -138,9 +145,18 @@ const Settings: React.FC = () => {
 
   };
 
-  const handleSaveProfile = () => {
-    // Save profile changes
-    console.log('Saving profile changes...');
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    // Persist name to Firebase Auth + Firestore user doc
+    await updateUser({ ...user, name: settings.name, email: settings.email });
+    // Persist name and phone to the UserProfile document
+    updateUserProfile({
+      personalInfo: {
+        name: settings.name,
+        email: settings.email,
+        phone: settings.phone,
+      }
+    });
   };
 
   const handleExportData = () => {

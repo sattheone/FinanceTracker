@@ -30,6 +30,7 @@ interface CalendarProps {
   showBills?: boolean;
   viewMode?: 'chip' | 'icon';
   defaultMonth?: Date;
+  onMonthChange?: (date: Date) => void;
 }
 
 const Calendar: React.FC<CalendarProps> = ({
@@ -43,7 +44,8 @@ const Calendar: React.FC<CalendarProps> = ({
   showRecurring = true,
   showBills = true,
   viewMode = 'chip',
-  defaultMonth
+  defaultMonth,
+  onMonthChange
 }) => {
   const theme = useThemeClasses();
   const [currentDate, setCurrentDate] = useState(defaultMonth || new Date());
@@ -55,6 +57,12 @@ const Calendar: React.FC<CalendarProps> = ({
       setSelectedDate(null);
     }
   }, [defaultMonth]);
+
+  useEffect(() => {
+    if (onMonthChange) {
+      onMonthChange(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1));
+    }
+  }, [currentDate, onMonthChange]);
 
   // Get current month info
   const year = currentDate.getFullYear();

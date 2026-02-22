@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo, ReactNode } from 'react';
-import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction, CategoryRule, SIPRule, Tag } from '../types';
+import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction, CategoryRule, SIPRule, Tag, DashboardSummary } from '../types';
 import { Category } from '../constants/categories';
 import { UserProfile } from '../types/user';
 import { useAuth } from './AuthContext';
@@ -41,9 +41,77 @@ const getMonthKey = (dateString: string) => {
   return `${date.getFullYear()}-${month}`;
 };
 
+const MONTH_TRANSACTIONS_CACHE_PREFIX = 'transactionsByMonth:v1';
+
+const getMonthTransactionsCacheKey = (userId: string, monthKey: string) =>
+  `${MONTH_TRANSACTIONS_CACHE_PREFIX}:${userId}:${monthKey}`;
+
+const getMonthTransactionsUserPrefix = (userId: string) =>
+  `${MONTH_TRANSACTIONS_CACHE_PREFIX}:${userId}:`;
+
+const readMonthTransactionsCache = (userId: string, monthKey: string): Transaction[] | null => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = localStorage.getItem(getMonthTransactionsCacheKey(userId, monthKey));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as Transaction[]) : null;
+  } catch (error) {
+    console.warn('[DataContext] Failed to read month transactions cache:', error);
+    return null;
+  }
+};
+
+const writeMonthTransactionsCache = (userId: string, monthKey: string, monthTransactions: Transaction[]) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.setItem(
+      getMonthTransactionsCacheKey(userId, monthKey),
+      JSON.stringify(monthTransactions)
+    );
+  } catch (error) {
+    console.warn('[DataContext] Failed to write month transactions cache:', error);
+  }
+};
+
+const getCachedMonthKeys = (userId: string): string[] => {
+  if (typeof window === 'undefined') return [];
+
+  const prefix = getMonthTransactionsUserPrefix(userId);
+  const keys: string[] = [];
+
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key || !key.startsWith(prefix)) continue;
+    const monthKey = key.slice(prefix.length);
+    if (monthKey) keys.push(monthKey);
+  }
+
+  return keys;
+};
+
+const clearMonthTransactionsCache = (userId: string) => {
+  if (typeof window === 'undefined') return;
+
+  const prefix = getMonthTransactionsUserPrefix(userId);
+  const keysToRemove: string[] = [];
+
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (key && key.startsWith(prefix)) {
+      keysToRemove.push(key);
+    }
+  }
+
+  keysToRemove.forEach(key => localStorage.removeItem(key));
+};
+
 interface DataContextType {
   // User Profile
   userProfile: UserProfile | null;
+  dashboardSummary: DashboardSummary | null;
   updateUserProfile: (profile: Partial<UserProfile>) => void;
 
   // Financial Data
@@ -146,6 +214,8 @@ interface DataContextType {
 
   // Utility
   resetUserData: () => void;
+  loadDashboardSummary: () => Promise<void>;
+  saveDashboardSummary: (summary: DashboardSummary) => void;
   isDataLoaded: boolean;
   categorySummaryVersion: number;
   indexes: {
@@ -225,7 +295,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   // User Profile
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const userProfileRef = useRef<UserProfile | null>(null);
+  const dashboardSummaryPersistTimeoutRef = useRef<number | null>(null);
+  const lastDashboardSummarySignatureRef = useRef<string>('');
 
   useEffect(() => {
     userProfileRef.current = userProfile;
@@ -352,6 +425,14 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   }, [userProfile, isDataLoaded]);
 
   useEffect(() => {
+    return () => {
+      if (dashboardSummaryPersistTimeoutRef.current) {
+        window.clearTimeout(dashboardSummaryPersistTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (isDataLoaded && categories.length > 0) {
       // Only cache custom categories (non-default)
       const customCats = categories.filter(c => (c as any).isCustom || (c as any).userId);
@@ -393,6 +474,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setMonthlyBudget(getDefaultMonthlyBudget());
       setLicPolicies([]);
       setTags([]);
+      setDashboardSummary(null);
 
       // ── PHASE 1: Load from localStorage cache (0 Firestore reads) ──
       let hasCachedData = false;
@@ -405,6 +487,16 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           hasCachedData = true;
         }
       } catch (e) { console.warn('Error parsing cached user profile', e); }
+
+      // Load cached dashboard summary
+      try {
+        const cachedDashboardSummary = localStorage.getItem('dashboardSummary');
+        if (cachedDashboardSummary) {
+          const parsed = JSON.parse(cachedDashboardSummary) as DashboardSummary;
+          setDashboardSummary(parsed);
+          hasCachedData = true;
+        }
+      } catch (e) { console.warn('Error parsing cached dashboard summary', e); }
 
       // Load cached bank accounts
       try {
@@ -441,15 +533,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
             hasCachedTransactions = true;
             hasCachedData = true;
 
-            // Pre-populate month cache from cached transactions so period loads are skipped
-            parsed.forEach((t: Transaction) => {
-              if (t.date) {
-                const monthKey = getMonthKey(t.date);
-                if (monthKey !== 'invalid-date') {
-                  loadedTransactionMonthsRef.current.add(monthKey);
-                }
-              }
-            });
+            // Pre-populate loaded month set from dedicated month caches only.
+            // Avoid marking months as loaded from partial transaction lists.
+            const cachedMonthKeys = getCachedMonthKeys(userId);
+            cachedMonthKeys.forEach(monthKey => loadedTransactionMonthsRef.current.add(monthKey));
             // Mark initial load as done since we have cache
             initialTransactionsLoadedRef.current = true;
             console.log(`[DataContext] Pre-populated ${loadedTransactionMonthsRef.current.size} month(s) from cache`);
@@ -464,6 +551,85 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       }
       setTransactionsCursor(null);
       setHasMoreTransactions(false);
+
+      // Load cached assets
+      try {
+        const cachedAssets = localStorage.getItem('assets');
+        if (cachedAssets) {
+          const parsed = JSON.parse(cachedAssets);
+          if (parsed.length > 0) {
+            setAssets(parsed);
+            lazyLoadedRef.current.add('assets');
+            hasCachedData = true;
+          }
+        }
+      } catch (e) { console.warn('Error parsing cached assets', e); }
+
+      // Load cached goals
+      try {
+        const cachedGoals = localStorage.getItem('goals');
+        if (cachedGoals) {
+          const parsed = JSON.parse(cachedGoals);
+          if (parsed.length > 0) {
+            const migrated = GoalMigrationService.migrateGoals(parsed);
+            setGoals(migrated);
+            lazyLoadedRef.current.add('goals');
+            hasCachedData = true;
+          }
+        }
+      } catch (e) { console.warn('Error parsing cached goals', e); }
+
+      // Load cached insurance
+      try {
+        const cachedInsurance = localStorage.getItem('insurance');
+        if (cachedInsurance) {
+          const parsed = JSON.parse(cachedInsurance);
+          if (parsed.length > 0) {
+            setInsurance(parsed);
+            lazyLoadedRef.current.add('insurance');
+            hasCachedData = true;
+          }
+        }
+      } catch (e) { console.warn('Error parsing cached insurance', e); }
+
+      // Load cached liabilities
+      try {
+        const cachedLiabilities = localStorage.getItem('liabilities');
+        if (cachedLiabilities) {
+          const parsed = JSON.parse(cachedLiabilities);
+          if (parsed.length > 0) {
+            setLiabilities(parsed);
+            lazyLoadedRef.current.add('liabilities');
+            hasCachedData = true;
+          }
+        }
+      } catch (e) { console.warn('Error parsing cached liabilities', e); }
+
+      // Load cached recurring transactions
+      try {
+        const cachedRecurring = localStorage.getItem('recurringTransactions');
+        if (cachedRecurring) {
+          const parsed = JSON.parse(cachedRecurring);
+          if (parsed.length > 0) {
+            setRecurringTransactions(parsed);
+            lazyLoadedRef.current.add('recurring');
+            hasCachedData = true;
+          }
+        }
+      } catch (e) { console.warn('Error parsing cached recurring transactions', e); }
+
+      // Load cached bills
+      try {
+        const cachedBills = localStorage.getItem('bills');
+        if (cachedBills) {
+          const parsed = JSON.parse(cachedBills);
+          if (parsed.length > 0) {
+            setBills(parsed);
+            lazyLoadedRef.current.add('bills');
+            hasCachedData = true;
+          }
+        }
+      } catch (e) { console.warn('Error parsing cached bills', e); }
 
       // Load categories (defaults + cached custom categories)
       const { defaultCategories } = await import('../constants/categories');
@@ -713,6 +879,211 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
+  const loadDashboardSummary = async () => {
+    if (!user || lazyLoadedRef.current.has('dashboardSummary')) return;
+    lazyLoadedRef.current.add('dashboardSummary');
+
+    try {
+      const cached = localStorage.getItem('dashboardSummary');
+      if (cached && !dashboardSummary) {
+        setDashboardSummary(JSON.parse(cached));
+      }
+
+      const summary = await FirebaseService.getDashboardSummary(user.id);
+      if (summary) {
+        setDashboardSummary(summary);
+        localStorage.setItem('dashboardSummary', JSON.stringify(summary));
+      }
+    } catch (error) {
+      lazyLoadedRef.current.delete('dashboardSummary');
+      console.error('[DataContext] Error loading dashboard summary:', error);
+    }
+  };
+
+  const saveDashboardSummary = (summary: DashboardSummary) => {
+    if (!user) return;
+
+    const normalizedSummary: DashboardSummary = {
+      ...summary,
+      updatedAt: summary.updatedAt || new Date().toISOString()
+    };
+
+    setDashboardSummary(normalizedSummary);
+    localStorage.setItem('dashboardSummary', JSON.stringify(normalizedSummary));
+
+    const signature = JSON.stringify({
+      ...normalizedSummary,
+      updatedAt: undefined
+    });
+
+    if (lastDashboardSummarySignatureRef.current === signature) {
+      return;
+    }
+
+    lastDashboardSummarySignatureRef.current = signature;
+
+    if (dashboardSummaryPersistTimeoutRef.current) {
+      window.clearTimeout(dashboardSummaryPersistTimeoutRef.current);
+    }
+
+    dashboardSummaryPersistTimeoutRef.current = window.setTimeout(async () => {
+      try {
+        await FirebaseService.upsertDashboardSummary(user.id, normalizedSummary);
+      } catch (error) {
+        console.error('[DataContext] Error saving dashboard summary:', error);
+      }
+    }, 1500);
+  };
+
+  useEffect(() => {
+    if (!user || !isDataLoaded) {
+      return;
+    }
+
+    const baseSummary: DashboardSummary = dashboardSummary || {
+      totalAssets: 0,
+      totalBankBalance: 0,
+      totalLiabilities: 0,
+      netWorth: 0,
+      retirementProgress: 0,
+      totalLICMaturity: 0,
+      currentMonthIncome: 0,
+      currentMonthExpenses: 0,
+      currentMonthInvestments: 0,
+      currentMonthSurplus: 0,
+      accountCount: 0,
+      goalCount: 0,
+      recurringCount: 0,
+      periodType: 'current',
+      periodMonthLabel: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+      updatedAt: new Date().toISOString()
+    };
+
+    const periodType = userProfile?.displayPreferences?.defaultTimePeriod || baseSummary.periodType || 'current';
+    const periodBaseDate = new Date();
+    if (periodType === 'previous') {
+      periodBaseDate.setMonth(periodBaseDate.getMonth() - 1);
+    }
+
+    const periodYear = periodBaseDate.getFullYear();
+    const periodMonth = periodBaseDate.getMonth();
+    const periodMonthLabel = periodBaseDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    const canUseTransactions = initialTransactionsLoadedRef.current || transactions.length > 0;
+    const canUseAssets = lazyLoadedRef.current.has('assets');
+    const canUseGoals = lazyLoadedRef.current.has('goals');
+    const canUseInsurance = lazyLoadedRef.current.has('insurance');
+    const canUseLiabilities = lazyLoadedRef.current.has('liabilities');
+    const canUseRecurring = lazyLoadedRef.current.has('recurring');
+
+    const computedTotalAssets = canUseAssets
+      ? assets.reduce((sum, asset) => sum + (Number(asset.currentValue) || 0), 0)
+      : baseSummary.totalAssets;
+
+    const computedTotalLiabilities = canUseLiabilities
+      ? liabilities.reduce((sum, liability) => sum + (Number(liability.currentBalance) || 0), 0)
+      : baseSummary.totalLiabilities;
+
+    const computedTotalBankBalance = canUseTransactions
+      ? bankAccounts.reduce((sum, account) => {
+          const accountTransactions = transactions.filter(t => t.bankAccountId === account.id);
+          const totalTransactionAmount = accountTransactions.reduce((accountSum, t) => {
+            if (t.type === 'income') return accountSum + t.amount;
+            if (t.type === 'expense' || t.type === 'investment' || t.type === 'insurance') {
+              return accountSum - t.amount;
+            }
+            return accountSum;
+          }, 0);
+
+          return sum + account.initialBalance + totalTransactionAmount;
+        }, 0)
+      : baseSummary.totalBankBalance;
+
+    const retirementGoal = goals.find(g => g.category === 'retirement');
+    const computedRetirementProgress = canUseGoals
+      ? (retirementGoal ? (retirementGoal.currentAmount / retirementGoal.targetAmount) * 100 : 0)
+      : baseSummary.retirementProgress;
+
+    const computedTotalLICMaturity = canUseInsurance
+      ? insurance
+          .filter(p => (p.type === 'endowment' || p.type === 'other') && p.maturityAmount)
+          .reduce((sum, policy) => sum + (policy.maturityAmount || 0), 0)
+      : baseSummary.totalLICMaturity;
+
+    const periodTransactions = canUseTransactions
+      ? transactions.filter(t => {
+          const transactionDate = new Date(t.date);
+          return transactionDate.getFullYear() === periodYear &&
+            transactionDate.getMonth() === periodMonth &&
+            t.category !== 'transfer';
+        })
+      : [];
+
+    const computedCurrentMonthIncome = canUseTransactions
+      ? periodTransactions
+          .filter(t => t.type === 'income')
+          .reduce((sum, t) => sum + t.amount, 0)
+      : baseSummary.currentMonthIncome;
+
+    const computedCurrentMonthExpenses = canUseTransactions
+      ? periodTransactions
+          .filter(t => t.type === 'expense')
+          .reduce((sum, t) => sum + t.amount, 0)
+      : baseSummary.currentMonthExpenses;
+
+    const computedCurrentMonthInvestments = canUseTransactions
+      ? periodTransactions
+          .filter(t => t.type === 'investment')
+          .reduce((sum, t) => sum + t.amount, 0)
+      : baseSummary.currentMonthInvestments;
+
+    const computedCurrentMonthSurplus = canUseTransactions
+      ? (computedCurrentMonthIncome - computedCurrentMonthExpenses - computedCurrentMonthInvestments)
+      : baseSummary.currentMonthSurplus;
+
+    const nextSummary: DashboardSummary = {
+      totalAssets: computedTotalAssets,
+      totalBankBalance: computedTotalBankBalance,
+      totalLiabilities: computedTotalLiabilities,
+      netWorth: computedTotalAssets + computedTotalBankBalance - computedTotalLiabilities,
+      retirementProgress: computedRetirementProgress,
+      totalLICMaturity: computedTotalLICMaturity,
+      currentMonthIncome: computedCurrentMonthIncome,
+      currentMonthExpenses: computedCurrentMonthExpenses,
+      currentMonthInvestments: computedCurrentMonthInvestments,
+      currentMonthSurplus: computedCurrentMonthSurplus,
+      accountCount: bankAccounts.length,
+      goalCount: canUseGoals ? goals.length : baseSummary.goalCount,
+      recurringCount: canUseRecurring
+        ? recurringTransactions.filter(rt => rt.isActive).length
+        : baseSummary.recurringCount,
+      periodType,
+      periodMonthLabel,
+      updatedAt: new Date().toISOString()
+    };
+
+    const currentSignature = dashboardSummary
+      ? JSON.stringify({ ...dashboardSummary, updatedAt: undefined })
+      : '';
+    const nextSignature = JSON.stringify({ ...nextSummary, updatedAt: undefined });
+
+    if (currentSignature !== nextSignature) {
+      saveDashboardSummary(nextSummary);
+    }
+  }, [
+    user,
+    isDataLoaded,
+    userProfile?.displayPreferences?.defaultTimePeriod,
+    assets,
+    goals,
+    insurance,
+    transactions,
+    bankAccounts,
+    liabilities,
+    recurringTransactions,
+    dashboardSummary
+  ]);
+
   const loadInitialTransactions = async () => {
     if (!user) return;
     if (initialTransactionsLoadedRef.current) return;
@@ -794,12 +1165,40 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const loadTransactionsForPeriod = async (startDate: string, endDate: string) => {
     if (!user) return;
     const monthKey = getMonthKey(startDate);
+    if (monthKey === 'invalid-date') return;
     if (loadedTransactionMonthsRef.current.has(monthKey)) return;
+
+    const cachedMonthTransactions = readMonthTransactionsCache(user.id, monthKey);
+    if (cachedMonthTransactions !== null) {
+      loadedTransactionMonthsRef.current.add(monthKey);
+
+      if (cachedMonthTransactions.length > 0) {
+        setTransactions(prev => {
+          const seen = new Set(prev.map(t => t.id));
+          const merged = [...prev];
+
+          for (const transaction of cachedMonthTransactions) {
+            if (!seen.has(transaction.id)) {
+              merged.push(transaction);
+              seen.add(transaction.id);
+            }
+          }
+
+          merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          return merged;
+        });
+      }
+
+      return;
+    }
+
     // Mark immediately to prevent duplicate parallel fetches
     loadedTransactionMonthsRef.current.add(monthKey);
     try {
       console.log(`[DataContext] Loading transactions for period: ${startDate} to ${endDate}`);
       const periodTransactions = await FirebaseService.getTransactionsByDateRange(user.id, startDate, endDate);
+
+      writeMonthTransactionsCache(user.id, monthKey, periodTransactions);
 
       if (periodTransactions.length > 0) {
         setTransactions(prev => {
@@ -944,6 +1343,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const id = await FirebaseService.addTransaction(user.id, transaction);
       const newTransaction: Transaction = { ...transaction, id };
       setTransactions(prev => [...prev, newTransaction]);
+      clearMonthTransactionsCache(user.id);
 
       // Update category summary
       incrementCategorySummary(user.id, newTransaction).catch(err =>
@@ -967,6 +1367,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
     // Optimistic local update for immediate UI feedback (list + summary views)
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...transaction } : t));
+    clearMonthTransactionsCache(user.id);
     clearCategorySummaryCache();
     setCategorySummaryVersion(prev => prev + 1);
 
@@ -1019,6 +1420,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       );
 
       setTransactions(updatedTransactions);
+      clearMonthTransactionsCache(user.id);
 
       // 3. Update category summaries if category changed
       if (update.category) {
@@ -1062,6 +1464,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         updatesById[t.id] ? { ...t, ...updatesById[t.id] } : t
       );
       setTransactions(updatedTransactions);
+      clearMonthTransactionsCache(user.id);
 
       // Update category summaries for transactions where category changed
       for (const id of ids) {
@@ -1178,6 +1581,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const createdTransactions = await FirebaseService.bulkAddTransactions(user.id, cleanedTransactions);
       const mergedTransactions = [...transactions, ...createdTransactions];
       setTransactions(mergedTransactions);
+      clearMonthTransactionsCache(user.id);
 
       // Recalculate balance for affected bank accounts
       // Group transactions by bank account
@@ -1283,6 +1687,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       
       await FirebaseService.deleteTransaction(id);
       setTransactions(prev => prev.filter(t => t.id !== id));
+      clearMonthTransactionsCache(user.id);
 
       // Update category summary
       if (transactionToDelete) {
@@ -1300,12 +1705,15 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   const bulkDeleteTransactions = async (ids: string[]) => {
+    if (!user) return;
+
     try {
       // 1. Delete from Firebase (Batch)
       await FirebaseService.bulkDeleteTransactions(ids);
 
       // 2. Update local state
       setTransactions(prev => prev.filter(t => !ids.includes(t.id)));
+      clearMonthTransactionsCache(user.id);
       clearCategorySummaryCache();
       setCategorySummaryVersion(prev => prev + 1);
 
@@ -1350,7 +1758,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
     const accountTransactions = transactions.filter(t => t.bankAccountId === accountId);
     const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
-      return sum + (t.type === 'income' ? t.amount : -t.amount);
+      if (t.type === 'income') return sum + t.amount;
+      if (t.type === 'expense' || t.type === 'investment' || t.type === 'insurance') {
+        return sum - t.amount;
+      }
+      return sum;
     }, 0);
 
     return account.initialBalance + totalTransactionAmount;
@@ -1867,7 +2279,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     initialTransactionsLoadedRef.current = false;
     loadedTransactionMonthsRef.current = new Set();
     lazyLoadedRef.current = new Set();
+    if (dashboardSummaryPersistTimeoutRef.current) {
+      window.clearTimeout(dashboardSummaryPersistTimeoutRef.current);
+    }
+    lastDashboardSummarySignatureRef.current = '';
     setUserProfile(getDefaultUserProfile());
+    setDashboardSummary(null);
     setAssets([]);
     setInsurance([]);
     setGoals([]);
@@ -1897,10 +2314,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     localStorage.removeItem('insurance');
     localStorage.removeItem('liabilities');
     localStorage.removeItem('monthlyBudget');
+    localStorage.removeItem('dashboardSummary');
   };
 
   const value: DataContextType = {
     userProfile,
+    dashboardSummary,
     updateUserProfile,
     assets,
     insurance,
@@ -1979,6 +2398,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
     // Utility
     resetUserData,
+    loadDashboardSummary,
+    saveDashboardSummary,
     isDataLoaded,
     categorySummaryVersion,
     indexes,

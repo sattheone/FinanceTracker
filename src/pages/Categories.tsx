@@ -6,7 +6,7 @@ import CategoryList from '../components/categories/CategoryList';
 import CategoryDetail from '../components/categories/CategoryDetail';
 import CategoryOverview from '../components/categories/CategoryOverview';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
-import { X, ChevronDown, Filter, Building2, TrendingUp, Plus, List, Layers } from 'lucide-react';
+import { X, ChevronDown, Filter, Building2, TrendingUp, Plus, List, Layers, Wallet } from 'lucide-react';
 import SidePanel from '../components/common/SidePanel';
 import CategoryForm, { CategoryFormHandle } from '../components/categories/CategoryForm';
 import {
@@ -29,10 +29,12 @@ const Categories: React.FC = () => {
 
 
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+    const [selectedSection, setSelectedSection] = useState<'expense' | 'investment' | 'income'>('expense');
     const defaultViewMode: 'month' | 'prevMonth' =
         userProfile?.displayPreferences?.defaultTimePeriod === 'previous' ? 'prevMonth' : 'month';
     const [viewMode, setViewMode] = useState<'month' | 'prevMonth' | 'year' | 'prevYear'>(defaultViewMode);
     const [includeInvestments, setIncludeInvestments] = useState(false);
+    const [includeIncome, setIncludeIncome] = useState(false);
     const [includeTransfer, setIncludeTransfer] = useState(false);
     const [categoryDisplayMode, setCategoryDisplayMode] = useState<'flat' | 'grouped'>('flat');
     const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
@@ -59,14 +61,10 @@ const Categories: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showFilters]);
 
-    // Removed auto-loading of transactions when category is selected
-    // Transactions from cache are used instead. User can manually load more if needed.
-
-    // Load transactions only for the currently viewed period
+    // Load transactions for the currently viewed period
     // For 'month' and 'prevMonth': load just that single month
-    // For 'year' and 'prevYear': DON'T bulk-load all 12 months upfront (too many reads!)
-    //   Instead, rely on categorySummaries for sidebar totals, and only load
-    //   transactions on-demand when a category is selected
+    // For 'year' and 'prevYear': load all months of the target year
+    //   (each month is individually cached in localStorage, so only the first visit costs reads)
     useEffect(() => {
         const now = new Date();
         const currentYear = now.getFullYear();
@@ -82,10 +80,17 @@ const Categories: React.FC = () => {
             const startDate = new Date(prevYear, prevMonth, 1);
             const endDate = new Date(prevYear, prevMonth + 1, 0, 23, 59, 59);
             loadTransactionsForPeriod(startDate.toISOString(), endDate.toISOString());
+        } else if (viewMode === 'year' || viewMode === 'prevYear') {
+            // Load all months for the target year
+            // loadTransactionsForPeriod checks localStorage cache per month, so repeated visits are free
+            const targetYear = viewMode === 'prevYear' ? currentYear - 1 : currentYear;
+            const maxMonth = targetYear === currentYear ? currentMonth : 11; // don't load future months
+            for (let m = 0; m <= maxMonth; m++) {
+                const startDate = new Date(targetYear, m, 1);
+                const endDate = new Date(targetYear, m + 1, 0, 23, 59, 59);
+                loadTransactionsForPeriod(startDate.toISOString(), endDate.toISOString());
+            }
         }
-        // For 'year' and 'prevYear', we skip bulk loading here.
-        // The sidebar uses categorySummaries (optimized, ~12 reads).
-        // Transactions for category detail are loaded on-demand below.
     }, [viewMode]);
 
     // Read view mode from URL
@@ -174,23 +179,15 @@ const Categories: React.FC = () => {
     // --- 1. Convert summaries to spending records for CategoryList ---
     const currentMonth = useMemo(() => new Date(), []);
 
-    const { expenseSpending, investmentSpending } = useMemo(() => {
+    const { expenseSpending, investmentSpending, incomeSpending } = useMemo(() => {
         const expenses: Record<string, number> = {};
         const investments: Record<string, number> = {};
+        const income: Record<string, number> = {};
         
-        // For year/prevYear views, use pre-aggregated categorySummaries (from Firestore)
-        // to avoid loading all individual transactions (saves hundreds of reads)
-        if ((viewMode === 'year' || viewMode === 'prevYear') && categorySummaries.size > 0) {
-            categorySummaries.forEach((amount, categoryId) => {
-                expenses[categoryId] = amount;
-            });
-            return { expenseSpending: expenses, investmentSpending: investments };
-        }
-        
-        // For month/prevMonth views, calculate from local transactions for real-time updates
         const now = new Date();
         const currentYear = now.getFullYear();
         const currentMonthNum = now.getMonth() + 1; // 1-based
+        const isYearView = viewMode === 'year' || viewMode === 'prevYear';
         
         // Filter transactions based on viewMode
         const relevantTransactions = filteredTransactions.filter(t => {
@@ -201,7 +198,6 @@ const Categories: React.FC = () => {
             if (viewMode === 'month') {
                 return txYear === currentYear && txMonth === currentMonthNum;
             } else if (viewMode === 'prevMonth') {
-                // Previous month
                 const prevMonth = currentMonthNum === 1 ? 12 : currentMonthNum - 1;
                 const prevMonthYear = currentMonthNum === 1 ? currentYear - 1 : currentYear;
                 return txYear === prevMonthYear && txMonth === prevMonth;
@@ -212,27 +208,79 @@ const Categories: React.FC = () => {
             }
         });
         
-        // Calculate spending by category and type
+        // Calculate spending by category and type from transactions
         relevantTransactions.forEach(t => {
             const categoryId = t.category || 'uncategorized';
             const amount = t.amount || 0;
             
             if (t.type === 'investment') {
                 investments[categoryId] = (investments[categoryId] || 0) + amount;
+            } else if (t.type === 'income') {
+                income[categoryId] = (income[categoryId] || 0) + amount;
             } else if (t.type === 'expense' || t.type === 'transfer') {
-                // Include transfer in expenses for consistency with CategoryOverview
                 expenses[categoryId] = (expenses[categoryId] || 0) + amount;
             }
-            // Income is not included in spending
         });
         
-        return { expenseSpending: expenses, investmentSpending: investments };
+        // For year views, use categorySummaries (from optimized service) as the
+        // authoritative source when transactions may not be fully loaded yet.
+        // Determine the type bucket from whatever transactions are in memory,
+        // then apply the summary total so the sidebar shows accurate amounts.
+        if (isYearView && categorySummaries.size > 0) {
+            // Build sets of known category types from in-memory transactions
+            const investmentCategoryIds = new Set<string>();
+            const expenseCategoryIds = new Set<string>();
+            
+            relevantTransactions.forEach(t => {
+                const categoryId = t.category || 'uncategorized';
+                if (t.type === 'investment') {
+                    investmentCategoryIds.add(categoryId);
+                } else if (t.type === 'expense' || t.type === 'transfer') {
+                    expenseCategoryIds.add(categoryId);
+                }
+            });
+            
+            // Augment with categorySummaries: if summary total is higher than
+            // what we computed from transactions, use the summary total instead.
+            categorySummaries.forEach((summaryAmount, categoryId) => {
+                if (summaryAmount <= 0) return;
+                
+                const txExpense = expenses[categoryId] || 0;
+                const txInvestment = investments[categoryId] || 0;
+                const txTotal = txExpense + txInvestment;
+                
+                if (summaryAmount > txTotal * 1.01) {
+                    // Summary has more data than in-memory transactions
+                    const isKnownInvestment = investmentCategoryIds.has(categoryId);
+                    const isKnownExpense = expenseCategoryIds.has(categoryId);
+                    
+                    if (isKnownInvestment && isKnownExpense && txTotal > 0) {
+                        // Mixed type: preserve ratio from in-memory transactions
+                        const investRatio = txInvestment / txTotal;
+                        investments[categoryId] = Math.round(summaryAmount * investRatio * 100) / 100;
+                        expenses[categoryId] = summaryAmount - investments[categoryId];
+                    } else if (isKnownInvestment) {
+                        investments[categoryId] = summaryAmount;
+                        delete expenses[categoryId];
+                    } else if (isKnownExpense) {
+                        expenses[categoryId] = summaryAmount;
+                        delete investments[categoryId];
+                    } else {
+                        // Unknown type: default to expense
+                        expenses[categoryId] = summaryAmount;
+                    }
+                }
+            });
+        }
+        
+        return { expenseSpending: expenses, investmentSpending: investments, incomeSpending: income };
     }, [filteredTransactions, viewMode, categorySummaries]);
 
     // --- 2. Selection Handling ---
 
-    const handleCategorySelect = (id: string) => {
+    const handleCategorySelect = (id: string, section: 'expense' | 'investment' | 'income' = 'expense') => {
         setSelectedCategoryId(id);
+        setSelectedSection(section);
     };
 
     // On-demand: fetch only the selected category's transactions for year/prevYear view
@@ -291,15 +339,47 @@ const Categories: React.FC = () => {
         categories.find(c => c.id === selectedCategoryId),
         [categories, selectedCategoryId]);
 
-    // For month/prevMonth: filter from in-memory transactions
+    // For month/prevMonth: filter from in-memory transactions (scoped to the viewed month)
     // For year/prevYear: use directly fetched category transactions
+    // Also filter by transaction type based on which section was clicked
     const categoryTransactions = useMemo(() => {
+        let txns: Transaction[];
         if ((viewMode === 'year' || viewMode === 'prevYear') && yearCategoryTransactions.length > 0) {
-            if (selectedAccountId === 'all') return yearCategoryTransactions;
-            return yearCategoryTransactions.filter(t => t.bankAccountId === selectedAccountId);
+            txns = selectedAccountId === 'all'
+                ? yearCategoryTransactions
+                : yearCategoryTransactions.filter(t => t.bankAccountId === selectedAccountId);
+        } else {
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonthNum = now.getMonth() + 1;
+
+            txns = filteredTransactions.filter(t => {
+                if (t.category !== selectedCategoryId) return false;
+                const txDate = new Date(t.date);
+                const txYear = txDate.getFullYear();
+                const txMonth = txDate.getMonth() + 1;
+
+                if (viewMode === 'month') {
+                    return txYear === currentYear && txMonth === currentMonthNum;
+                } else if (viewMode === 'prevMonth') {
+                    const prevMonth = currentMonthNum === 1 ? 12 : currentMonthNum - 1;
+                    const prevMonthYear = currentMonthNum === 1 ? currentYear - 1 : currentYear;
+                    return txYear === prevMonthYear && txMonth === prevMonth;
+                }
+                return true;
+            });
         }
-        return filteredTransactions.filter(t => t.category === selectedCategoryId);
-    }, [filteredTransactions, selectedCategoryId, viewMode, yearCategoryTransactions, selectedAccountId]);
+
+        // Filter by section type so Income section only shows income transactions, etc.
+        if (selectedSection === 'income') {
+            txns = txns.filter(t => t.type === 'income');
+        } else if (selectedSection === 'investment') {
+            txns = txns.filter(t => t.type === 'investment');
+        }
+        // 'expense' section shows all non-income/non-investment (default behavior)
+
+        return txns;
+    }, [filteredTransactions, selectedCategoryId, viewMode, yearCategoryTransactions, selectedAccountId, selectedSection]);
 
     const applySummaryDelta = (oldTx: Transaction, newTx: Transaction) => {
         setCategorySummaries(prev => {
@@ -372,9 +452,10 @@ const Categories: React.FC = () => {
         let count = 0;
         if (selectedAccountId !== 'all') count++;
         if (includeInvestments) count++;
+        if (includeIncome) count++;
         if (includeTransfer) count++;
         return count;
-    }, [selectedAccountId, includeInvestments, includeTransfer]);
+    }, [selectedAccountId, includeInvestments, includeIncome, includeTransfer]);
 
     // Get account display name with last 4 digits
     const getAccountName = (accountId: string) => {
@@ -396,7 +477,10 @@ const Categories: React.FC = () => {
                 {/* Header */}
                 <div className="p-4 border-b border-gray-100 dark:border-gray-700 overflow-visible">
                     <div className="flex items-center justify-between mb-3">
-                        <h1 className={cn(theme.textPrimary, "text-xl font-bold")}>
+                        <h1
+                            className={cn(theme.textPrimary, "text-xl font-bold cursor-pointer hover:opacity-70 transition-opacity")}
+                            onClick={() => setSelectedCategoryId(null)}
+                        >
                             Categories
                         </h1>
 
@@ -479,6 +563,30 @@ const Categories: React.FC = () => {
                                                 </button>
                                             </div>
 
+                                            {/* Income Toggle */}
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                    <Wallet className="w-3.5 h-3.5" />
+                                                    <span>Include Income</span>
+                                                </div>
+                                                <button
+                                                    onClick={() => setIncludeIncome(!includeIncome)}
+                                                    className={cn(
+                                                        "relative w-9 h-5 rounded-full transition-colors",
+                                                        includeIncome
+                                                            ? "bg-green-600"
+                                                            : "bg-gray-300 dark:bg-gray-600"
+                                                    )}
+                                                >
+                                                    <span
+                                                        className={cn(
+                                                            "absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
+                                                            includeIncome && "translate-x-4"
+                                                        )}
+                                                    />
+                                                </button>
+                                            </div>
+
                                             {/* Transfer Toggle */}
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -511,6 +619,7 @@ const Categories: React.FC = () => {
                                                     onClick={() => {
                                                         setSelectedAccountId('all');
                                                         setIncludeInvestments(false);
+                                                        setIncludeIncome(false);
                                                         setIncludeTransfer(false);
                                                     }}
                                                     className="w-full text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium"
@@ -625,6 +734,18 @@ const Categories: React.FC = () => {
                                     </button>
                                 </span>
                             )}
+                            {includeIncome && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-medium rounded-full">
+                                    <Wallet className="w-3 h-3" />
+                                    + Income
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setIncludeIncome(false); }}
+                                        className="ml-0.5 hover:text-green-900 dark:hover:text-green-200"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </span>
+                            )}
                             {includeTransfer && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-[10px] font-medium rounded-full">
                                     <List className="w-3 h-3" />
@@ -648,11 +769,13 @@ const Categories: React.FC = () => {
                         onSelectCategory={handleCategorySelect}
                         spendingByCategory={expenseSpending}
                         investmentSpending={investmentSpending}
+                        incomeSpending={incomeSpending}
                         monthlyBudget={monthlyBudget}
                         displayMode={categoryDisplayMode}
                         viewMode={viewMode}
                         includeTransfer={includeTransfer}
                         includeInvestments={includeInvestments}
+                        includeIncome={includeIncome}
                     />
                 </div>
 

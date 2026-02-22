@@ -165,12 +165,12 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
             Sum Assured *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+            <span className="currency-prefix">₹</span>
             <input
               type="number"
               value={formData.coverAmount || ''}
               onChange={(e) => handleChange('coverAmount', Number(e.target.value))}
-              className={`input-field theme-input pl-8 ${errors.coverAmount ? 'border-red-500' : ''}`}
+              className={`input-field theme-input currency-input ${errors.coverAmount ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
               step="any"
@@ -184,12 +184,12 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
             Premium Amount *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+            <span className="currency-prefix">₹</span>
             <input
               type="number"
               value={formData.premiumAmount || ''}
               onChange={(e) => handleChange('premiumAmount', Number(e.target.value))}
-              className={`input-field theme-input pl-8 ${errors.premiumAmount ? 'border-red-500' : ''}`}
+              className={`input-field theme-input currency-input ${errors.premiumAmount ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
               step="any"
@@ -203,12 +203,12 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
             Bonus, Guaranteed Addition (Optional)
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+            <span className="currency-prefix">₹</span>
             <input
               type="number"
               value={formData.bonusGuaranteedAddition || ''}
               onChange={(e) => handleChange('bonusGuaranteedAddition', Number(e.target.value))}
-              className="input-field theme-input pl-8"
+              className="input-field theme-input currency-input"
               placeholder="0"
               min="0"
               step="any"
@@ -293,11 +293,11 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
                 Maturity Amount
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+                <span className="currency-prefix">₹</span>
                 <input
                   type="number"
                   value={formData.coverAmount + formData.bonusGuaranteedAddition}
-                  className="input-field theme-input pl-8 bg-gray-100 dark:bg-gray-700"
+                  className="input-field theme-input currency-input bg-gray-100 dark:bg-gray-700"
                   readOnly
                   tabIndex={-1}
                 />

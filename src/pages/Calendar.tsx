@@ -21,7 +21,7 @@ interface CalendarEvent {
 
 const CalendarPage: React.FC = () => {
   const theme = useThemeClasses();
-  const { transactions, recurringTransactions, bills, categories, deleteTransaction, updateTransaction, loadRecurringTransactions, loadBills, userProfile } = useData();
+  const { transactions, recurringTransactions, bills, categories, deleteTransaction, updateTransaction, loadRecurringTransactions, loadBills, loadTransactionsForPeriod, userProfile } = useData();
   const defaultTimePeriod = userProfile?.displayPreferences?.defaultTimePeriod || 'current';
   const defaultMonth = useMemo(() => {
     const date = new Date();
@@ -120,6 +120,12 @@ const CalendarPage: React.FC = () => {
   const filteredCategories = categories.filter(category =>
     category.name.toLowerCase().includes(categorySearchQuery.toLowerCase())
   );
+
+  const handleMonthChange = (visibleMonth: Date) => {
+    const startDate = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+    const endDate = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0, 23, 59, 59);
+    void loadTransactionsForPeriod(startDate.toISOString(), endDate.toISOString());
+  };
 
   return (
     <div className="space-y-6">
@@ -390,6 +396,7 @@ const CalendarPage: React.FC = () => {
         showBills={filters.showBills}
         viewMode={viewMode}
         defaultMonth={defaultMonth}
+        onMonthChange={handleMonthChange}
       />
 
       {/* Transaction List Overlay */}

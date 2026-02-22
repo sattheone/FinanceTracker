@@ -10,7 +10,8 @@ import {
   reauthenticateWithCredential,
   User as FirebaseUser
 } from 'firebase/auth';
-import { auth } from '../config/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db, auth } from '../config/firebase';
 import { User, AuthState } from '../types/user';
 import FirebaseService from '../services/firebaseService';
 
@@ -219,20 +220,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           displayName: user.name
         });
 
-        // Update user profile in Firestore
-        const userProfile = await FirebaseService.getUserProfile(user.id);
-        if (userProfile) {
-          const updatedProfile = {
-            ...userProfile,
-            personalInfo: {
-              ...userProfile.personalInfo,
-              name: user.name,
-              email: user.email,
-              dateOfBirth: user.dateOfBirth,
-            }
-          };
-          await FirebaseService.updateUserProfile(user.id, updatedProfile);
-        }
+        // Update only the changed personalInfo fields — no prior read needed
+        const userDocRef = doc(db, 'users', user.id);
+        await updateDoc(userDocRef, {
+          'personalInfo.name': user.name,
+          'personalInfo.email': user.email,
+          'personalInfo.dateOfBirth': user.dateOfBirth,
+        });
+        FirebaseService.invalidateUserDocCache(user.id);
 
         setAuthState(prev => ({
           ...prev,

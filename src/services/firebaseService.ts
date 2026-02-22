@@ -10,12 +10,15 @@ import {
   query,
   where,
   limit,
+  orderBy,
+  startAfter,
+  documentId,
   onSnapshot,
   writeBatch,
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Asset, Insurance, Goal, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, CategoryRule, SIPRule } from '../types';
+import { Asset, Insurance, Goal, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, CategoryRule, SIPRule, DashboardSummary } from '../types';
 import { UserProfile } from '../types/user';
 import { getMerchantKeyFromDescription } from '../utils/merchantSimilarity';
 import {
@@ -69,6 +72,54 @@ const deleteDoc: typeof firestoreDeleteDoc = (async (...args: any[]) => {
 }) as any;
 
 export class FirebaseService {
+  private static readonly USER_DOC_CACHE_TTL_MS = 3_600_000; // 1 hour — invalidated on every write
+  private static readonly userDocCache = new Map<string, { exists: boolean; data: Record<string, any> | null; ts: number }>();
+  private static readonly userDocInFlight = new Map<string, Promise<{ exists: boolean; data: Record<string, any> | null }>>();
+
+  static invalidateUserDocCache(userId: string) {
+    this.userDocCache.delete(userId);
+    this.userDocInFlight.delete(userId);
+  }
+
+  private static async getUserDocCached(userId: string, options?: { forceRefresh?: boolean }): Promise<{ exists: boolean; data: Record<string, any> | null }> {
+    const forceRefresh = options?.forceRefresh ?? false;
+    const now = Date.now();
+    const cached = this.userDocCache.get(userId);
+
+    if (!forceRefresh && cached && now - cached.ts <= this.USER_DOC_CACHE_TTL_MS) {
+      return { exists: cached.exists, data: cached.data };
+    }
+
+    const inFlight = this.userDocInFlight.get(userId);
+    if (!forceRefresh && inFlight) {
+      return inFlight;
+    }
+
+    const request = (async () => {
+      const docRef = doc(db, this.COLLECTIONS.USERS, userId);
+      const docSnap = await getDoc(docRef);
+      const payload = {
+        exists: docSnap.exists(),
+        data: docSnap.exists() ? (docSnap.data() as Record<string, any>) : null,
+      };
+
+      this.userDocCache.set(userId, {
+        ...payload,
+        ts: Date.now(),
+      });
+
+      return payload;
+    })();
+
+    this.userDocInFlight.set(userId, request);
+
+    try {
+      return await request;
+    } finally {
+      this.userDocInFlight.delete(userId);
+    }
+  }
+
   private static chunkArray<T>(items: T[], size: number): T[][] {
     const chunks: T[][] = [];
     for (let i = 0; i < items.length; i += size) {
@@ -98,11 +149,10 @@ export class FirebaseService {
   // User Profile Operations
   static async getUserProfile(userId: string): Promise<UserProfile | null> {
     try {
-      const docRef = doc(db, this.COLLECTIONS.USERS, userId);
-      const docSnap = await getDoc(docRef);
+      const userDoc = await this.getUserDocCached(userId);
 
-      if (docSnap.exists()) {
-        return docSnap.data() as UserProfile;
+      if (userDoc.exists && userDoc.data) {
+        return userDoc.data as UserProfile;
       }
       return null;
     } catch (error) {
@@ -114,27 +164,13 @@ export class FirebaseService {
   static async updateUserProfile(userId: string, profile: UserProfile): Promise<void> {
     try {
       const docRef = doc(db, this.COLLECTIONS.USERS, userId);
-
-      // Check if document exists first
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        // Update existing document
-        // Filter out undefined values as Firebase doesn't support them
-        const cleanProfile = removeUndefined(profile as any);
-
-        await updateDoc(docRef, {
-          ...cleanProfile,
-          updatedAt: serverTimestamp() as any
-        });
-      } else {
-        // Create new document
-        await setDoc(docRef, {
-          ...profile,
-          createdAt: serverTimestamp() as any,
-          updatedAt: serverTimestamp() as any
-        });
-      }
+      // Use merge so this works for both create and update without a prior read.
+      const cleanProfile = removeUndefined(profile as any);
+      await setDoc(docRef, {
+        ...cleanProfile,
+        updatedAt: serverTimestamp() as any
+      }, { merge: true });
+      this.invalidateUserDocCache(userId);
     } catch (error) {
       console.error('Error updating user profile:', error);
       throw error;
@@ -149,8 +185,40 @@ export class FirebaseService {
         createdAt: serverTimestamp() as any,
         updatedAt: serverTimestamp() as any
       });
+      this.invalidateUserDocCache(userId);
     } catch (error) {
       console.error('Error creating user profile:', error);
+      throw error;
+    }
+  }
+
+  static async getDashboardSummary(userId: string): Promise<DashboardSummary | null> {
+    try {
+      const userDoc = await this.getUserDocCached(userId);
+      if (!userDoc.exists || !userDoc.data) {
+        return null;
+      }
+
+      return (userDoc.data.dashboardSummary as DashboardSummary) || null;
+    } catch (error) {
+      console.error('Error getting dashboard summary:', error);
+      throw error;
+    }
+  }
+
+  static async upsertDashboardSummary(userId: string, summary: DashboardSummary): Promise<void> {
+    try {
+      const docRef = doc(db, this.COLLECTIONS.USERS, userId);
+      await setDoc(docRef, {
+        dashboardSummary: {
+          ...summary,
+          updatedAt: summary.updatedAt || new Date().toISOString()
+        },
+        dashboardSummaryUpdatedAt: serverTimestamp() as any
+      }, { merge: true });
+      this.invalidateUserDocCache(userId);
+    } catch (error) {
+      console.error('Error upserting dashboard summary:', error);
       throw error;
     }
   }
@@ -192,11 +260,16 @@ export class FirebaseService {
     try {
       const pageSize = options?.pageSize ?? 500;
 
-      // Simple query - no composite index needed
       const constraints: any[] = [
         where('userId', '==', userId),
-        limit(pageSize + 50)
+        orderBy('date', 'desc'),
+        orderBy(documentId(), 'desc'),
+        limit(pageSize + 1)
       ];
+
+      if (options?.cursor) {
+        constraints.splice(3, 0, startAfter(options.cursor.date, options.cursor.id));
+      }
 
       const q = query(collection(db, this.COLLECTIONS.TRANSACTIONS), ...constraints);
       const querySnapshot = await getDocs(q);
@@ -205,21 +278,6 @@ export class FirebaseService {
         id: docSnap.id,
         ...(docSnap.data() as any)
       })) as Transaction[];
-
-      // Sort client-side by date descending (newest first)
-      transactions.sort((a, b) => {
-        const dateCompare = b.date.localeCompare(a.date);
-        if (dateCompare !== 0) return dateCompare;
-        return b.id.localeCompare(a.id);
-      });
-
-      // If we have a cursor, filter to only transactions before it
-      if (options?.cursor) {
-        transactions = transactions.filter(t =>
-          t.date < options.cursor!.date ||
-          (t.date === options.cursor!.date && t.id < options.cursor!.id)
-        );
-      }
 
       // Trim to requested page size
       const hasMore = transactions.length > pageSize;
@@ -287,8 +345,14 @@ export class FirebaseService {
       const constraints: any[] = [
         where('userId', '==', userId),
         where('merchantKey', '==', merchantKey),
-        limit(pageSize + 20)
+        orderBy('date', 'desc'),
+        orderBy(documentId(), 'desc'),
+        limit(pageSize + 1)
       ];
+
+      if (options?.cursor) {
+        constraints.splice(4, 0, startAfter(options.cursor.date, options.cursor.id));
+      }
 
       const q = query(collection(db, this.COLLECTIONS.TRANSACTIONS), ...constraints);
       const querySnapshot = await getDocs(q);
@@ -297,19 +361,6 @@ export class FirebaseService {
         id: docSnap.id,
         ...(docSnap.data() as any)
       })) as Transaction[];
-
-      transactions.sort((a, b) => {
-        const dateCompare = b.date.localeCompare(a.date);
-        if (dateCompare !== 0) return dateCompare;
-        return b.id.localeCompare(a.id);
-      });
-
-      if (options?.cursor) {
-        transactions = transactions.filter(t =>
-          t.date < options.cursor!.date ||
-          (t.date === options.cursor!.date && t.id < options.cursor!.id)
-        );
-      }
 
       const hasMore = transactions.length > pageSize;
       if (hasMore) {
@@ -1490,8 +1541,8 @@ export class FirebaseService {
   static async getCategoryRules(userId: string): Promise<CategoryRule[]> {
     try {
       const userRef = doc(db, this.COLLECTIONS.USERS, userId);
-      const userSnap = await getDoc(userRef);
-      const data = userSnap.data() as any;
+      const userDoc = await this.getUserDocCached(userId);
+      const data = userDoc.data as any;
       const stored = Array.isArray(data?.categoryRules) ? data.categoryRules : null;
 
       if (stored) {
@@ -1514,6 +1565,7 @@ export class FirebaseService {
           categoryRules: legacy,
           categoryRulesUpdatedAt: serverTimestamp()
         }, { merge: true });
+        this.invalidateUserDocCache(userId);
       }
 
       return legacy;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DataProvider } from './contexts/DataContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -21,7 +21,21 @@ import Alerts from './pages/Alerts';
 import Categories from './pages/Categories';
 import ReloadPrompt from './components/ReloadPrompt';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
-import FirestoreUsageHud from './components/debug/FirestoreUsageHud';
+import { FirebaseMonitor, UsageTracker } from './components/debug/FirebaseMonitor';
+
+const ScreenTracker: React.FC = () => {
+  const location = useLocation();
+
+  React.useEffect(() => {
+    const screenName = location.pathname === '/'
+      ? 'Dashboard'
+      : location.pathname.split('/').filter(Boolean)[0] || 'Unknown';
+
+    UsageTracker.setScreen(screenName);
+  }, [location.pathname]);
+
+  return null;
+};
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -88,11 +102,12 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <Router>
+      <ScreenTracker />
       <ThemeProvider>
         <AuthProvider>
           <DataProvider>
             <AppContent />
-            <FirestoreUsageHud />
+            <FirebaseMonitor />
             <ReloadPrompt />
             <PWAInstallPrompt />
           </DataProvider>

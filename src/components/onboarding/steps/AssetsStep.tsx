@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Plus, Trash2, TrendingUp, Camera } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Trash2, TrendingUp, Camera, Loader2 } from 'lucide-react';
 import { useData } from '../../../contexts/DataContext';
 import { Asset } from '../../../types';
 import { formatCurrency } from '../../../utils/formatters';
 import ImageUploader from '../../common/ImageUploader';
 import { aiService, ExtractedAssetData } from '../../../services/aiService';
+import MarketDataService from '../../../services/marketDataService';
 
 const AssetsStep: React.FC = () => {
   const { assets, addAsset, deleteAsset } = useData();
@@ -17,6 +18,64 @@ const AssetsStep: React.FC = () => {
     purchaseValue: 0,
     purchaseDate: '',
   });
+
+  // Autocomplete state
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const nameWrapperRef = useRef<HTMLDivElement>(null);
+  const userIsTypingRef = useRef(false);
+
+  // Close suggestions on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (nameWrapperRef.current && !nameWrapperRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Search effect — only for stocks/mutual_funds when user is typing
+  useEffect(() => {
+    if (!userIsTypingRef.current) return;
+    userIsTypingRef.current = false;
+
+    const query = newAsset.name;
+    const category = newAsset.category;
+
+    if (!query || query.length < 2 || (category !== 'stocks' && category !== 'mutual_funds')) {
+      setSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        let results: any[] = [];
+        if (category === 'stocks') {
+          results = await MarketDataService.searchStocks(query);
+        } else {
+          results = await MarketDataService.searchMutualFunds(query);
+        }
+        setSuggestions(results);
+        if (results.length > 0) setShowSuggestions(true);
+      } catch (error) {
+        console.error('Search failed', error);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [newAsset.name, newAsset.category]);
+
+  const handleSuggestionClick = (item: any) => {
+    const name = newAsset.category === 'stocks' ? item.symbol : item.name;
+    setNewAsset(prev => ({ ...prev, name }));
+    setShowSuggestions(false);
+  };
 
   const assetCategories = [
     { value: 'stocks', label: 'Stocks', icon: '📈' },
@@ -136,17 +195,45 @@ const AssetsStep: React.FC = () => {
         <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border-2 border-dashed border-gray-300 dark:border-gray-500">
           <h4 className="font-medium text-gray-900 dark:text-white mb-4">Add New Asset</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+            <div ref={nameWrapperRef} className="relative">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                 Asset Name
               </label>
-              <input
-                type="text"
-                value={newAsset.name}
-                onChange={(e) => setNewAsset({ ...newAsset, name: e.target.value })}
-                className="input-field theme-input"
-                placeholder="e.g., HDFC Equity Fund, SBI Shares"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={newAsset.name}
+                  onChange={(e) => {
+                    userIsTypingRef.current = true;
+                    setNewAsset({ ...newAsset, name: e.target.value });
+                  }}
+                  onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+                  className="input-field theme-input pr-8"
+                  placeholder="e.g., HDFC Equity Fund, SBI Shares"
+                  autoComplete="off"
+                />
+                {isSearching && (
+                  <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-gray-400" />
+                )}
+              </div>
+              {showSuggestions && suggestions.length > 0 && (
+                <ul className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {suggestions.map((item, idx) => (
+                    <li
+                      key={idx}
+                      onMouseDown={() => handleSuggestionClick(item)}
+                      className="px-3 py-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700 text-sm"
+                    >
+                      <span className="font-medium text-gray-900 dark:text-white">
+                        {newAsset.category === 'stocks' ? item.symbol : item.name}
+                      </span>
+                      {item.name && newAsset.category === 'stocks' && (
+                        <span className="ml-2 text-gray-500 dark:text-gray-400 text-xs">{item.name}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
@@ -154,7 +241,11 @@ const AssetsStep: React.FC = () => {
               </label>
               <select
                 value={newAsset.category}
-                onChange={(e) => setNewAsset({ ...newAsset, category: e.target.value as Asset['category'] })}
+                onChange={(e) => {
+                  setNewAsset({ ...newAsset, category: e.target.value as Asset['category'] });
+                  setSuggestions([]);
+                  setShowSuggestions(false);
+                }}
                 className="input-field theme-input"
               >
                 {assetCategories.map(cat => (
@@ -169,12 +260,12 @@ const AssetsStep: React.FC = () => {
                 Current Value
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
+                <span className="currency-prefix">₹</span>
                 <input
                   type="number"
                   value={newAsset.currentValue || ''}
                   onChange={(e) => setNewAsset({ ...newAsset, currentValue: Number(e.target.value) })}
-                  className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+                  className="w-full currency-input py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                   placeholder="0"
                   min="0"
                 />
@@ -185,12 +276,12 @@ const AssetsStep: React.FC = () => {
                 Purchase Value (Optional)
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
+                <span className="currency-prefix">₹</span>
                 <input
                   type="number"
                   value={newAsset.purchaseValue || ''}
                   onChange={(e) => setNewAsset({ ...newAsset, purchaseValue: Number(e.target.value) })}
-                  className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+                  className="w-full currency-input py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                   placeholder="0"
                   min="0"
                 />

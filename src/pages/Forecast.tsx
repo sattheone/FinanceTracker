@@ -55,6 +55,7 @@ const Forecast: React.FC = () => {
 };
 
 const DrawdownSimulator: React.FC = () => {
+  const SIP_SELECTION_STORAGE_KEY = 'forecast_selected_sip_assets';
   const { assets, monthlyBudget, userProfile, transactions, loadAssets, loadMonthlyBudget } = useData();
 
   React.useEffect(() => {
@@ -62,11 +63,82 @@ const DrawdownSimulator: React.FC = () => {
     loadMonthlyBudget();
   }, []);
 
+  const sipAssets = React.useMemo(() => {
+    return assets.filter(asset => asset.isSIP && (asset.sipAmount || 0) > 0);
+  }, [assets]);
+
+  const totalSIPFromAssets = React.useMemo(() => {
+    return sipAssets.reduce((sum, asset) => sum + (asset.sipAmount || 0), 0);
+  }, [sipAssets]);
+
   // Initial Defaults
   const defaultCorpus = assets.reduce((sum, a) => sum + a.currentValue, 0);
-  const defaultMonthlySIP = monthlyBudget.surplus;
+  const defaultMonthlySIP = totalSIPFromAssets > 0 ? totalSIPFromAssets : monthlyBudget.surplus;
   const defaultAge = userProfile?.financialInfo.currentAge || 30;
   const defaultRetirementAge = userProfile?.financialInfo.retirementAge || 60;
+
+  const [selectedSIPAssetIds, setSelectedSIPAssetIds] = React.useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(SIP_SELECTION_STORAGE_KEY);
+      if (!saved) return new Set();
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? new Set(parsed) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const [hasTouchedSipSelection, setHasTouchedSipSelection] = React.useState(() => {
+    return !!localStorage.getItem(SIP_SELECTION_STORAGE_KEY);
+  });
+  const [isSipPopoverOpen, setIsSipPopoverOpen] = React.useState(false);
+  const sipPopoverRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    localStorage.setItem(SIP_SELECTION_STORAGE_KEY, JSON.stringify(Array.from(selectedSIPAssetIds)));
+  }, [selectedSIPAssetIds]);
+
+  React.useEffect(() => {
+    if (!isSipPopoverOpen) return;
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!sipPopoverRef.current?.contains(event.target as Node)) {
+        setIsSipPopoverOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isSipPopoverOpen]);
+
+  React.useEffect(() => {
+    if (sipAssets.length === 0) {
+      setSelectedSIPAssetIds(new Set());
+      return;
+    }
+
+    const availableIds = new Set(sipAssets.map(asset => asset.id));
+
+    if (!hasTouchedSipSelection) {
+      setSelectedSIPAssetIds(availableIds);
+      return;
+    }
+
+    setSelectedSIPAssetIds(prev => {
+      const next = new Set<string>();
+      prev.forEach(id => {
+        if (availableIds.has(id)) {
+          next.add(id);
+        }
+      });
+      return next;
+    });
+  }, [sipAssets, hasTouchedSipSelection]);
+
+  const selectedSIPMonthlyTotal = React.useMemo(() => {
+    if (selectedSIPAssetIds.size === 0) return 0;
+    return sipAssets.reduce((sum, asset) => {
+      if (!selectedSIPAssetIds.has(asset.id)) return sum;
+      return sum + (asset.sipAmount || 0);
+    }, 0);
+  }, [sipAssets, selectedSIPAssetIds]);
 
   // Pre-calculate actual investments by year from transactions
   const actualInvestmentsByYear = React.useMemo(() => {
@@ -153,6 +225,28 @@ const DrawdownSimulator: React.FC = () => {
     setLifeExpectancy(90);
     setReturnOverrides({});
     setInvestmentOverrides({});
+    setHasTouchedSipSelection(false);
+    setSelectedSIPAssetIds(new Set(sipAssets.map(asset => asset.id)));
+  };
+
+  const toggleSIPAsset = (assetId: string) => {
+    setHasTouchedSipSelection(true);
+    setSelectedSIPAssetIds(prev => {
+      const next = new Set(prev);
+      if (next.has(assetId)) {
+        next.delete(assetId);
+      } else {
+        next.add(assetId);
+      }
+
+      const nextMonthlySip = sipAssets.reduce((sum, asset) => {
+        if (!next.has(asset.id)) return sum;
+        return sum + (asset.sipAmount || 0);
+      }, 0);
+      setMonthlySIP(nextMonthlySip);
+
+      return next;
+    });
   };
 
   // Calculation Logic
@@ -305,7 +399,46 @@ const DrawdownSimulator: React.FC = () => {
               <input type="number" value={corpus} onChange={e => setCorpus(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Monthly SIP</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Monthly SIP</label>
+                {sipAssets.length > 0 && (
+                  <div className="relative" ref={sipPopoverRef}>
+                    <button
+                      onClick={() => setIsSipPopoverOpen(prev => !prev)}
+                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium"
+                      title="Select SIP assets to include"
+                    >
+                      SIPs ({selectedSIPAssetIds.size})
+                    </button>
+
+                    {isSipPopoverOpen && (
+                      <div className="absolute right-0 mt-2 w-80 max-w-[80vw] p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 shadow-lg z-20 max-h-64 overflow-y-auto space-y-2">
+                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                          Included SIP Assets
+                        </div>
+                        {sipAssets.map(asset => (
+                          <label key={asset.id} className="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+                            <span className="flex items-center gap-2 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={selectedSIPAssetIds.has(asset.id)}
+                                onChange={() => toggleSIPAsset(asset.id)}
+                                className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="truncate">{asset.name}</span>
+                            </span>
+                            <span className="font-medium ml-2">{formatCurrency(asset.sipAmount || 0)}</span>
+                          </label>
+                        ))}
+                        <div className="pt-2 mt-1 border-t border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-700 dark:text-gray-200 flex items-center justify-between">
+                          <span>Selected Total</span>
+                          <span>{formatCurrency(selectedSIPMonthlyTotal)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               <input type="number" value={monthlySIP} onChange={e => setMonthlySIP(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>

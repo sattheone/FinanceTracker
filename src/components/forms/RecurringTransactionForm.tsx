@@ -263,12 +263,12 @@ const RecurringTransactionForm: React.FC<RecurringTransactionFormProps> = ({
             Amount *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+            <span className="currency-prefix">₹</span>
             <input
               type="number"
               value={formData.amount || ''}
               onChange={(e) => handleChange('amount', Number(e.target.value))}
-              className={`input-field theme-input pl-8 ${errors.amount ? 'border-red-500' : ''}`}
+              className={`input-field theme-input currency-input ${errors.amount ? 'border-red-500' : ''}`}
               placeholder="0"
               min="0"
               step="0.01"

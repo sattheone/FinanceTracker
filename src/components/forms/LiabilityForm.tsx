@@ -265,12 +265,12 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
             Total Amount (Principal) *
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
+            <span className="currency-prefix">₹</span>
             <input
               type="number"
               value={formData.principalAmount || ''}
               onChange={(e) => handleChange('principalAmount', Number(e.target.value))}
-              className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 ${errors.principalAmount ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-500'}`}
+              className={`w-full currency-input py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 ${errors.principalAmount ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-500'}`}
               placeholder="0"
               min="0"
               step="0.01"
@@ -365,12 +365,12 @@ const LiabilityForm: React.FC<LiabilityFormProps> = ({ liability, onSubmit, onCa
             Monthly EMI
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 pointer-events-none z-10">₹</span>
+            <span className="currency-prefix">₹</span>
             <input
               type="number"
               value={formData.emiAmount || ''}
               onChange={(e) => handleEMIChange(Number(e.target.value))}
-              className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 ${errors.emiAmount ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-500'}`}
+              className={`w-full currency-input py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 ${errors.emiAmount ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-500'}`}
               placeholder="0"
               min="0"
               step="0.01"

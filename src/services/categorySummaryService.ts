@@ -303,14 +303,119 @@ export interface MonthlySummary {
   lastUpdated: Date;
 }
 
+interface YearlySummary {
+  id: string; // Format: "YYYY"
+  userId: string;
+  year: number;
+  categoryTotals: Record<string, number>;
+  totalSpent: number;
+  lastUpdated: Date;
+}
+
 // Module-level cache for monthly summaries (survives component remounts)
 const monthlySummaryCache = new Map<string, MonthlySummary | null>();
+const monthlySummaryInFlight = new Map<string, Promise<MonthlySummary | null>>();
+const yearlySummaryCache = new Map<string, YearlySummary | null>();
+const yearlySummaryInFlight = new Map<string, Promise<YearlySummary | null>>();
+
+// Cache for getAllOptimizedMonthlySummaries (keyed by userId)
+let allMonthlySummariesCache = new Map<string, MonthlySummary[]>();
+let allMonthlySummariesInFlight = new Map<string, Promise<MonthlySummary[]>>();
 
 /**
  * Clear the category summary cache (call after transactions are added/updated/deleted)
  */
 export const clearCategorySummaryCache = () => {
   monthlySummaryCache.clear();
+  monthlySummaryInFlight.clear();
+  yearlySummaryCache.clear();
+  yearlySummaryInFlight.clear();
+  allMonthlySummariesCache.clear();
+  allMonthlySummariesInFlight.clear();
+};
+
+const getYearlySummary = async (userId: string, year: number): Promise<YearlySummary | null> => {
+  const summaryId = String(year);
+  const cacheKey = `${userId}:${summaryId}`;
+
+  if (yearlySummaryCache.has(cacheKey)) {
+    return yearlySummaryCache.get(cacheKey)!;
+  }
+
+  const inFlight = yearlySummaryInFlight.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const request = (async () => {
+    try {
+      const summaryRef = doc(db, `users/${userId}/yearlySummaries`, summaryId);
+      const summaryDoc = await getDoc(summaryRef);
+
+      if (summaryDoc.exists()) {
+        const data = summaryDoc.data();
+        const result: YearlySummary = {
+          id: summaryId,
+          userId: data.userId,
+          year: data.year,
+          categoryTotals: data.categoryTotals || {},
+          totalSpent: data.totalSpent || 0,
+          lastUpdated: data.lastUpdated?.toDate?.() || new Date()
+        };
+        yearlySummaryCache.set(cacheKey, result);
+        return result;
+      }
+
+      yearlySummaryCache.set(cacheKey, null);
+      return null;
+    } catch (error) {
+      console.error('Error fetching yearly summary:', error);
+      return null;
+    }
+  })();
+
+  yearlySummaryInFlight.set(cacheKey, request);
+
+  try {
+    return await request;
+  } finally {
+    yearlySummaryInFlight.delete(cacheKey);
+  }
+};
+
+const saveYearlySummary = async (
+  userId: string,
+  year: number,
+  categoryTotals: Map<string, number>
+): Promise<void> => {
+  const summaryId = String(year);
+  const cacheKey = `${userId}:${summaryId}`;
+  const categoryTotalsObject = Object.fromEntries(categoryTotals.entries());
+  const totalSpent = Array.from(categoryTotals.values()).reduce((sum, amount) => sum + amount, 0);
+
+  const payload = {
+    userId,
+    year,
+    categoryTotals: categoryTotalsObject,
+    totalSpent,
+    lastUpdated: new Date(),
+  };
+
+  try {
+    const summaryRef = doc(db, `users/${userId}/yearlySummaries`, summaryId);
+    await setDoc(summaryRef, payload, { merge: true });
+  } catch (error) {
+    console.warn('Failed to persist yearly summary cache:', error);
+  }
+
+  yearlySummaryCache.set(cacheKey, {
+    id: summaryId,
+    userId,
+    year,
+    categoryTotals: categoryTotalsObject,
+    totalSpent,
+    lastUpdated: new Date(),
+  });
 };
 
 /**
@@ -328,30 +433,45 @@ export const getOptimizedMonthlySummary = async (
   if (monthlySummaryCache.has(cacheKey)) {
     return monthlySummaryCache.get(cacheKey)!;
   }
+
+  const inFlight = monthlySummaryInFlight.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
+  }
   
   const summaryRef = doc(db, `users/${userId}/monthlySummaries`, summaryId);
   
-  try {
-    const summaryDoc = await getDoc(summaryRef);
-    if (summaryDoc.exists()) {
-      const data = summaryDoc.data();
-      const result: MonthlySummary = {
-        id: summaryDoc.id,
-        userId: data.userId,
-        year: data.year,
-        month: data.month,
-        categoryTotals: data.categoryTotals || {},
-        totalSpent: data.totalSpent || 0,
-        lastUpdated: data.lastUpdated?.toDate?.() || new Date()
-      };
-      monthlySummaryCache.set(cacheKey, result);
-      return result;
+  const request = (async () => {
+    try {
+      const summaryDoc = await getDoc(summaryRef);
+      if (summaryDoc.exists()) {
+        const data = summaryDoc.data();
+        const result: MonthlySummary = {
+          id: summaryDoc.id,
+          userId: data.userId,
+          year: data.year,
+          month: data.month,
+          categoryTotals: data.categoryTotals || {},
+          totalSpent: data.totalSpent || 0,
+          lastUpdated: data.lastUpdated?.toDate?.() || new Date()
+        };
+        monthlySummaryCache.set(cacheKey, result);
+        return result;
+      }
+      monthlySummaryCache.set(cacheKey, null);
+      return null;
+    } catch (error) {
+      console.error('Error fetching monthly summary:', error);
+      return null;
     }
-    monthlySummaryCache.set(cacheKey, null);
-    return null;
-  } catch (error) {
-    console.error('Error fetching monthly summary:', error);
-    return null;
+  })();
+
+  monthlySummaryInFlight.set(cacheKey, request);
+
+  try {
+    return await request;
+  } finally {
+    monthlySummaryInFlight.delete(cacheKey);
   }
 };
 
@@ -383,6 +503,64 @@ export const getOptimizedMonthlySummaries = async (
   return summaries;
 };
 
+export const getAllOptimizedMonthlySummaries = async (
+  userId: string
+): Promise<MonthlySummary[]> => {
+  // Return from cache if available (survives component remounts)
+  if (allMonthlySummariesCache.has(userId)) {
+    return allMonthlySummariesCache.get(userId)!;
+  }
+
+  // Deduplicate concurrent requests
+  const inFlight = allMonthlySummariesInFlight.get(userId);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const request = (async () => {
+    try {
+      const summariesRef = collection(db, `users/${userId}/monthlySummaries`);
+      const snapshot = await getDocs(summariesRef);
+      const summaries: MonthlySummary[] = [];
+
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        const result: MonthlySummary = {
+          id: docSnap.id,
+          userId: data.userId,
+          year: data.year,
+          month: data.month,
+          categoryTotals: data.categoryTotals || {},
+          totalSpent: data.totalSpent || 0,
+          lastUpdated: data.lastUpdated?.toDate?.() || new Date()
+        };
+
+        summaries.push(result);
+        monthlySummaryCache.set(`${userId}:${docSnap.id}`, result);
+      });
+
+      const sorted = summaries.sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year;
+        return a.month - b.month;
+      });
+
+      allMonthlySummariesCache.set(userId, sorted);
+      return sorted;
+    } catch (error) {
+      console.error('Error fetching all optimized monthly summaries:', error);
+      return [];
+    }
+  })();
+
+  allMonthlySummariesInFlight.set(userId, request);
+
+  try {
+    return await request;
+  } finally {
+    allMonthlySummariesInFlight.delete(userId);
+  }
+};
+
 /**
  * Get category totals for a specific month using optimized structure (1 read)
  */
@@ -408,7 +586,13 @@ export const getOptimizedCategorySummariesByYear = async (
   userId: string,
   year: number
 ): Promise<Map<string, number>> => {
-  console.log(`[CategorySummary] Loading optimized summaries for year ${year} (12 reads max)`);
+  console.log(`[CategorySummary] Loading optimized summaries for year ${year}`);
+
+  const yearlySummary = await getYearlySummary(userId, year);
+  if (yearlySummary?.categoryTotals) {
+    return new Map(Object.entries(yearlySummary.categoryTotals));
+  }
+
   const categoryTotals = new Map<string, number>();
   const promises: Promise<MonthlySummary | null>[] = [];
   
@@ -426,6 +610,10 @@ export const getOptimizedCategorySummariesByYear = async (
       });
     }
   });
+
+  if (categoryTotals.size > 0) {
+    void saveYearlySummary(userId, year, categoryTotals);
+  }
   
   return categoryTotals;
 };

@@ -8,14 +8,16 @@ import { Settings, EyeOff, ChevronRight } from 'lucide-react';
 interface CategoryListProps {
     categories: Category[];
     selectedCategoryId: string | null;
-    onSelectCategory: (categoryId: string) => void;
+    onSelectCategory: (categoryId: string, section?: 'expense' | 'investment' | 'income') => void;
     spendingByCategory: Record<string, number>;
     investmentSpending?: Record<string, number>;
+    incomeSpending?: Record<string, number>;
     monthlyBudget: MonthlyBudget | null;
     displayMode?: 'flat' | 'grouped';
     viewMode?: 'month' | 'prevMonth' | 'year' | 'prevYear';
     includeTransfer?: boolean;
     includeInvestments?: boolean;
+    includeIncome?: boolean;
 }
 
 const CategoryList: React.FC<CategoryListProps> = ({
@@ -24,11 +26,13 @@ const CategoryList: React.FC<CategoryListProps> = ({
     onSelectCategory,
     spendingByCategory,
     investmentSpending = {},
+    incomeSpending = {},
     monthlyBudget,
     displayMode = 'flat',
     viewMode = 'month',
     includeTransfer = false,
-    includeInvestments = false
+    includeInvestments = false,
+    includeIncome = false
 }) => {
     const theme = useThemeClasses();
 
@@ -36,12 +40,14 @@ const CategoryList: React.FC<CategoryListProps> = ({
     const groupedCategories = useMemo(() => {
         const active: Category[] = [];
         const investments: Category[] = [];
+        const incomeList: Category[] = [];
         const hidden: Category[] = [];
         const system: Category[] = [];
 
         categories.forEach(cat => {
             const hasExpense = (spendingByCategory[cat.id] || 0) > 0;
             const hasInvestment = (investmentSpending[cat.id] || 0) > 0;
+            const hasIncome = (incomeSpending[cat.id] || 0) > 0;
             const isSystem = cat.isSystem || cat.id === 'transfer' || cat.id === 'adjustment';
 
             if (isSystem) {
@@ -49,16 +55,26 @@ const CategoryList: React.FC<CategoryListProps> = ({
                     return; // skip transfer when not included
                 }
                 system.push(cat);
+                // System categories can still appear in income/investment sections
+                if (hasIncome) {
+                    incomeList.push(cat);
+                }
+                if (hasInvestment) {
+                    investments.push(cat);
+                }
             } else {
-                // A category can appear in both sections if it has both expense and investment transactions
+                // A category can appear in multiple sections
                 if (hasExpense) {
                     active.push(cat);
                 }
                 if (hasInvestment) {
                     investments.push(cat);
                 }
-                // If neither, still show in active (for categories with 0 spend)
-                if (!hasExpense && !hasInvestment) {
+                if (hasIncome) {
+                    incomeList.push(cat);
+                }
+                // If nothing at all, still show in active (for categories with 0 spend)
+                if (!hasExpense && !hasInvestment && !hasIncome) {
                     active.push(cat);
                 }
             }
@@ -78,8 +94,15 @@ const CategoryList: React.FC<CategoryListProps> = ({
             return valB - valA;
         });
 
-        return { active, investments, hidden, system };
-    }, [categories, spendingByCategory, investmentSpending, includeTransfer]);
+        // Sort income by amount
+        incomeList.sort((a, b) => {
+            const valA = incomeSpending[a.id] || 0;
+            const valB = incomeSpending[b.id] || 0;
+            return valB - valA;
+        });
+
+        return { active, investments, income: incomeList, hidden, system };
+    }, [categories, spendingByCategory, investmentSpending, incomeSpending, includeTransfer]);
 
     // Build parent-group structures for expenses when in grouped mode
     const expenseGroups = useMemo(() => {
@@ -104,8 +127,12 @@ const CategoryList: React.FC<CategoryListProps> = ({
     }, [displayMode, categories, groupedCategories.active, spendingByCategory]);
 
     // Helper to get total spending for a section
-    const getSectionTotal = (list: Category[], isInvestment: boolean) => {
-        return list.reduce((sum, c) => sum + (isInvestment ? (investmentSpending[c.id] || 0) : (spendingByCategory[c.id] || 0)), 0);
+    const getSectionTotal = (list: Category[], type: 'expense' | 'investment' | 'income') => {
+        return list.reduce((sum, c) => {
+            if (type === 'investment') return sum + (investmentSpending[c.id] || 0);
+            if (type === 'income') return sum + (incomeSpending[c.id] || 0);
+            return sum + (spendingByCategory[c.id] || 0);
+        }, 0);
     };
 
     // In flat view, show active categories along with system categories inline
@@ -127,10 +154,13 @@ const CategoryList: React.FC<CategoryListProps> = ({
     }, [groupedCategories.active, groupedCategories.system, spendingByCategory, categories]);
 
     // Render a single category item
-    const renderCategoryItem = (category: Category, isInvestment = false) => {
-        const spent = isInvestment
-            ? (investmentSpending[category.id] || 0)
-            : (spendingByCategory[category.id] || 0);
+    const renderCategoryItem = (category: Category, isInvestment = false, isIncome = false) => {
+        const section: 'expense' | 'investment' | 'income' = isIncome ? 'income' : isInvestment ? 'investment' : 'expense';
+        const spent = isIncome
+            ? (incomeSpending[category.id] || 0)
+            : isInvestment
+                ? (investmentSpending[category.id] || 0)
+                : (spendingByCategory[category.id] || 0);
 
         const baseMonthlyBudget = !isInvestment
             ? (category.budget !== undefined
@@ -150,7 +180,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
         return (
             <button
                 key={category.id}
-                onClick={() => onSelectCategory(category.id)}
+                onClick={() => onSelectCategory(category.id, section)}
                 className={cn(
                     'w-full text-left px-3 py-2 rounded-lg mb-1 transition-colors flex items-center justify-between group',
                     isSelected
@@ -216,10 +246,24 @@ const CategoryList: React.FC<CategoryListProps> = ({
                                 Investments
                             </h3>
                             <span className="text-xs font-medium text-purple-600 dark:text-purple-400">
-                                {formatCurrency(getSectionTotal(groupedCategories.investments, true))}
+                                {formatCurrency(getSectionTotal(groupedCategories.investments, 'investment'))}
                             </span>
                         </div>
                         {groupedCategories.investments.map(c => renderCategoryItem(c, true))}
+                    </section>
+                )}
+
+                {includeIncome && groupedCategories.income.length > 0 && (
+                    <section>
+                        <div className="flex items-center justify-between mb-2 px-2">
+                            <h3 className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider">
+                                Income
+                            </h3>
+                            <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                                {formatCurrency(getSectionTotal(groupedCategories.income, 'income'))}
+                            </span>
+                        </div>
+                        {groupedCategories.income.map(c => renderCategoryItem(c, false, true))}
                     </section>
                 )}
 
@@ -230,7 +274,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
                             Expenses
                         </h3>
                         <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                            Total: {formatCurrency(getSectionTotal(groupedCategories.active, false))}
+                            Total: {formatCurrency(getSectionTotal(groupedCategories.active, 'expense'))}
                         </span>
                     </div>
                     {displayMode === 'grouped' ? (
@@ -270,7 +314,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
                                 <Settings className="w-3 h-3" /> System
                             </h3>
                             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                {formatCurrency(getSectionTotal(groupedCategories.system, false))}
+                                {formatCurrency(getSectionTotal(groupedCategories.system, 'expense'))}
                             </span>
                         </div>
                         {groupedCategories.system.map(c => renderCategoryItem(c, false))}
@@ -285,7 +329,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
                                 <EyeOff className="w-3 h-3" /> Hidden
                             </h3>
                             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                {formatCurrency(getSectionTotal(groupedCategories.hidden, false))}
+                                {formatCurrency(getSectionTotal(groupedCategories.hidden, 'expense'))}
                             </span>
                         </div>
                         {groupedCategories.hidden.map(c => renderCategoryItem(c, false))}

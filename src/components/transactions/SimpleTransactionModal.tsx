@@ -121,7 +121,6 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
   const [historyCursor, setHistoryCursor] = useState<{ date: string; id: string } | undefined>(undefined);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [useFallbackScan, setUseFallbackScan] = useState(false);
   const previousMerchantKeyRef = useRef<string>('');
 
   const allSimilarTransactions = useMemo(() => {
@@ -171,7 +170,6 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
       setHistoryCursor(undefined);
       setHasMoreHistory(true);
       setSelectedIds(new Set());
-      setUseFallbackScan(false);
     }
 
     previousMerchantKeyRef.current = normalizedCurrentMerchant;
@@ -218,9 +216,9 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
 
     setIsLoadingMore(true);
     try {
-      const PAGE_SIZE = 120;
+      const PAGE_SIZE = 30;
       const TARGET_NEW_MATCHES = 20;
-      const MAX_PAGES_PER_CLICK = 8;
+      const MAX_PAGES_PER_CLICK = 3;
 
       let cursor = historyCursor;
       let canContinue: boolean = hasMoreHistory;
@@ -234,15 +232,10 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
       const newlyMatched: Transaction[] = [];
 
       while (canContinue && pagesScanned < MAX_PAGES_PER_CLICK && added < TARGET_NEW_MATCHES) {
-        const page = !useFallbackScan
-          ? await FirebaseService.getTransactionsByMerchantKeyPage(user.id, currentMerchantKey, {
-              pageSize: PAGE_SIZE,
-              cursor
-            })
-          : await FirebaseService.getTransactionsPage(user.id, {
-              pageSize: 500,
-              cursor
-            });
+        const page = await FirebaseService.getTransactionsByMerchantKeyPage(user.id, currentMerchantKey, {
+          pageSize: PAGE_SIZE,
+          cursor
+        });
 
         pagesScanned += 1;
         cursor = page.nextCursor;
@@ -250,11 +243,6 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
 
         page.transactions
           .filter(t => !t.isSplitParent)
-          .filter(t =>
-            useFallbackScan
-              ? normalizeMerchant(extractMerchant(t.description)) === normalizedCurrentMerchant
-              : true
-          )
           .forEach(t => {
             if (!knownIds.has(t.id)) {
               knownIds.add(t.id);
@@ -270,9 +258,10 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
       setHistoryCursor(cursor);
       setHasMoreHistory(canContinue);
     } catch (error) {
-      if (!useFallbackScan) {
-        console.warn('Indexed merchant-key query failed, falling back to scan mode for similar transactions.', error);
-        setUseFallbackScan(true);
+      const errorMessage = String((error as any)?.message || error || '');
+      if (errorMessage.toLowerCase().includes('requires an index')) {
+        setHasMoreHistory(false);
+        console.error('Similar-transactions query requires a Firestore index. Deploy firestore indexes to enable historical pagination.', error);
       } else {
         console.error('Failed to load more similar transactions:', error);
       }
