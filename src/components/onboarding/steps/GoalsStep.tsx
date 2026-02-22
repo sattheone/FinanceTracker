@@ -5,7 +5,7 @@ import { Goal } from '../../../types';
 import { formatCurrency } from '../../../utils/formatters';
 
 const GoalsStep: React.FC = () => {
-  const { goals, addGoal, deleteGoal, userProfile } = useData();
+  const { goals, addGoal, deleteGoal } = useData();
   const [showAddForm, setShowAddForm] = useState(false);
   const [newGoal, setNewGoal] = useState({
     name: '',
@@ -67,30 +67,6 @@ const GoalsStep: React.FC = () => {
   const totalGoalValue = goals.reduce((sum, goal) => sum + goal.targetAmount, 0);
   const totalCurrentValue = goals.reduce((sum, goal) => sum + goal.currentAmount, 0);
   const totalMonthlySIP = goals.reduce((sum, goal) => sum + goal.monthlyContribution, 0);
-
-  // Auto-suggest retirement goal based on user profile
-  const suggestRetirementGoal = () => {
-    if (!userProfile?.financialInfo) return;
-
-    const { currentAge, retirementAge, monthlyExpenses } = userProfile.financialInfo;
-    const yearsToRetirement = retirementAge - currentAge;
-
-    if (yearsToRetirement > 0) {
-      // Estimate retirement corpus needed (25x annual expenses, inflated)
-      const inflatedAnnualExpenses = monthlyExpenses * 12 * Math.pow(1.06, yearsToRetirement);
-      const requiredCorpus = inflatedAnnualExpenses * 25;
-
-      setNewGoal({
-        name: 'Retirement Fund',
-        targetAmount: Math.round(requiredCorpus),
-        currentAmount: 0,
-        targetDate: new Date(new Date().getFullYear() + yearsToRetirement, new Date().getMonth(), new Date().getDate()).toISOString().split('T')[0],
-        monthlyContribution: 0,
-        category: 'retirement',
-      });
-      setShowAddForm(true);
-    }
-  };
 
   return (
     <div className="space-y-6">

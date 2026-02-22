@@ -155,6 +155,7 @@ const Settings: React.FC = () => {
         name: settings.name,
         email: settings.email,
         phone: settings.phone,
+        dateOfBirth: userProfile?.personalInfo?.dateOfBirth || '',
       }
     });
   };
