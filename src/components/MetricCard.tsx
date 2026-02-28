@@ -46,25 +46,25 @@ const MetricCard: React.FC<MetricCardProps> = ({
   return (
     <div className="metric-card relative group cursor-help">
       {tooltipContent && (
-        <div className="absolute z-50 invisible group-hover:visible bg-gray-900 text-white text-xs rounded-lg py-2 px-3 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 shadow-lg pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <div className="absolute z-50 invisible group-hover:visible text-white text-xs rounded-xl py-2 px-3 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-52 shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ backgroundColor: 'var(--color-gray-900, #111)' }}>
           {tooltipContent}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent" style={{ borderTopColor: 'var(--color-gray-900, #111)' }}></div>
         </div>
       )}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-200 dark:text-gray-200 truncate">{title}</p>
-          <p className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white dark:text-gray-100 mt-1 truncate">
+          <p className="text-xs font-medium truncate" style={{ color: 'var(--color-text-secondary)' }}>{title}</p>
+          <p className="text-lg sm:text-xl font-bold mt-0.5 truncate" style={{ color: 'var(--color-text-primary)' }}>
             {formatValue(value)}
           </p>
           {trend && (
-            <p className={`text-xs sm:text-sm mt-1 font-medium ${trend.isPositive ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+            <p className="text-xs mt-0.5 font-medium" style={{ color: trend.isPositive ? 'var(--color-success)' : 'var(--color-error)' }}>
               {trend.isPositive ? '+' : ''}{trend.value.toFixed(1)}%
             </p>
           )}
         </div>
-        <div className={`p-2 sm:p-3 rounded-full flex-shrink-0 ml-2 ${colorClasses[color]}`}>
-          <Icon className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
+        <div className={`p-2 rounded-xl flex-shrink-0 ${colorClasses[color]}`}>
+          <Icon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
         </div>
       </div>
     </div>

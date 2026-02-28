@@ -216,11 +216,11 @@ const Dashboard: React.FC = () => {
   ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <header>
-        <h1 className={theme.heading1}>Financial Dashboard</h1>
-        <p className={cn(theme.textSecondary, 'mt-1')}>
+        <h1 className={cn(theme.heading2, 'text-xl sm:text-2xl')}>Dashboard</h1>
+        <p className={cn(theme.textSecondary, 'mt-0.5 text-sm')}>
           Overview of your financial health
         </p>
       </header>
@@ -228,7 +228,7 @@ const Dashboard: React.FC = () => {
       {/* Key Metrics */}
       <section aria-labelledby="key-metrics-heading">
         <h2 id="key-metrics-heading" className="sr-only">Key Financial Metrics</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <MetricCard
             title="Net Worth"
             value={netWorth}
@@ -305,81 +305,81 @@ const Dashboard: React.FC = () => {
       </section>
 
       {/* Enhanced Current Month Cash Flow */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
               Account Overview
             </h3>
             <button
               onClick={() => navigate('/transactions')}
-              className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
+              className="flex items-center text-sm theme-text-secondary hover:theme-text-primary"
             >
               View Transactions
               <ArrowRight className="w-4 h-4 ml-1" />
             </button>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex justify-between items-center p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
+          <div className="space-y-3">
+            <div className="flex justify-between items-center p-3 rounded-xl border" style={{ backgroundColor: 'var(--color-info-bg)', borderColor: 'var(--color-info-border)' }}>
               <div>
-                <span className="text-sm text-gray-700 dark:text-gray-200 dark:text-gray-200">Current Balance</span>
-                <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Current Balance</span>
+                <p className="text-xl font-bold" style={{ color: 'var(--color-info)' }}>
                   {formatCurrency(totalAccountBalance)}
                 </p>
-                <p className="text-xs text-gray-600 dark:text-gray-300 dark:text-gray-300 mt-1">
+                <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
                   Across {bankAccounts.length} account{bankAccounts.length !== 1 ? 's' : ''}
                 </p>
               </div>
-              <Wallet className="h-12 w-12 text-blue-600 dark:text-blue-400 dark:text-blue-300" aria-hidden="true" />
+              <Wallet className="h-9 w-9 flex-shrink-0" style={{ color: 'var(--color-info)' }} aria-hidden="true" />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-4 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-700">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="p-3 rounded-xl border" style={{ backgroundColor: 'var(--color-success-bg)', borderColor: 'var(--color-success-border)' }}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm text-gray-700 dark:text-gray-200 dark:text-gray-200">{periodLabel} Income</span>
-                    <p className="text-xl font-bold text-green-700 dark:text-green-300">
+                    <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{periodLabel} Income</span>
+                    <p className="text-lg font-bold" style={{ color: 'var(--color-success)' }}>
                       +{formatCurrency(currentMonthIncome)}
                     </p>
                   </div>
-                  <TrendingUp className="h-8 w-8 text-green-600 dark:text-green-400 dark:text-green-300" aria-hidden="true" />
+                  <TrendingUp className="h-6 w-6 flex-shrink-0" style={{ color: 'var(--color-success)' }} aria-hidden="true" />
                 </div>
               </div>
 
-              <div className="p-4 bg-red-50 dark:bg-red-900/30 rounded-lg border border-red-200 dark:border-red-700">
+              <div className="p-3 rounded-xl border" style={{ backgroundColor: 'var(--color-error-bg)', borderColor: 'var(--color-error-border)' }}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm text-gray-700 dark:text-gray-200 dark:text-gray-200">{periodLabel} Expenses</span>
-                    <p className="text-xl font-bold text-red-700 dark:text-red-300">
+                    <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{periodLabel} Expenses</span>
+                    <p className="text-lg font-bold" style={{ color: 'var(--color-error)' }}>
                       -{formatCurrency(currentMonthExpenses)}
                     </p>
                   </div>
-                  <TrendingUp className="h-8 w-8 text-red-600 dark:text-red-400 dark:text-red-300 transform rotate-180" aria-hidden="true" />
+                  <TrendingUp className="h-6 w-6 flex-shrink-0 rotate-180" style={{ color: 'var(--color-error)' }} aria-hidden="true" />
                 </div>
               </div>
 
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
+              <div className="p-3 rounded-xl border" style={{ backgroundColor: 'var(--color-info-bg)', borderColor: 'var(--color-info-border)' }}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm text-gray-700 dark:text-gray-200 dark:text-gray-200">{periodLabel} Investments</span>
-                    <p className="text-xl font-bold text-blue-700 dark:text-blue-300">
+                    <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{periodLabel} Investments</span>
+                    <p className="text-lg font-bold" style={{ color: 'var(--color-info)' }}>
                       -{formatCurrency(currentMonthInvestments)}
                     </p>
                   </div>
-                  <TrendingUp className="h-8 w-8 text-blue-600 dark:text-blue-400 dark:text-blue-300 transform rotate-180" aria-hidden="true" />
+                  <TrendingUp className="h-6 w-6 flex-shrink-0 rotate-180" style={{ color: 'var(--color-info)' }} aria-hidden="true" />
                 </div>
               </div>
             </div>
 
-            <div className="p-4 bg-gray-50 dark:bg-gray-700 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 dark:border-gray-600">
+            <div className="p-3 rounded-xl border" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-primary)' }}>
               <div className="flex justify-between items-center">
-                <span className="text-gray-700 dark:text-gray-200 dark:text-gray-200">Net Cash Flow {periodLabel}</span>
-                <span className={`text-xl font-bold ${currentMonthSurplus >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+                <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Net Cash Flow {periodLabel}</span>
+                <span className="text-lg font-bold" style={{ color: currentMonthSurplus >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
                   {currentMonthSurplus >= 0 ? '+' : ''}{formatCurrency(currentMonthSurplus)}
                 </span>
               </div>
-              <div className="mt-2 text-xs text-gray-600 dark:text-gray-300 dark:text-gray-300">
+              <div className="mt-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
                 {currentMonthTransactions.length} transactions in {periodMonthLabel}
               </div>
             </div>
@@ -389,30 +389,28 @@ const Dashboard: React.FC = () => {
         {/* Top Expense Categories */}
         <div className="card">
           <div className="flex items-center justify-between mb-1">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
+            <h3 className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
               Top Expenses
             </h3>
 
             {/* Timeline Switcher */}
-            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <div className="flex rounded-lg p-0.5" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
               {(['1M', '6M', '1Y'] as const).map((range) => (
                 <button
                   key={range}
                   onClick={() => setExpenseTimeRange(range)}
-                  className={`
-                    px-3 py-1 text-xs font-medium rounded-md transition-all
-                    ${expenseTimeRange === range
-                      ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                    }
-                  `}
+                  className="px-2.5 py-1 text-xs font-medium rounded-md transition-all"
+                  style={expenseTimeRange === range
+                    ? { backgroundColor: 'var(--color-card-bg)', color: 'var(--color-text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }
+                    : { color: 'var(--color-text-tertiary)' }
+                  }
                 >
                   {range}
                 </button>
               ))}
             </div>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          <p className="text-xs mb-3" style={{ color: 'var(--color-text-tertiary)' }}>
             {expenseRangeLabel}
           </p>
 
@@ -431,7 +429,7 @@ const Dashboard: React.FC = () => {
                     <div className="flex justify-between text-sm">
                       <button
                         onClick={() => navigate(`/transactions?category=${encodeURIComponent(categoryId)}`)}
-                        className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:text-blue-400 text-left capitalize truncate max-w-[150px]"
+                        className="theme-text-secondary hover:theme-text-primary text-left capitalize truncate max-w-[150px]"
                         title={categoryName}
                       >
                         {categoryName}
@@ -440,10 +438,10 @@ const Dashboard: React.FC = () => {
                         {formatCurrency(amount)} <span className="text-xs text-gray-400">({percentage.toFixed(0)}%)</span>
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                    <div className="w-full rounded-full h-1.5" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
                       <div
-                        className="bg-red-500 h-1.5 rounded-full transition-all duration-300"
-                        style={{ width: `${percentage}%` }}
+                        className="h-1.5 rounded-full transition-all duration-300"
+                        style={{ width: `${percentage}%`, backgroundColor: 'var(--color-error)' }}
                       ></div>
                     </div>
                   </div>
@@ -459,10 +457,10 @@ const Dashboard: React.FC = () => {
             )}
 
             {/* Footer Link */}
-            <div className="pt-2 mt-2 border-t border-gray-100 dark:border-gray-700 text-center">
+            <div className="pt-2 mt-2 border-t text-center" style={{ borderColor: 'var(--color-border-primary)' }}>
               <button
                 onClick={() => navigate('/transactions')}
-                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 flex items-center justify-center mx-auto"
+              className="text-xs theme-text-secondary hover:theme-text-primary flex items-center justify-center mx-auto"
               >
                 View All Transactions <ArrowRight className="w-3 h-3 ml-1" />
               </button>
@@ -472,15 +470,15 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Asset Allocation & Liabilities Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
               Asset Allocation
             </h3>
             <button
               onClick={() => navigate('/assets')}
-              className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
+                className="flex items-center text-sm theme-text-secondary hover:theme-text-primary"
             >
               View All
               <ArrowRight className="w-4 h-4 ml-1" />
@@ -496,22 +494,22 @@ const Dashboard: React.FC = () => {
                 return (
                   <div key={asset.id} className="space-y-1">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-300 truncate max-w-[150px]" title={asset.name}>{asset.name}</span>
+                      <span className="truncate max-w-[150px] text-sm" style={{ color: 'var(--color-text-secondary)' }} title={asset.name}>{asset.name}</span>
                       <span className="font-medium whitespace-nowrap">
                         {formatLargeNumber(val)} ({percentage.toFixed(1)}%)
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div className="w-full rounded-full h-1.5" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
                       <div
-                        className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full"
-                        style={{ width: `${percentage}%` }}
+                        className="h-1.5 rounded-full"
+                        style={{ width: `${percentage}%`, backgroundColor: 'var(--color-accent-primary)' }}
                       ></div>
                     </div>
                   </div>
                 );
               })}
             {assets.length === 0 && (
-              <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+              <div className="text-center py-4" style={{ color: 'var(--color-text-tertiary)' }}>
                 <p>No assets added yet</p>
               </div>
             )}
@@ -519,13 +517,13 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibent text-gray-900 dark:text-white dark:text-white">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
               Liabilities Overview
             </h3>
             <button
               onClick={() => navigate('/liabilities')}
-              className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
+              className="flex items-center text-sm theme-text-secondary hover:theme-text-primary"
             >
               View All
               <ArrowRight className="w-4 h-4 ml-1" />
@@ -553,19 +551,19 @@ const Dashboard: React.FC = () => {
                   <div className="flex justify-between text-sm">
                     <div className="flex items-center">
                       <span className="mr-2">{getLiabilityIcon(liability.type)}</span>
-                      <span className="text-gray-600 dark:text-gray-300">{liability.name}</span>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>{liability.name}</span>
                     </div>
-                    <span className="font-medium text-red-600 dark:text-red-400">
+                    <span className="font-medium" style={{ color: 'var(--color-error)' }}>
                       {formatLargeNumber(liability.currentBalance)}
                     </span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="w-full rounded-full h-1.5" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
                     <div
-                      className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full"
-                      style={{ width: `${progress}%` }}
+                      className="h-1.5 rounded-full"
+                      style={{ width: `${progress}%`, background: 'linear-gradient(to right, var(--color-success), var(--color-info))' }}
                     ></div>
                   </div>
-                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                  <div className="flex justify-between text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
                     <span>Paid: {progress.toFixed(1)}%</span>
                     <span>EMI: {formatCurrency(liability.emiAmount)}</span>
                   </div>
@@ -573,11 +571,11 @@ const Dashboard: React.FC = () => {
               );
             })}
             {liabilities.length === 0 && (
-              <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+              <div className="text-center py-4" style={{ color: 'var(--color-text-tertiary)' }}>
                 <p>No liabilities added yet</p>
                 <button
                   onClick={() => navigate('/liabilities')}
-                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 text-sm mt-2"
+                  className="theme-text-secondary hover:theme-text-primary text-sm mt-2"
                 >
                   Add your first liability
                 </button>
@@ -589,13 +587,13 @@ const Dashboard: React.FC = () => {
 
       {/* Goals Progress */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white dark:text-white">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>
             Financial Goals Progress
           </h3>
           <button
             onClick={() => navigate('/goals')}
-            className="flex items-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800"
+            className="flex items-center text-sm theme-text-secondary hover:theme-text-primary"
           >
             Manage Goals
             <ArrowRight className="w-4 h-4 ml-1" />
@@ -612,21 +610,19 @@ const Dashboard: React.FC = () => {
             />
           )) : (
             <div className="text-center py-8">
-              <div className="text-gray-400 mb-2">
-                <Target className="h-12 w-12 mx-auto" />
-              </div>
-              <p className="text-gray-500 dark:text-gray-400">No financial goals set</p>
-              <p className="text-sm text-gray-400 mt-1">
+              <Target className="h-10 w-10 mx-auto mb-2" style={{ color: 'var(--color-text-muted)' }} />
+              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>No financial goals set</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
                 Add your first financial goal to start tracking progress
               </p>
             </div>
           )}
 
           {goals.length > 3 && (
-            <div className="text-center pt-4 border-t border-gray-200 dark:border-gray-600 dark:border-gray-600">
+            <div className="text-center pt-3 border-t" style={{ borderColor: 'var(--color-border-primary)' }}>
               <button
                 onClick={() => navigate('/goals')}
-                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 text-sm font-medium"
+                className="theme-text-secondary hover:theme-text-primary text-sm font-medium"
               >
                 View all {goals.length} goals →
               </button>
@@ -635,20 +631,16 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Bills & Recurring Transactions */}
-      <div className="grid grid-cols-1 gap-6">
-
-
-        {/* Active Recurring Transactions */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-              <Calendar className="h-5 w-5 mr-2" />
+      {/* Recurring Transactions */}
+      <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+              <Calendar className="h-4 w-4" />
               Recurring Transactions
             </h3>
             <button
               onClick={() => navigate('/recurring')}
-              className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center"
+              className="theme-text-secondary hover:theme-text-primary text-sm font-medium flex items-center"
             >
               Manage
               <ArrowRight className="h-4 w-4 ml-1" />
@@ -657,57 +649,56 @@ const Dashboard: React.FC = () => {
 
           {activeRecurringTransactions.length === 0 ? (
             <div className="text-center py-6">
-              <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-              <p className="text-gray-500 dark:text-gray-400">No recurring transactions</p>
+              <Calendar className="h-10 w-10 mx-auto mb-2" style={{ color: 'var(--color-text-muted)' }} />
+              <p style={{ color: 'var(--color-text-tertiary)' }}>No recurring transactions</p>
               <button
                 onClick={() => navigate('/recurring')}
-                className="text-blue-600 hover:text-blue-700 text-sm mt-2"
+                className="theme-text-secondary hover:theme-text-primary text-sm mt-2"
               >
                 Set up recurring payments
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {activeRecurringTransactions.slice(0, 3).map(rt => (
-                <div key={rt.id} className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <div key={rt.id} className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
                   <div>
-                    <p className="font-medium text-gray-900 dark:text-white">{rt.name}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>{rt.name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
                       {rt.frequency} • Next: {formatDate(rt.nextDueDate)}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className={`font-bold ${rt.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    <p className="font-bold text-sm" style={{ color: rt.type === 'income' ? 'var(--color-success)' : 'var(--color-error)' }}>
                       {rt.type === 'income' ? '+' : '-'}{formatCurrency(rt.amount)}
                     </p>
                   </div>
                 </div>
               ))}
               {activeRecurringTransactions.length > 3 && (
-                <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-center text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
                   +{activeRecurringTransactions.length - 3} more recurring transactions
                 </p>
               )}
             </div>
           )}
-        </div>
       </div>
 
       {/* Upcoming Events */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-          <Calendar className="h-5 w-5 mr-2" />
+        <h3 className="text-base font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+          <Calendar className="h-4 w-4" />
           Upcoming Financial Events
         </h3>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {upcomingEvents.length > 0 ? (
             upcomingEvents.map((event, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <div key={index} className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
                 <div className="flex items-center">
-                  <AlertCircle className="h-4 w-4 text-blue-500 mr-3" />
+                  <AlertCircle className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--color-highlight)' }} />
                   <div>
-                    <p className="font-medium text-gray-900 dark:text-white dark:text-white">{event.event}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                    <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>{event.event}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
                       {new Date(event.date).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'long'
@@ -716,30 +707,22 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
                 {event.amount > 0 && (
-                  <span className="font-semibold text-green-600 dark:text-green-400">
+                  <span className="text-sm font-semibold" style={{ color: 'var(--color-success)' }}>
                     +{formatLargeNumber(event.amount)}
                   </span>
                 )}
               </div>
             ))
           ) : (
-            <div className="text-center py-8">
-              <div className="text-gray-400 mb-2">
-                <Calendar className="h-12 w-12 mx-auto" />
-              </div>
-              <p className="text-gray-500 dark:text-gray-400">No upcoming financial events</p>
-              <p className="text-sm text-gray-400 mt-1">
-                Add insurance policies or goals with target dates to see upcoming events
-              </p>
+            <div className="text-center py-6">
+              <Calendar className="h-10 w-10 mx-auto mb-2" style={{ color: 'var(--color-text-muted)' }} />
+              <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>No upcoming financial events</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Smart Alerts - High Priority */}
-      <SmartAlertsWidget />
-
-      {/* Smart Alerts - High Priority */}
+      {/* Smart Alerts */}
       <SmartAlertsWidget />
 
       {/* Mint-like Spending Insights */}

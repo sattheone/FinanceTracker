@@ -60,8 +60,8 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Create Account</h2>
-        <p className="text-gray-600 dark:text-gray-300 mt-2">Start tracking your financial journey</p>
+        <h2 className="text-3xl font-bold font-serif" style={{ color: 'var(--color-text-primary)' }}>Create Account</h2>
+        <p className="mt-2" style={{ color: 'var(--color-text-secondary)' }}>Start tracking your financial journey</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -72,18 +72,19 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
         )}
 
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label htmlFor="name" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
             Full Name
           </label>
           <div className="relative">
-            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5" style={{ color: 'var(--color-text-muted)' }} />
             <input
               id="name"
               name="name"
               type="text"
               value={formData.name}
               onChange={handleChange}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+              className="w-full pl-10 pr-3 py-2 rounded-xl outline-none transition-colors"
+              style={{ backgroundColor: 'var(--color-bg-primary)', border: '1px solid var(--color-border-primary)', color: 'var(--color-text-primary)' }}
               placeholder="Enter your full name"
               required
             />
@@ -91,18 +92,19 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
         </div>
 
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label htmlFor="email" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
             Email Address
           </label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5" style={{ color: 'var(--color-text-muted)' }} />
             <input
               id="email"
               name="email"
               type="email"
               value={formData.email}
               onChange={handleChange}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+              className="w-full pl-10 pr-3 py-2 rounded-xl outline-none transition-colors"
+              style={{ backgroundColor: 'var(--color-bg-primary)', border: '1px solid var(--color-border-primary)', color: 'var(--color-text-primary)' }}
               placeholder="Enter your email"
               required
             />
@@ -110,25 +112,27 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label htmlFor="password" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
             Password
           </label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5" style={{ color: 'var(--color-text-muted)' }} />
             <input
               id="password"
               name="password"
               type={showPassword ? 'text' : 'password'}
               value={formData.password}
               onChange={handleChange}
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+              className="w-full pl-10 pr-10 py-2 rounded-xl outline-none transition-colors"
+              style={{ backgroundColor: 'var(--color-bg-primary)', border: '1px solid var(--color-border-primary)', color: 'var(--color-text-primary)' }}
               placeholder="Create a password"
               required
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-300"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2"
+              style={{ color: 'var(--color-text-muted)' }}
             >
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
@@ -136,25 +140,27 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
         </div>
 
         <div>
-          <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          <label htmlFor="confirmPassword" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
             Confirm Password
           </label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5" style={{ color: 'var(--color-text-muted)' }} />
             <input
               id="confirmPassword"
               name="confirmPassword"
               type={showConfirmPassword ? 'text' : 'password'}
               value={formData.confirmPassword}
               onChange={handleChange}
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+              className="w-full pl-10 pr-10 py-2 rounded-xl outline-none transition-colors"
+              style={{ backgroundColor: 'var(--color-bg-primary)', border: '1px solid var(--color-border-primary)', color: 'var(--color-text-primary)' }}
               placeholder="Confirm your password"
               required
             />
             <button
               type="button"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-300"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2"
+              style={{ color: 'var(--color-text-muted)' }}
             >
               {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
@@ -171,11 +177,12 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onToggleMode }) => {
       </form>
 
       <div className="mt-6 text-center">
-        <p className="text-gray-600 dark:text-gray-300">
+        <p style={{ color: 'var(--color-text-secondary)' }}>
           Already have an account?{' '}
           <button
             onClick={onToggleMode}
-            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+            className="font-medium underline underline-offset-2"
+            style={{ color: 'var(--color-text-primary)' }}
           >
             Sign in
           </button>

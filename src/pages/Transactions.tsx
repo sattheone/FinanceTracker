@@ -1136,31 +1136,34 @@ const Transactions: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-700 dark:bg-gray-900 m-0 lg:-m-6 overflow-x-hidden">
+    <div className="h-full theme-bg-primary flex flex-col overflow-hidden">
       {/* Compact Top Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 px-4 sm:px-6 py-2">
+      <div className="border-b px-4 sm:px-6 py-2 flex-shrink-0" style={{ backgroundColor: 'var(--color-card-bg)', borderColor: 'var(--color-border-primary)' }}>
         <div className="grid grid-cols-1 gap-y-3 md:grid-cols-3 items-center">
           {/* Left: Account Dropdown */}
           <div className="relative" ref={accountDropdownRef}>
             <button
               onClick={() => setShowAccountDropdown(!showAccountDropdown)}
-              className="flex items-center gap-1 text-base sm:text-lg font-semibold text-gray-900 dark:text-white cursor-pointer focus:outline-none"
+              className="flex items-center gap-1 text-base sm:text-lg font-semibold cursor-pointer focus:outline-none"
+              style={{ color: 'var(--color-text-primary)' }}
             >
               <span>{getSelectedAccountText()}</span>
               <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${showAccountDropdown ? 'rotate-180' : ''}`} />
             </button>
 
             {showAccountDropdown && (
-              <div className="absolute left-0 mt-2 w-[min(220px,calc(100vw-2rem))] bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+              <div className="absolute left-0 mt-1.5 w-[min(220px,calc(100vw-2rem))] popup-surface rounded-xl py-1 z-50"
+                style={{ backgroundColor: 'var(--color-card-bg)', borderColor: 'var(--color-border-primary)' }}>
                 {bankAccounts.length > 1 && (
                   <button
                     onClick={() => {
                       setSelectedAccount('all_accounts');
                       setShowAccountDropdown(false);
                     }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${selectedAccount === 'all_accounts'
-                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
-                      : 'text-gray-700 dark:text-gray-200'
+                    className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                      selectedAccount === 'all_accounts'
+                        ? '[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)] font-medium'
+                        : 'hover:[background-color:var(--color-bg-secondary)] [color:var(--color-text-secondary)]'
                       }`}
                   >
                     All Accounts
@@ -1173,9 +1176,10 @@ const Transactions: React.FC = () => {
                       setSelectedAccount(account.id);
                       setShowAccountDropdown(false);
                     }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${selectedAccount === account.id
-                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
-                      : 'text-gray-700 dark:text-gray-200'
+                    className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
+                      selectedAccount === account.id
+                        ? '[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)] font-medium'
+                        : 'hover:[background-color:var(--color-bg-secondary)] [color:var(--color-text-secondary)]'
                       }`}
                   >
                     {account.bank} (...{account.number.slice(-4)})
@@ -1188,18 +1192,24 @@ const Transactions: React.FC = () => {
           <div className="flex items-center justify-between gap-2 min-w-0 md:contents">
           {/* Center: Segmented Tabs */}
           <div className="flex justify-start md:justify-center min-w-0">
-            <div className="bg-gray-100 dark:bg-gray-700 rounded-full p-1 flex gap-1 shrink-0">
+            <div className="rounded-full p-1 flex gap-1 shrink-0" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
               <button
                 onClick={() => setActiveTab('transactions')}
-                className={`px-2.5 sm:px-3 py-1.5 text-sm rounded-full transition-colors ${activeTab === 'transactions' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'
-                  }`}
+                className="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm rounded-full transition-colors"
+                style={activeTab === 'transactions'
+                  ? { backgroundColor: 'var(--color-card-bg)', color: 'var(--color-text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }
+                  : { color: 'var(--color-text-secondary)' }
+                }
               >
                 Transactions
               </button>
               <button
                 onClick={() => setActiveTab('summary')}
-                className={`px-2.5 sm:px-3 py-1.5 text-sm rounded-full transition-colors ${activeTab === 'summary' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'
-                  }`}
+                className="px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm rounded-full transition-colors"
+                style={activeTab === 'summary'
+                  ? { backgroundColor: 'var(--color-card-bg)', color: 'var(--color-text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }
+                  : { color: 'var(--color-text-secondary)' }
+                }
               >
                 Summary
               </button>
@@ -1252,20 +1262,22 @@ const Transactions: React.FC = () => {
             <div className="relative" ref={moreMenuRef}>
               <button
                 onClick={() => setShowMoreMenu(!showMoreMenu)}
-                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="p-2 rounded-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center hover:[background-color:var(--color-bg-secondary)]"
+              style={{ color: 'var(--color-text-secondary)' }}
               >
                 <MoreVertical className="h-5 w-5" />
               </button>
               {showMoreMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+                <div className="absolute right-0 mt-1.5 w-48 popup-surface rounded-xl py-1 z-50"
+                  style={{ backgroundColor: 'var(--color-card-bg)', borderColor: 'var(--color-border-primary)' }}>
                   <button
                     onClick={() => {
                       handleAddBankAccount();
                       setShowMoreMenu(false);
                     }}
-                    className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="w-full flex items-center px-3 py-1.5 text-sm transition-colors hover:[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)]"
                   >
-                    <Plus className="h-4 w-4 mr-3 text-gray-500" />
+                    <Plus className="h-4 w-4 mr-2.5" style={{ color: 'var(--color-text-tertiary)' }} />
                     Add Bank Account
                   </button>
                   <button
@@ -1273,9 +1285,9 @@ const Transactions: React.FC = () => {
                       setShowBulkAddModal(true);
                       setShowMoreMenu(false);
                     }}
-                    className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="w-full flex items-center px-3 py-1.5 text-sm transition-colors hover:[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)]"
                   >
-                    <Table className="h-4 w-4 mr-3 text-green-500 flex-shrink-0" />
+                    <Table className="h-4 w-4 mr-2.5 flex-shrink-0" style={{ color: 'var(--color-success)' }} />
                     <span className="whitespace-nowrap">Bulk Add Transactions</span>
                   </button>
                   {currentAccount && selectedAccount !== 'all_accounts' && (
@@ -1285,9 +1297,9 @@ const Transactions: React.FC = () => {
                           handleEditBankAccount(currentAccount);
                           setShowMoreMenu(false);
                         }}
-                        className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        className="w-full flex items-center px-3 py-1.5 text-sm transition-colors hover:[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)]"
                       >
-                        <Edit3 className="h-4 w-4 mr-3 text-blue-500" />
+                        <Edit3 className="h-4 w-4 mr-2.5" style={{ color: 'var(--color-text-tertiary)' }} />
                         Edit Account
                       </button>
                       {bankAccounts.length > 1 && (
@@ -1296,7 +1308,7 @@ const Transactions: React.FC = () => {
                             handleDeleteBankAccount(currentAccount.id);
                             setShowMoreMenu(false);
                           }}
-                          className="w-full flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          className="w-full flex items-center px-3 py-1.5 text-sm transition-colors hover:[background-color:var(--color-error-bg)] text-[color:var(--color-error)]"
                         >
                           <Trash2 className="h-4 w-4 mr-3" />
                           Delete Account
@@ -1312,7 +1324,7 @@ const Transactions: React.FC = () => {
         </div>
       </div>
 
-      <div>
+      <div className="flex-1 overflow-hidden flex flex-col min-h-0">
         {/* Dark Account Balance Card - show only on Summary tab */}
         {activeTab === 'summary' && currentAccount && (
           <div className="bg-gradient-to-r from-gray-900 to-gray-800 p-4 sm:p-6 text-white">
@@ -1342,10 +1354,10 @@ const Transactions: React.FC = () => {
 
 
 
-        <div className="bg-white dark:bg-gray-800">
-          <div className="p-4 sm:p-5">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden p-2 sm:p-3">
             {activeTab === 'summary' ? (
-              <div className="space-y-4 sm:space-y-6">
+              <div className="space-y-4 sm:space-y-6 overflow-y-auto flex-1 min-h-0 pr-1 pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-2">
                 {/* Month/Year Dropdown */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Monthly Overview</h3>
@@ -1714,7 +1726,7 @@ const Transactions: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="flex flex-col gap-4 flex-1 min-h-0 overflow-hidden">
                 {/* Year in Review banner (December only) */}
                 {(() => {
                   const mo = selectedTransactionMonth.split('-')[1];
@@ -1805,7 +1817,7 @@ const Transactions: React.FC = () => {
                     </div>
                   )}
                 {/* Search, Filters, Month */}
-                <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0 shrink-0">
                   <div className="flex-1 min-w-0">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -1868,7 +1880,7 @@ const Transactions: React.FC = () => {
                 </div>
 
                 {/* Transaction Count */}
-                <div className="flex items-center justify-between min-w-0">
+                <div className="flex items-center justify-between min-w-0 shrink-0">
                   <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 flex items-center flex-wrap gap-x-2 gap-y-1 min-w-0 w-full">
                     {(() => {
                       const totalIncome = filteredTransactions
@@ -1921,7 +1933,7 @@ const Transactions: React.FC = () => {
                 </div>
 
                 {/* Transactions List */}
-                <div className="card !p-0 overflow-hidden min-h-[400px]">
+                <div className="card !p-0 overflow-auto flex-1 min-h-0 pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
                   {filteredTransactions.length === 0 ? (
                     <div className="text-center py-12">
                       <div className="text-gray-400 mb-4">
@@ -1996,11 +2008,11 @@ const Transactions: React.FC = () => {
                       />
 
                       {hasMoreTransactions && (
-                        <div className="py-6 flex justify-center items-center">
+                        <div className="py-4 flex justify-center items-center border-t border-gray-200 dark:border-gray-700 shrink-0">
                           <button
                             onClick={loadMoreTransactions}
                             disabled={isLoadingMoreTransactions}
-                            className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                            className="px-8 py-2 theme-bg-secondary theme-text-primary border border-gray-300 dark:border-gray-500 rounded-full hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity flex items-center gap-2 text-sm font-medium"
                           >
                             {isLoadingMoreTransactions ? (
                               <>

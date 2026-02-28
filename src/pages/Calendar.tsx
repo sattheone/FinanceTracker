@@ -153,7 +153,7 @@ const CalendarPage: React.FC = () => {
               className={cn(
                 'p-1.5 rounded-md transition-all',
                 viewMode === 'chip'
-                  ? 'bg-white dark:bg-gray-600 shadow-sm text-blue-600 dark:text-blue-400'
+                  ? 'bg-[color:var(--color-card-bg)] shadow-sm text-[color:var(--color-text-primary)]'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               )}
               title="Chip view"
@@ -165,7 +165,7 @@ const CalendarPage: React.FC = () => {
               className={cn(
                 'p-1.5 rounded-md transition-all',
                 viewMode === 'icon'
-                  ? 'bg-white dark:bg-gray-600 shadow-sm text-blue-600 dark:text-blue-400'
+                  ? 'bg-[color:var(--color-card-bg)] shadow-sm text-[color:var(--color-text-primary)]'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               )}
               title="Icon view"
@@ -181,7 +181,7 @@ const CalendarPage: React.FC = () => {
               className={cn(
                 theme.btnSecondary,
                 'flex items-center',
-                showFilters && 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                showFilters && 'bg-[color:var(--color-bg-tertiary)] text-[color:var(--color-text-primary)]'
               )}
             >
               <Filter className="w-4 h-4 mr-2" />
@@ -191,7 +191,7 @@ const CalendarPage: React.FC = () => {
                 !filters.showTransactions ||
                 !filters.showRecurring ||
                 !filters.showBills) && (
-                  <span className="ml-1 w-2 h-2 bg-blue-500 rounded-full"></span>
+                  <span className="ml-1 w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-highlight)' }}></span>
                 )}
             </button>
 
@@ -205,7 +205,8 @@ const CalendarPage: React.FC = () => {
                 />
 
                 {/* Popover Content */}
-                <div className="absolute right-0 top-full mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 max-h-[calc(100vh-200px)] overflow-y-auto">
+                <div className="absolute right-0 top-full mt-2 w-96 popup-surface rounded-xl z-50 max-h-[calc(100vh-200px)] overflow-y-auto"
+                  style={{ backgroundColor: 'var(--color-card-bg)', borderColor: 'var(--color-border-primary)' }}>
                   <div className="p-4 space-y-4">
                     {/* Header */}
                     <div className="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-700">
@@ -221,7 +222,7 @@ const CalendarPage: React.FC = () => {
                           });
                           setCategorySearchQuery('');
                         }}
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        className="text-xs theme-text-secondary hover:underline"
                       >
                         Reset All
                       </button>
@@ -236,7 +237,7 @@ const CalendarPage: React.FC = () => {
                           className={cn(
                             'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
                             filters.showTransactions
-                              ? 'bg-blue-500 text-white shadow-sm'
+                              ? 'bg-[color:var(--color-accent-primary)] text-[color:var(--color-text-inverse)] shadow-sm'
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
                           )}
                         >
@@ -247,7 +248,7 @@ const CalendarPage: React.FC = () => {
                           className={cn(
                             'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
                             filters.showRecurring
-                              ? 'bg-purple-500 text-white shadow-sm'
+                              ? 'bg-[color:var(--color-accent-primary)] text-[color:var(--color-text-inverse)] shadow-sm'
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
                           )}
                         >
@@ -258,7 +259,7 @@ const CalendarPage: React.FC = () => {
                           className={cn(
                             'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
                             filters.showBills
-                              ? 'bg-orange-500 text-white shadow-sm'
+                              ? 'bg-[color:var(--color-accent-primary)] text-[color:var(--color-text-inverse)] shadow-sm'
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
                           )}
                         >
@@ -283,7 +284,7 @@ const CalendarPage: React.FC = () => {
                             className={cn(
                               'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
                               filters.transactionType === type.value
-                                ? 'bg-blue-500 text-white shadow-sm'
+                                ? 'bg-[color:var(--color-accent-primary)] text-[color:var(--color-text-inverse)] shadow-sm'
                                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
                             )}
                           >
@@ -302,7 +303,7 @@ const CalendarPage: React.FC = () => {
                         {filters.selectedCategories.length > 0 && (
                           <button
                             onClick={() => setFilters(prev => ({ ...prev, selectedCategories: [] }))}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                            className="text-xs theme-text-secondary hover:underline"
                           >
                             Clear
                           </button>
@@ -322,7 +323,7 @@ const CalendarPage: React.FC = () => {
                       />
 
                       {/* Category List */}
-                      <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                      <div className="max-h-64 overflow-y-auto border border-[color:var(--color-border-primary)] rounded-xl">
                         {filteredCategories.length > 0 ? (
                           filteredCategories.map(category => {
                             const isSelected = filters.selectedCategories.includes(category.id);
@@ -338,9 +339,9 @@ const CalendarPage: React.FC = () => {
                                   }));
                                 }}
                                 className={cn(
-                                  'w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors border-b border-gray-200 dark:border-gray-700 last:border-b-0',
+                                  'w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors border-b border-[color:var(--color-border-primary)] last:border-b-0',
                                   isSelected
-                                    ? 'bg-blue-50 dark:bg-blue-900/20'
+                                    ? 'bg-[color:var(--color-bg-tertiary)]'
                                     : 'hover:bg-gray-50 dark:hover:bg-gray-700'
                                 )}
                               >
@@ -354,7 +355,7 @@ const CalendarPage: React.FC = () => {
                                   {category.name}
                                 </span>
                                 {isSelected && (
-                                  <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                                  <svg className="w-5 h-5 text-[color:var(--color-text-primary)]" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
                                 )}

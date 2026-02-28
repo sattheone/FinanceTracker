@@ -38,7 +38,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
         className={cn(
           theme.bgElevated,
           theme.border,
-          'relative z-10 rounded-lg w-full max-h-[90vh] overflow-hidden border shadow-xl flex flex-col',
+          'relative z-10 rounded-2xl w-full max-h-[90vh] overflow-hidden border shadow-xl flex flex-col',
           sizeClasses[size]
         )}
         onClick={(e) => e.stopPropagation()}

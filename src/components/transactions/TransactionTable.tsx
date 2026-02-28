@@ -178,9 +178,9 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
 
     return (
         <div className="w-full max-w-full min-w-0">
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden md:block">
                 <table className="w-full table-fixed">
-                    <thead className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                    <thead className="sticky top-0 z-10 border-b" style={{ backgroundColor: 'var(--color-card-bg)', borderColor: 'var(--color-border-primary)' }}>
                         <tr>
                             <th className={cn(theme.tableHeader, '!py-2 !px-3 text-xs w-10')}>
                                 <input
@@ -211,7 +211,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                     onContextMenu={(e) => onContextMenu?.(e, transaction)}
                                     onClick={() => onTransactionClick?.(transaction)}
                                     className={cn(
-                                        'hover:bg-gray-50 dark:hover:bg-gray-900/40',
+                                        'hover:[background-color:var(--color-bg-secondary)]',
                                         highlightTransactionId === transaction.id && 'bg-yellow-50/70 dark:bg-yellow-900/20 ring-1 ring-yellow-200 dark:ring-yellow-800 transition-colors'
                                     )}
                                 >
@@ -351,7 +351,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                 </table>
             </div>
 
-            <div className="md:hidden w-full max-w-full min-w-0 overflow-x-hidden divide-y divide-gray-200 dark:divide-gray-700 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-900">
+            <div className="md:hidden w-full max-w-full min-w-0 overflow-x-hidden rounded-xl border overflow-hidden [&>*+*]:border-t" style={{ borderColor: 'var(--color-border-primary)', backgroundColor: 'var(--color-card-bg)' }}>
                 {sortedTransactions.map((transaction, index) => {
                     const date = new Date(transaction.date);
                     const categoryName = categories?.find(c => c.id === transaction.category)?.name || transaction.category || 'Other';

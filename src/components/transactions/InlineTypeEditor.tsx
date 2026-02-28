@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
-import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
+import { cn } from '../../hooks/useThemeClasses';
 import { Transaction } from '../../types';
 
 interface InlineTypeEditorProps {
@@ -28,7 +28,6 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
     triggerClassName,
     allowUnchanged = false,
 }) => {
-    const theme = useThemeClasses();
     const [isOpen, setIsOpen] = useState(false);
     const [popoverPosition, setPopoverPosition] = useState<{ top?: number; bottom?: number; left: number; width?: number; maxHeight?: number } | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -98,23 +97,19 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
                     setIsOpen(!isOpen);
                 }}
                 className={cn(
-                    triggerClassName || (
-                        "flex items-center space-x-1 px-2 py-1 rounded-lg border transition-all w-full"
-                    ),
-                    !triggerClassName && theme.bgElevated,
-                    !triggerClassName && theme.border,
-                    !triggerClassName && "hover:border-blue-500 dark:hover:border-blue-400"
+                    triggerClassName || "inline-flex items-center gap-1 px-2 py-0.5 rounded-md border transition-colors hover:[background-color:var(--color-bg-secondary)]"
                 )}
+                style={!triggerClassName ? { backgroundColor: 'var(--color-card-bg)', borderColor: 'var(--color-border-primary)' } : undefined}
             >
                 {triggerContent ? (
                     triggerContent
                 ) : (
                     <>
-                        <span className="text-base">{currentTypeObj.icon}</span>
-                        <span className={cn("text-xs font-medium truncate", currentTypeObj.color)}>
+                        <span className="text-sm">{currentTypeObj.icon}</span>
+                        <span className={cn("text-xs font-medium", currentTypeObj.color)}>
                             {currentTypeObj.label}
                         </span>
-                        <ChevronDown className="w-4 h-4 text-gray-400 ml-auto" />
+                        <ChevronDown className="w-3 h-3 ml-0.5" style={{ color: 'var(--color-text-tertiary)' }} />
                     </>
                 )}
             </button>
@@ -131,13 +126,11 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
                         left: popoverPosition.left,
                         width: popoverPosition.width,
                         maxHeight: popoverPosition.maxHeight,
-                        overflowY: 'auto'
+                        overflowY: 'auto',
+                        backgroundColor: 'var(--color-card-bg)',
+                        borderColor: 'var(--color-border-primary)'
                     }}
-                    className={cn(
-                        "rounded-lg shadow-xl border z-[9999] flex flex-col",
-                        theme.bgElevated,
-                        theme.border
-                    )}
+                    className="popup-surface rounded-xl z-[9999] flex flex-col"
                 >
                     <div className="p-1">
                         {allowUnchanged && (
@@ -148,16 +141,16 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
                                     setIsOpen(false);
                                 }}
                                 className={cn(
-                                    "w-full flex items-center space-x-2 px-3 py-1 rounded-md text-left transition-colors",
+                                    "w-full flex items-center gap-2 px-3 py-1 rounded-md text-left transition-colors",
                                     currentType === 'unchanged'
-                                        ? "bg-blue-50 dark:bg-blue-900/20"
-                                        : "hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        ? "[background-color:var(--color-bg-secondary)] font-medium"
+                                        : "hover:[background-color:var(--color-bg-secondary)]"
                                 )}
                             >
                                 <span className="text-sm">⏸️</span>
-                                <span className={cn("text-xs font-medium flex-1", "text-gray-600 dark:text-gray-300")}>Unchanged</span>
+                                <span className="text-xs flex-1" style={{ color: 'var(--color-text-primary)' }}>Unchanged</span>
                                 {currentType === 'unchanged' && (
-                                    <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                    <Check className="w-3 h-3" style={{ color: 'var(--color-accent-primary)' }} />
                                 )}
                             </button>
                         )}
@@ -170,17 +163,17 @@ const InlineTypeEditor: React.FC<InlineTypeEditorProps> = ({
                                     setIsOpen(false);
                                 }}
                                 className={cn(
-                                    "w-full flex items-center space-x-2 px-3 py-1 rounded-md text-left transition-colors",
+                                    "w-full flex items-center gap-2 px-3 py-1 rounded-md text-left transition-colors",
                                     currentType === type.value
-                                        ? "bg-blue-50 dark:bg-blue-900/20"
-                                        : "hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        ? "[background-color:var(--color-bg-secondary)] font-medium"
+                                        : "hover:[background-color:var(--color-bg-secondary)]"
                                 )}
                             >
                                 <span className="text-sm">{type.icon}</span>
-                                <span className={cn("text-xs font-medium flex-1", type.color)}>
+                                <span className={cn("text-xs flex-1", type.color)}>
                                     {type.label}
                                 </span>
-                                {currentType === type.value && <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
+                                {currentType === type.value && <Check className="w-3 h-3" style={{ color: 'var(--color-accent-primary)' }} />}
                             </button>
                         ))}
                     </div>

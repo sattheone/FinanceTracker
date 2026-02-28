@@ -9,7 +9,6 @@ import SidePanel from '../components/common/SidePanel';
 import AssetForm from '../components/forms/AssetForm';
 import TransactionListModal from '../components/transactions/TransactionListModal';
 import MarketDataService from '../services/marketDataService';
-import XIRRService from '../services/xirrService';
 import PortfolioRebalancingService from '../services/portfolioRebalancingService';
 import { getChitSummary } from '../services/chitService';
 // PriceService removed
@@ -46,8 +45,6 @@ const Assets: React.FC = () => {
 
   // Calculate portfolio metrics
   const portfolioMetrics = MarketDataService.calculatePortfolioMetrics(assets);
-  const portfolioXIRR = XIRRService.calculatePortfolioXIRR(assets, transactions);
-
   // Get rebalancing suggestions
   const userAge = userProfile?.financialInfo.currentAge || 35;
   const targetAllocations = PortfolioRebalancingService.getDefaultTargetAllocations(userAge, 'moderate');
@@ -137,10 +134,6 @@ const Assets: React.FC = () => {
   const selectedAssetAllocation = selectedAsset && totalAssets > 0
     ? (selectedAsset.currentValue / totalAssets) * 100
     : 0;
-
-  const selectedAssetXIRR = selectedAsset
-    ? XIRRService.calculateAssetXIRR(selectedAsset, transactions)
-    : null;
 
   const selectedAssetFDMaturityAmount = (() => {
     if (!selectedAsset || selectedAsset.category !== 'fixed_deposit' || !(selectedAsset as any).principalAmount || !(selectedAsset as any).interestRate) {
@@ -539,29 +532,6 @@ const Assets: React.FC = () => {
 
         <div className={theme.metricCard}>
           <div className="flex items-center justify-between mb-2">
-            <BarChart3 className="h-6 w-6 text-purple-600" />
-            <span className={cn(
-              'text-xs px-2 py-1 rounded-full',
-              (portfolioXIRR || 0) >= 12
-                ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'
-                : (portfolioXIRR || 0) >= 8
-                  ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200'
-                  : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'
-            )}>
-              XIRR
-            </span>
-          </div>
-          <p className={cn(theme.metricLabel, 'mb-1')}>Annualized Return</p>
-          <p className={theme.metricValue}>
-            {portfolioXIRR ? `${portfolioXIRR.toFixed(2)}%` : 'N/A'}
-          </p>
-          <p className={cn(theme.textMuted, 'text-xs')}>
-            {assets.length} Holdings
-          </p>
-        </div>
-
-        <div className={theme.metricCard}>
-          <div className="flex items-center justify-between mb-2">
             <Target className="h-6 w-6 text-orange-600" />
             <span className={cn(
               'text-xs px-2 py-1 rounded-full',
@@ -607,9 +577,9 @@ const Assets: React.FC = () => {
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
-              'flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors',
+              'flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors',
               activeTab === tab.id
-                ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                ? 'bg-[color:var(--color-card-bg)] text-[color:var(--color-text-primary)] shadow-sm'
                 : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
             )}
           >
@@ -1086,17 +1056,10 @@ const Assets: React.FC = () => {
       {/* Performance Analytics Tab */}
       {activeTab === 'performance' && (
         <div className="space-y-6">
-          {/* XIRR Performance */}
+          {/* Return Analysis */}
           <div className={theme.card}>
             <h3 className={cn(theme.heading3, 'mb-4')}>Return Analysis</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <p className={cn(theme.textMuted, 'text-sm mb-2')}>Portfolio XIRR</p>
-                <p className={cn(theme.textPrimary, 'text-2xl font-bold')}>
-                  {portfolioXIRR ? `${portfolioXIRR.toFixed(2)}%` : 'N/A'}
-                </p>
-                <p className={cn(theme.textMuted, 'text-xs')}>Annualized Return</p>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                 <p className={cn(theme.textMuted, 'text-sm mb-2')}>Absolute Return</p>
                 <p className={cn(theme.textPrimary, 'text-2xl font-bold', getReturnColor(totalReturnsPercent))}>
@@ -1129,13 +1092,11 @@ const Assets: React.FC = () => {
                     <th className={theme.tableHeader}>Invested</th>
                     <th className={theme.tableHeader}>Current Value</th>
                     <th className={theme.tableHeader}>Returns</th>
-                    <th className={theme.tableHeader}>XIRR</th>
                   </tr>
                 </thead>
                 <tbody>
                   {assets.map(asset => {
                     const assetReturn = asset.purchaseValue ? ((asset.currentValue - asset.purchaseValue) / asset.purchaseValue) * 100 : 0;
-                    const assetXIRR = XIRRService.calculateAssetXIRR(asset, transactions);
                     const livePriceData = (asset as any).livePriceData;
                     const lastPriceUpdate = (asset as any).lastPriceUpdate;
                     const hasLiveData = livePriceData && (asset.category === 'stocks' || asset.category === 'mutual_funds');
@@ -1207,11 +1168,6 @@ const Assets: React.FC = () => {
                         <td className={theme.tableCell}>
                           <span className={getReturnColor(assetReturn)}>
                             {assetReturn >= 0 ? '+' : ''}{assetReturn.toFixed(2)}%
-                          </span>
-                        </td>
-                        <td className={theme.tableCell}>
-                          <span className={theme.textPrimary}>
-                            {assetXIRR ? `${assetXIRR.toFixed(2)}%` : 'N/A'}
                           </span>
                         </td>
                       </tr>
@@ -1429,36 +1385,6 @@ const Assets: React.FC = () => {
             </div>
           </div>
 
-          {/* Performance Comparison */}
-          <div className={theme.card}>
-            <h3 className={cn(theme.heading3, 'mb-4')}>Benchmark Comparison</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <p className={theme.textMuted}>Your Portfolio</p>
-                <p className={cn(theme.textPrimary, 'text-xl font-bold')}>
-                  {portfolioXIRR ? `${portfolioXIRR.toFixed(2)}%` : 'N/A'}
-                </p>
-              </div>
-              <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <p className={theme.textMuted}>Nifty 50 (Est.)</p>
-                <p className={cn(theme.textPrimary, 'text-xl font-bold')}>12.5%</p>
-              </div>
-              <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                <p className={theme.textMuted}>Fixed Deposit</p>
-                <p className={cn(theme.textPrimary, 'text-xl font-bold')}>6.5%</p>
-              </div>
-            </div>
-            <div className="mt-4 text-center">
-              <p className={theme.textMuted}>
-                {portfolioXIRR && portfolioXIRR > 12.5
-                  ? `🎉 Your portfolio is outperforming the market by ${(portfolioXIRR - 12.5).toFixed(1)}%!`
-                  : portfolioXIRR && portfolioXIRR > 6.5
-                    ? `📈 Your portfolio is beating fixed deposits by ${(portfolioXIRR - 6.5).toFixed(1)}%`
-                    : '📊 Consider reviewing your investment strategy'
-                }
-              </p>
-            </div>
-          </div>
         </div>
       )}
 
@@ -1626,12 +1552,6 @@ const Assets: React.FC = () => {
                           selectedAssetReturnPercent >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                         )}>
                           {selectedAsset.purchaseValue ? `${selectedAssetReturnPercent >= 0 ? '+' : ''}${selectedAssetReturnPercent.toFixed(2)}%` : '-'}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-                        <p className="text-xs text-gray-500 dark:text-gray-400">XIRR</p>
-                        <p className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                          {selectedAssetXIRR ? `${selectedAssetXIRR.toFixed(2)}%` : 'N/A'}
                         </p>
                       </div>
                     </>

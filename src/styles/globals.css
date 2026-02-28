@@ -7,75 +7,103 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-gray-100 dark:bg-gray-800;
+  background-color: var(--color-bg-secondary);
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-400 dark:bg-gray-500 rounded-full;
+  background-color: var(--color-text-muted);
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-500 dark:bg-gray-400;
+  background-color: var(--color-text-tertiary);
 }
 
-/* Card styles - WCAG AA compliant contrast */
+/* Card styles */
 .card {
-  @apply bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-600;
+  background-color: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  @apply rounded-2xl shadow-sm p-4;
 }
 
 /* Metric card styles */
 .metric-card {
-  @apply bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-600;
+  background-color: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  @apply rounded-2xl shadow-sm p-4;
 }
-
-/* Input field styles - Enhanced contrast for accessibility */
 .input-field {
-  @apply w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg 
-         focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400
-         bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
-         placeholder-gray-500 dark:placeholder-gray-400
-         disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400;
+  @apply w-full px-3 py-2 rounded-xl
+         focus:ring-2 focus:outline-none
+         disabled:opacity-50 disabled:cursor-not-allowed;
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border-primary);
+  color: var(--color-text-primary);
+  transition: border-color 0.18s, box-shadow 0.18s;
 }
 
-/* Input field padding is handled by Tailwind classes directly */
-
-.input-field:invalid {
-  @apply border-red-500 dark:border-red-400 focus:ring-red-500 dark:focus:ring-red-400;
+.input-field::placeholder {
+  color: var(--color-text-muted);
 }
 
-/* Button styles - WCAG AA compliant */
+.input-field:focus {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-accent-light);
+}
+
+/* Button styles */
 .btn-primary {
-  @apply px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 
-         text-white font-medium rounded-lg transition-colors focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 
-         focus:ring-offset-2 dark:focus:ring-offset-gray-800
-         disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply px-5 py-2 font-medium rounded-full transition-colors focus:ring-2
+         focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  background-color: var(--color-accent-primary);
+  color: var(--color-text-inverse);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
+}
+
+.btn-primary:focus {
+  box-shadow: 0 0 0 3px var(--color-accent-light);
 }
 
 .btn-secondary {
-  @apply px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 
-         hover:bg-gray-200 dark:hover:bg-gray-600 font-medium rounded-lg transition-colors
-         border border-gray-300 dark:border-gray-500 focus:ring-2 focus:ring-gray-500 dark:focus:ring-gray-400
-         focus:ring-offset-2 dark:focus:ring-offset-gray-800
-         disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:opacity-50;
+  @apply px-5 py-2 font-medium rounded-full transition-colors border
+         focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--color-bg-tertiary);
+  border-color: var(--color-border-secondary);
 }
 
 /* Modal backdrop */
 .modal-backdrop {
-  @apply bg-black bg-opacity-50 dark:bg-opacity-70;
+  background-color: var(--color-bg-overlay);
 }
 
 /* Table styles */
 .table-row {
-  @apply border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50;
+  border-bottom: 1px solid var(--color-border-primary);
+  transition: background-color 0.15s;
+}
+
+.table-row:hover {
+  background-color: var(--color-bg-secondary);
 }
 
 .table-header {
-  @apply bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300;
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
 }
 
-/* Form styles - Enhanced accessibility */
+/* Form styles */
 .form-label {
-  @apply block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2;
+  @apply block text-sm font-medium mb-2;
+  color: var(--color-text-secondary);
 }
 
 .form-error {
@@ -83,28 +111,37 @@
 }
 
 .form-help {
-  @apply text-gray-600 dark:text-gray-400 text-xs mt-1;
+  @apply text-xs mt-1;
+  color: var(--color-text-muted);
 }
 
-/* Alert styles - WCAG AA compliant */
+/* Alert styles - Design System semantic colors */
 .alert-success {
-  @apply bg-green-50 dark:bg-green-900/30 border border-green-300 dark:border-green-600 
-         text-green-800 dark:text-green-100 rounded-lg p-4;
+  @apply rounded-xl p-4 border;
+  background-color: var(--color-success-bg);
+  border-color: var(--color-success-border);
+  color: var(--color-success);
 }
 
 .alert-error {
-  @apply bg-red-50 dark:bg-red-900/30 border border-red-300 dark:border-red-600 
-         text-red-800 dark:text-red-100 rounded-lg p-4;
+  @apply rounded-xl p-4 border;
+  background-color: var(--color-error-bg);
+  border-color: var(--color-error-border);
+  color: var(--color-error);
 }
 
 .alert-warning {
-  @apply bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-600 
-         text-yellow-800 dark:text-yellow-100 rounded-lg p-4;
+  @apply rounded-xl p-4 border;
+  background-color: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning);
 }
 
 .alert-info {
-  @apply bg-blue-50 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-600 
-         text-blue-800 dark:text-blue-100 rounded-lg p-4;
+  @apply rounded-xl p-4 border;
+  background-color: var(--color-info-bg);
+  border-color: var(--color-info-border);
+  color: var(--color-info);
 }
 
 /* Progress bar styles */
@@ -116,37 +153,61 @@
   @apply h-2 rounded-full transition-all duration-300;
 }
 
-/* Badge styles - Enhanced contrast */
+/* Badge styles - Design System semantic colors */
 .badge {
-  @apply px-2 py-1 text-xs rounded-full font-medium;
+  @apply px-2 py-1 text-xs rounded-full font-medium border;
 }
 
 .badge-success {
-  @apply bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-100 border border-green-300 dark:border-green-600;
+  background-color: var(--color-success-bg);
+  border-color: var(--color-success-border);
+  color: var(--color-success);
 }
 
 .badge-error {
-  @apply bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-100 border border-red-300 dark:border-red-600;
+  background-color: var(--color-error-bg);
+  border-color: var(--color-error-border);
+  color: var(--color-error);
 }
 
 .badge-warning {
-  @apply bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-100 border border-yellow-300 dark:border-yellow-600;
+  background-color: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning);
 }
 
 .badge-info {
-  @apply bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-100 border border-blue-300 dark:border-blue-600;
+  background-color: var(--color-info-bg);
+  border-color: var(--color-info-border);
+  color: var(--color-info);
 }
 
-/* Dropdown styles - Enhanced accessibility */
+/* Dropdown styles */
 .dropdown-menu {
-  @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 
-         rounded-lg shadow-lg py-1;
+  background-color: var(--color-card-bg);
+  border: 1px solid var(--color-border-primary);
+  box-shadow: var(--shadow-lg);
+  @apply rounded-xl py-1;
+}
+
+/* Popup / flyout / context-menu surface — strict card-white in light mode */
+/* NOTE: Always pair with style={{ backgroundColor: 'var(--color-card-bg)' }} inline
+   to guarantee white in light mode, since global .bg-white → warm override can compete */
+.popup-surface {
+  background-color: var(--color-card-bg) !important;
+  border: 1px solid var(--color-border-primary) !important;
+  box-shadow: var(--shadow-lg) !important;
 }
 
 .dropdown-item {
-  @apply px-4 py-2 text-sm text-gray-700 dark:text-gray-200 
-         hover:bg-gray-100 dark:hover:bg-gray-700 focus:bg-gray-100 dark:focus:bg-gray-700
-         cursor-pointer focus:outline-none;
+  @apply px-4 py-2 text-sm cursor-pointer focus:outline-none;
+  color: var(--color-text-primary);
+  transition: background-color 0.15s;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+  background-color: var(--color-bg-secondary);
 }
 
 /* Tooltip styles */
@@ -156,31 +217,36 @@
 
 /* Loading spinner */
 .spinner {
-  @apply animate-spin rounded-full border-b-2 border-blue-600;
+  @apply animate-spin rounded-full border-b-2;
+  border-color: var(--color-accent-primary);
 }
 
 /* Text selection */
 ::selection {
-  @apply bg-blue-200 dark:bg-blue-800;
+  background-color: var(--color-accent-light);
 }
 
-/* Focus styles - Enhanced visibility */
+/* Focus styles */
 .focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 
-         focus:ring-offset-2 dark:focus:ring-offset-gray-800;
+  @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+  --tw-ring-color: var(--color-border-focus);
 }
 
 /* High contrast focus for better accessibility */
 .focus-visible {
-  @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 
-         dark:focus-visible:outline-blue-400;
+  @apply focus-visible:outline-2 focus-visible:outline-offset-2;
+  outline-color: var(--color-border-focus);
 }
 
 /* Link styles */
 .link {
-  @apply text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 
-         underline decoration-1 underline-offset-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400
-         focus:ring-offset-1 rounded-sm;
+  @apply underline decoration-1 underline-offset-2 rounded-sm focus:ring-2 focus:ring-offset-1 focus:outline-none;
+  color: var(--color-text-primary);
+  transition: opacity 0.15s;
+}
+
+.link:hover {
+  opacity: 0.7;
 }
 
 /* Text styles for better readability */
@@ -198,14 +264,57 @@
 
 /* Interactive elements */
 .interactive {
-  @apply transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400
-         focus:ring-offset-2 dark:focus:ring-offset-gray-800 rounded-md;
+  @apply transition-colors duration-200 focus:outline-none focus:ring-2
+         focus:ring-offset-2 rounded-xl;
+  --tw-ring-color: var(--color-border-focus);
+}
+
+/* ── Mobile-first utilities ── */
+
+/* Thin scrollbar on mobile */
+@media (max-width: 1023px) {
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+}
+
+/* Prevent pull-to-refresh and overscroll on iOS for fixed-layout pages */
+.fixed-layout {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Safe area bottom padding utility */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Minimum tap target (44x44px WCAG 2.5.5) */
+.tap-target {
+  @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
+}
+
+/* Suppress button callout on long-press (iOS) */
+button, a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Hide horizontal scrollbar while keeping scroll functionality */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
 
 /* Skip link for screen readers */
 .skip-link {
   @apply sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 
-         bg-blue-600 text-white px-4 py-2 rounded-md z-50;
+         px-4 py-2 rounded-full z-50;
+  background-color: var(--color-accent-primary);
+  color: var(--color-text-inverse);
 }
 
 /* Hide spin buttons for numeric inputs with the `no-spin` class */

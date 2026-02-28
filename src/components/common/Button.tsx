@@ -26,12 +26,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         const baseStyles = "inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none";
 
         const variants = {
-            primary: "bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-100 dark:focus:ring-white border border-transparent",
-            secondary: "bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700 dark:hover:bg-gray-800",
-            tertiary: "bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700",
+            primary: "bg-[color:var(--color-accent-primary)] text-[color:var(--color-text-inverse)] hover:bg-[color:var(--color-accent-hover)] border border-transparent focus:ring-[color:var(--color-accent-primary)]",
+            secondary: "bg-[color:var(--color-bg-tertiary)] text-[color:var(--color-text-primary)] border border-[color:var(--color-border-primary)] hover:bg-[color:var(--color-border-primary)]",
+            tertiary: "bg-[color:var(--color-bg-tertiary)] text-[color:var(--color-text-primary)] border border-transparent hover:bg-[color:var(--color-border-primary)]",
             danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500",
-            ghost: "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800",
-            text: "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 underline-offset-4 hover:underline p-0 h-auto"
+            ghost: "text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-bg-tertiary)] hover:text-[color:var(--color-text-primary)]",
+            text: "text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)] underline-offset-4 hover:underline p-0 h-auto"
         };
 
         const sizes = {

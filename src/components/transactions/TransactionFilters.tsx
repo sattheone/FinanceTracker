@@ -132,7 +132,10 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
       <button
         onClick={() => setShowFilters(!showFilters)}
         className={cn(
-          "flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors",
+          "flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors",
+          showFilters
+            ? "[background-color:var(--color-bg-tertiary)] [border-color:var(--color-border-secondary)] [color:var(--color-text-primary)]"
+            : "[border-color:var(--color-border-primary)] [color:var(--color-text-secondary)] hover:[background-color:var(--color-bg-secondary)]",
           compactMobile && "px-2.5 sm:px-3"
         )}
         aria-label="Filter transactions"
@@ -140,7 +143,7 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
         <Filter className="h-4 w-4" />
         <span className={compactMobile ? 'hidden sm:inline' : ''}>Filter</span>
         {activeFilterCount > 0 && (
-          <span className={cn("px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full", compactMobile ? 'ml-0 sm:ml-1' : 'ml-1')}>
+          <span className={cn("px-1.5 py-0.5 text-[10px] font-bold rounded-full", compactMobile ? 'ml-0 sm:ml-1' : 'ml-1')} style={{ backgroundColor: 'var(--color-accent-primary)', color: 'var(--color-text-inverse)' }}>
             {activeFilterCount}
           </span>
         )}
@@ -150,15 +153,16 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
       {showFilters && (
         <div 
           ref={mainMenuRef}
-          className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
+          className="absolute right-0 mt-1.5 w-56 popup-surface rounded-xl z-50"
+          style={{ backgroundColor: 'var(--color-card-bg)', borderColor: 'var(--color-border-primary)' }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Filter by</h3>
+          <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: 'var(--color-border-primary)' }}>
+            <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-tertiary)' }}>Filter by</h3>
             {activeFilterCount > 0 && (
               <button
                 onClick={clearAllFilters}
-                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                className="text-xs theme-text-secondary hover:theme-text-primary"
               >
                 Clear all
               </button>
@@ -170,17 +174,17 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
               <button
                 ref={(el) => (filterButtonRefs.current['account'] = el)}
                 onMouseEnter={(e) => handleFilterHover('account', e.currentTarget)}
-                className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                className="w-full flex items-center justify-between px-3 py-1.5 text-sm transition-colors hover:[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)]"
               >
                 <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5" style={{ color: 'var(--color-text-tertiary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                   </svg>
                   <span>Account</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {selectedAccounts.size > 0 && (
-                    <span className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full">
+                    <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full" style={{ backgroundColor: 'var(--color-accent-primary)', color: 'var(--color-text-inverse)' }}>
                       {selectedAccounts.size}
                     </span>
                   )}
@@ -192,17 +196,17 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
             <button
               ref={(el) => (filterButtonRefs.current['category'] = el)}
               onMouseEnter={(e) => handleFilterHover('category', e.currentTarget)}
-              className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+              className="w-full flex items-center justify-between px-3 py-1.5 text-sm transition-colors hover:[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)]"
             >
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" style={{ color: 'var(--color-text-tertiary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                 </svg>
                 <span>Category</span>
               </div>
               <div className="flex items-center gap-2">
                 {selectedCategories.size > 0 && (
-                  <span className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full">
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full" style={{ backgroundColor: 'var(--color-accent-primary)', color: 'var(--color-text-inverse)' }}>
                     {selectedCategories.size}
                   </span>
                 )}
@@ -213,17 +217,17 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
             <button
               ref={(el) => (filterButtonRefs.current['tag'] = el)}
               onMouseEnter={(e) => handleFilterHover('tag', e.currentTarget)}
-              className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+              className="w-full flex items-center justify-between px-3 py-1.5 text-sm transition-colors hover:[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)]"
             >
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" style={{ color: 'var(--color-text-tertiary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                 </svg>
                 <span>Tag</span>
               </div>
               <div className="flex items-center gap-2">
                 {selectedTags.size > 0 && (
-                  <span className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full">
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full" style={{ backgroundColor: 'var(--color-accent-primary)', color: 'var(--color-text-inverse)' }}>
                     {selectedTags.size}
                   </span>
                 )}
@@ -234,17 +238,17 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
             <button
               ref={(el) => (filterButtonRefs.current['type'] = el)}
               onMouseEnter={(e) => handleFilterHover('type', e.currentTarget)}
-              className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+              className="w-full flex items-center justify-between px-3 py-1.5 text-sm transition-colors hover:[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)]"
             >
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" style={{ color: 'var(--color-text-tertiary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
                 <span>Type</span>
               </div>
               <div className="flex items-center gap-2">
                 {selectedTypes.size > 0 && (
-                  <span className="px-2 py-0.5 text-xs bg-blue-600 text-white rounded-full">
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full" style={{ backgroundColor: 'var(--color-accent-primary)', color: 'var(--color-text-inverse)' }}>
                     {selectedTypes.size}
                   </span>
                 )}
@@ -256,10 +260,12 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
           {/* Flyout Panels - positioned on the left */}
           {activeFilterSection === 'account' && (
             <div 
-              className="absolute right-full w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-96 overflow-auto py-1"
+              className="absolute right-full w-80 popup-surface rounded-xl max-h-96 overflow-auto py-1"
               style={{ 
                 top: `${flyoutPosition.top}px`,
-                marginRight: '8px'
+                marginRight: '8px',
+                backgroundColor: 'var(--color-card-bg)',
+                borderColor: 'var(--color-border-primary)'
               }}
               onMouseLeave={() => setActiveFilterSection(null)}
             >
@@ -269,7 +275,7 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
                   placeholder="Search accounts..."
                   value={accountQuery}
                   onChange={(e) => setAccountQuery(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="input-field text-sm py-1.5"
                 />
               </div>
               {bankAccounts
@@ -285,10 +291,10 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
                   onClick={() => {
                     toggleAccount(account.id);
                   }}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${
+                  className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 ${
                     selectedAccounts.has(account.id)
-                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
-                      : 'text-gray-700 dark:text-gray-200'
+                      ? '[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)] font-medium'
+                      : 'hover:[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)]'
                   }`}
                 >
                   <input
@@ -298,7 +304,7 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
                     className="rounded border-gray-300 dark:border-gray-600"
                     onClick={(e) => e.stopPropagation()}
                   />
-                  <span className="text-green-600 dark:text-green-400">●</span>
+                  <span style={{ color: 'var(--color-success)' }}>●</span>
                   <span>
                     {account.bank} (...{account.number.slice(-4)})
                   </span>
@@ -309,10 +315,12 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
 
           {activeFilterSection === 'category' && (
             <div 
-              className="absolute right-full w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-96 overflow-auto py-1"
+              className="absolute right-full w-80 popup-surface rounded-xl max-h-96 overflow-auto py-1"
               style={{ 
                 top: `${flyoutPosition.top}px`,
-                marginRight: '8px'
+                marginRight: '8px',
+                backgroundColor: 'var(--color-card-bg)',
+                borderColor: 'var(--color-border-primary)'
               }}
               onMouseLeave={() => setActiveFilterSection(null)}
             >
@@ -322,7 +330,7 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
                   placeholder="Search categories..."
                   value={categoryQuery}
                   onChange={(e) => setCategoryQuery(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="input-field text-sm py-1.5"
                 />
               </div>
               {categories
@@ -338,10 +346,10 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
                   onClick={() => {
                     toggleCategory(category.id);
                   }}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${
+                  className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 ${
                     selectedCategories.has(category.id)
-                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
-                      : 'text-gray-700 dark:text-gray-200'
+                      ? '[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)] font-medium'
+                      : 'hover:[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)]'
                   }`}
                 >
                   <input
@@ -360,10 +368,12 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
 
           {activeFilterSection === 'tag' && (
             <div 
-              className="absolute right-full w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-96 overflow-auto py-1"
+              className="absolute right-full w-80 popup-surface rounded-xl max-h-96 overflow-auto py-1"
               style={{ 
                 top: `${flyoutPosition.top}px`,
-                marginRight: '8px'
+                marginRight: '8px',
+                backgroundColor: 'var(--color-card-bg)',
+                borderColor: 'var(--color-border-primary)'
               }}
               onMouseLeave={() => setActiveFilterSection(null)}
             >
@@ -373,7 +383,7 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
                   placeholder="Search tags..."
                   value={tagQuery}
                   onChange={(e) => setTagQuery(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="input-field text-sm py-1.5"
                 />
               </div>
               {tags.length === 0 ? (
@@ -394,10 +404,10 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
                     onClick={() => {
                       toggleTag(tag.id);
                     }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${
+                    className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 ${
                       selectedTags.has(tag.id)
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
-                        : 'text-gray-700 dark:text-gray-200'
+                        ? '[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)] font-medium'
+                        : 'hover:[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)]'
                     }`}
                   >
                     <input
@@ -420,10 +430,12 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
 
           {activeFilterSection === 'type' && (
             <div 
-              className="absolute right-full w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1"
+              className="absolute right-full w-60 popup-surface rounded-xl py-1"
               style={{ 
                 top: `${flyoutPosition.top}px`,
-                marginRight: '8px'
+                marginRight: '8px',
+                backgroundColor: 'var(--color-card-bg)',
+                borderColor: 'var(--color-border-primary)'
               }}
               onMouseLeave={() => setActiveFilterSection(null)}
             >
@@ -433,10 +445,10 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
                   onClick={() => {
                     toggleType(type);
                   }}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${
+                  className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 ${
                     selectedTypes.has(type)
-                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
-                      : 'text-gray-700 dark:text-gray-200'
+                      ? '[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)] font-medium'
+                      : 'hover:[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)]'
                   }`}
                 >
                   <input

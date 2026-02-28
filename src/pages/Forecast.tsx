@@ -25,7 +25,7 @@ const Forecast: React.FC = () => {
           <button
             onClick={() => setActiveTab('overview')}
             className={`${activeTab === 'overview'
-              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+              ? 'border-[color:var(--color-accent-primary)] text-[color:var(--color-text-primary)]'
               : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
           >
@@ -35,7 +35,7 @@ const Forecast: React.FC = () => {
           <button
             onClick={() => setActiveTab('simulator')}
             className={`${activeTab === 'simulator'
-              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+              ? 'border-[color:var(--color-accent-primary)] text-[color:var(--color-text-primary)]'
               : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
           >
@@ -368,15 +368,15 @@ const DrawdownSimulator: React.FC = () => {
   return (
     <div className="space-y-8 mt-6">
       {/* Configuration Panel */}
-      <div className="card bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6">
+      <div className="card p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
-            <Settings className="w-5 h-5 mr-2 text-blue-600" />
+            <Settings className="w-5 h-5 mr-2" style={{ color: 'var(--color-highlight)' }} />
             Simulation Parameters
           </h2>
           <button
             onClick={handleReset}
-            className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium"
+            className="text-sm font-medium theme-text-secondary hover:theme-text-primary"
           >
             Reset to Defaults
           </button>
@@ -390,13 +390,13 @@ const DrawdownSimulator: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Current Corpus</label>
                 <button
                   onClick={() => setCorpus(defaultCorpus)}
-                  className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium flex items-center"
+                  className="text-xs font-medium flex items-center theme-text-secondary hover:theme-text-primary"
                   title={`Sync to Total Assets: ${formatCurrency(defaultCorpus)}`}
                 >
                   Sync ({formatLargeNumber(defaultCorpus)})
                 </button>
               </div>
-              <input type="number" value={corpus} onChange={e => setCorpus(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="number" value={corpus} onChange={e => setCorpus(Number(e.target.value))} className="input-field" />
             </div>
             <div>
               <div className="flex justify-between items-center mb-1">
@@ -405,14 +405,14 @@ const DrawdownSimulator: React.FC = () => {
                   <div className="relative" ref={sipPopoverRef}>
                     <button
                       onClick={() => setIsSipPopoverOpen(prev => !prev)}
-                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium"
+                      className="text-xs font-medium theme-text-secondary hover:theme-text-primary"
                       title="Select SIP assets to include"
                     >
                       SIPs ({selectedSIPAssetIds.size})
                     </button>
 
                     {isSipPopoverOpen && (
-                      <div className="absolute right-0 mt-2 w-80 max-w-[80vw] p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 shadow-lg z-20 max-h-64 overflow-y-auto space-y-2">
+                      <div className="absolute right-0 mt-2 w-80 max-w-[80vw] p-3 rounded-xl z-20 max-h-64 overflow-y-auto space-y-2" style={{ backgroundColor: 'var(--color-card-bg)', border: '1px solid var(--color-border-primary)', boxShadow: 'var(--shadow-lg)' }}>
                         <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
                           Included SIP Assets
                         </div>
@@ -423,14 +423,14 @@ const DrawdownSimulator: React.FC = () => {
                                 type="checkbox"
                                 checked={selectedSIPAssetIds.has(asset.id)}
                                 onChange={() => toggleSIPAsset(asset.id)}
-                                className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                className="h-3.5 w-3.5 rounded border-[color:var(--color-border-primary)]"
                               />
                               <span className="truncate">{asset.name}</span>
                             </span>
                             <span className="font-medium ml-2">{formatCurrency(asset.sipAmount || 0)}</span>
                           </label>
                         ))}
-                        <div className="pt-2 mt-1 border-t border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-700 dark:text-gray-200 flex items-center justify-between">
+                        <div className="pt-2 mt-1 border-t border-[color:var(--color-border-primary)] text-xs font-medium theme-text-secondary flex items-center justify-between">
                           <span>Selected Total</span>
                           <span>{formatCurrency(selectedSIPMonthlyTotal)}</span>
                         </div>
@@ -439,31 +439,31 @@ const DrawdownSimulator: React.FC = () => {
                   </div>
                 )}
               </div>
-              <input type="number" value={monthlySIP} onChange={e => setMonthlySIP(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="number" value={monthlySIP} onChange={e => setMonthlySIP(Number(e.target.value))} className="input-field" />
             </div>
           </div>
 
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Growth Assumptions</h3>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Step-up SIP (%)</label>
-              <input type="number" value={stepUpRate} onChange={e => setStepUpRate(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium theme-text-secondary mb-1">Step-up SIP (%)</label>
+              <input type="number" value={stepUpRate} onChange={e => setStepUpRate(Number(e.target.value))} className="input-field" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pre-Retirement Return (%)</label>
-              <input type="number" value={preRetirementReturn} onChange={e => setPreRetirementReturn(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium theme-text-secondary mb-1">Pre-Retirement Return (%)</label>
+              <input type="number" value={preRetirementReturn} onChange={e => setPreRetirementReturn(Number(e.target.value))} className="input-field" />
             </div>
           </div>
 
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Retirement Phase</h3>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Post-Retirement Return (%)</label>
-              <input type="number" value={postRetirementReturn} onChange={e => setPostRetirementReturn(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium theme-text-secondary mb-1">Post-Retirement Return (%)</label>
+              <input type="number" value={postRetirementReturn} onChange={e => setPostRetirementReturn(Number(e.target.value))} className="input-field" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Monthly Expenses (Today's Value)</label>
-              <input type="number" value={monthlyExpenses} onChange={e => setMonthlyExpenses(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium theme-text-secondary mb-1">Monthly Expenses (Today's Value)</label>
+              <input type="number" value={monthlyExpenses} onChange={e => setMonthlyExpenses(Number(e.target.value))} className="input-field" />
             </div>
           </div>
 
@@ -471,22 +471,22 @@ const DrawdownSimulator: React.FC = () => {
             <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Timeline</h3>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Age</label>
-                <input type="number" value={currentAge} onChange={e => setCurrentAge(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-sm font-medium theme-text-secondary mb-1">Current Age</label>
+                <input type="number" value={currentAge} onChange={e => setCurrentAge(Number(e.target.value))} className="input-field" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Retirement Age</label>
-                <input type="number" value={retirementAge} onChange={e => setRetirementAge(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-sm font-medium theme-text-secondary mb-1">Retirement Age</label>
+                <input type="number" value={retirementAge} onChange={e => setRetirementAge(Number(e.target.value))} className="input-field" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Life Expectancy</label>
-                <input type="number" value={lifeExpectancy} onChange={e => setLifeExpectancy(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-sm font-medium theme-text-secondary mb-1">Life Expectancy</label>
+                <input type="number" value={lifeExpectancy} onChange={e => setLifeExpectancy(Number(e.target.value))} className="input-field" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Inflation (%)</label>
-                <input type="number" value={inflationRate} onChange={e => setInflationRate(Number(e.target.value))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-sm font-medium theme-text-secondary mb-1">Inflation (%)</label>
+                <input type="number" value={inflationRate} onChange={e => setInflationRate(Number(e.target.value))} className="input-field" />
               </div>
             </div>
           </div>
@@ -495,11 +495,11 @@ const DrawdownSimulator: React.FC = () => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="card bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
-          <h3 className="text-sm font-medium text-green-800 dark:text-green-200">Corpus at Retirement ({retirementAge})</h3>
-          <p className="text-2xl font-bold text-green-900 dark:text-green-100">{formatLargeNumber(corpusAtRetirement)}</p>
+        <div className="card" style={{ backgroundColor: 'var(--color-success-bg)', borderColor: 'var(--color-success-border)' }}>
+          <h3 className="text-sm font-medium" style={{ color: 'var(--color-success)' }}>Corpus at Retirement ({retirementAge})</h3>
+          <p className="text-2xl font-bold" style={{ color: 'var(--color-success)' }}>{formatLargeNumber(corpusAtRetirement)}</p>
         </div>
-        <div className={`card ${zeroBalanceYear ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'}`}>
+        <div className="card" style={zeroBalanceYear ? { backgroundColor: 'var(--color-error-bg)', borderColor: 'var(--color-error-border)' } : { backgroundColor: 'var(--color-info-bg)', borderColor: 'var(--color-info-border)' }}>
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Money Lasts Until Age</h3>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">
             {zeroBalanceYear ? zeroBalanceYear.age : `${lifeExpectancy}+`}
@@ -533,8 +533,8 @@ const DrawdownSimulator: React.FC = () => {
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {simulationData.map((row) => (
                 <tr key={row.age} className={`
-                  ${row.age === retirementAge ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''} 
-                  ${row.closingBalance === 0 ? 'bg-red-50 dark:bg-red-900/10' : ''}
+                  ${row.age === retirementAge ? 'bg-[var(--color-warning-bg)]' : ''} 
+                  ${row.closingBalance === 0 ? 'bg-[var(--color-error-bg)]' : ''}
                   hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors
                 `}>
                   <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
@@ -546,10 +546,10 @@ const DrawdownSimulator: React.FC = () => {
                   <td className="px-3 py-2 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">
                     {formatLargeNumber(row.expenses)}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right text-green-600 dark:text-green-400 font-medium">
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-right font-medium" style={{ color: 'var(--color-success)' }}>
                     <input
                       type="number"
-                      className={`w-24 px-1 py-0.5 text-right border border-gray-300 dark:border-gray-600 rounded bg-transparent text-sm ${row.hasActuals && investmentOverrides[row.age] === undefined ? 'border-dashed border-blue-400' : ''}`}
+                      className={`w-24 px-1 py-0.5 text-right border rounded bg-transparent text-sm border-[color:var(--color-border-primary)] ${row.hasActuals && investmentOverrides[row.age] === undefined ? 'border-dashed' : ''}`}
                       value={investmentOverrides[row.age] !== undefined ? investmentOverrides[row.age] : Math.round(row.investment)}
                       placeholder={String(Math.round(row.investment))}
                       title={row.hasActuals && investmentOverrides[row.age] === undefined ? 'Based on actual transactions' : 'Projected'}
@@ -559,7 +559,7 @@ const DrawdownSimulator: React.FC = () => {
                   <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
                     <input
                       type="number"
-                      className="w-16 px-1 py-0.5 text-center border border-gray-300 dark:border-gray-600 rounded bg-transparent text-sm"
+                      className="w-16 px-1 py-0.5 text-center border border-[color:var(--color-border-primary)] rounded bg-transparent text-sm"
                       value={returnOverrides[row.age] !== undefined ? returnOverrides[row.age] : row.returnRate}
                       placeholder={String(row.returnRate)}
                       onChange={(e) => handleReturnOverride(row.age, e.target.value)}
@@ -752,15 +752,15 @@ const ForecastOverview: React.FC = () => {
   return (
     <>
       {/* Financial Independence Analysis Dashboard */}
-      <div className="card bg-white dark:bg-gray-800 overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm mt-6">
-        <div className="border-b border-gray-100 dark:border-gray-700 pb-4 mb-4 flex justify-between items-center">
+      <div className="card overflow-hidden shadow-sm mt-6">
+        <div className="border-b border-[color:var(--color-border-primary)] pb-4 mb-4 flex justify-between items-center">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Target className="h-6 w-6 text-blue-600" />
+            <Target className="h-6 w-6" style={{ color: 'var(--color-highlight)' }} />
             Financial Independence Analysis
           </h2>
           <button
             onClick={() => setIsSettingsModalOpen(true)}
-            className="flex items-center space-x-2 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+            className="theme-btn-secondary flex items-center space-x-2 text-sm rounded-lg px-3 py-1.5"
           >
             <Settings className="w-4 h-4 mr-1" />
             Edit Profile
@@ -792,7 +792,7 @@ const ForecastOverview: React.FC = () => {
                   Current Net Worth
                   <button
                     onClick={() => setIsAssetModalOpen(true)}
-                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 ml-1 p-0.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                    className="theme-text-secondary hover:theme-text-primary ml-1 p-0.5 rounded hover:bg-[color:var(--color-bg-tertiary)] transition-colors"
                     title="Manage included assets"
                   >
                     <Filter className="w-3.5 h-3.5" />
@@ -801,7 +801,7 @@ const ForecastOverview: React.FC = () => {
                 <div className="flex items-baseline gap-2">
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatLargeNumber(currentRetirementCorpus)}</p>
                   {excludedAssetIds.size > 0 && (
-                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded">
+                    <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{ color: 'var(--color-warning)', backgroundColor: 'var(--color-warning-bg)' }}>
                       {fiAssets.length}/{assets.length} Active
                     </span>
                   )}
@@ -821,7 +821,7 @@ const ForecastOverview: React.FC = () => {
             </h3>
 
             <div className="space-y-4">
-              <div className="flex justify-between items-end border-b border-gray-100 dark:border-gray-700 pb-2">
+              <div className="flex justify-between items-end border-b border-[color:var(--color-card-border)] pb-2">
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Projected Corpus @ {retirementAge}</p>
                 </div>
@@ -830,16 +830,16 @@ const ForecastOverview: React.FC = () => {
                 </p>
               </div>
 
-              <div className="flex justify-between items-end border-b border-gray-100 dark:border-gray-700 pb-2">
+              <div className="flex justify-between items-end border-b border-[color:var(--color-card-border)] pb-2">
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Monthly Income (4% rule)</p>
                 </div>
-                <p className="text-xl font-bold text-green-600 dark:text-green-400">
+                <p className="text-xl font-bold" style={{ color: 'var(--color-success)' }}>
                   {formatCurrency(monthlyIncomeAtRetirement)}
                 </p>
               </div>
 
-              <div className="flex justify-between items-end border-b border-gray-100 dark:border-gray-700 pb-2">
+              <div className="flex justify-between items-end border-b border-[color:var(--color-card-border)] pb-2">
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Inflated Monthly Expenses</p>
                 </div>
@@ -852,7 +852,7 @@ const ForecastOverview: React.FC = () => {
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Surplus / Deficit</p>
                 </div>
-                <p className={`text-2xl font-extrabold ${isSurplus ? 'text-green-600' : 'text-red-600'}`}>
+                <p className={`text-2xl font-extrabold`} style={{ color: isSurplus ? 'var(--color-success)' : 'var(--color-error)' }}>
                   {(isSurplus ? '+' : '') + formatCurrency(surplusDeficit)}
                 </p>
               </div>
@@ -863,10 +863,10 @@ const ForecastOverview: React.FC = () => {
 
       {/* Forecast Controls / Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-        <div className="card bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-          <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">Portfolio Avg Return</h3>
-          <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{weightedReturnRate.toFixed(1)}%</p>
-          <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">Based on included assets ({formatLargeNumber(currentRetirementCorpus)})</p>
+        <div className="card" style={{ backgroundColor: 'var(--color-info-bg)', borderColor: 'var(--color-info-border)' }}>
+          <h3 className="text-sm font-medium mb-1" style={{ color: 'var(--color-info)' }}>Portfolio Avg Return</h3>
+          <p className="text-2xl font-bold" style={{ color: 'var(--color-info)' }}>{weightedReturnRate.toFixed(1)}%</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--color-info)' }}>Based on included assets ({formatLargeNumber(currentRetirementCorpus)})</p>
         </div>
         <div className="card">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
@@ -942,7 +942,7 @@ const ForecastOverview: React.FC = () => {
           <div className="flex justify-end">
             <button
               onClick={() => setIsAssetModalOpen(false)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              className="btn-primary"
             >
               Done
             </button>
@@ -955,9 +955,9 @@ const ForecastOverview: React.FC = () => {
             Uncheck assets that are reserved for other goals (like children's education or house purchase).
           </p>
 
-          <div className="flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800">
-            <span className="text-sm font-medium text-blue-900 dark:text-blue-100">Total Included Corpus:</span>
-            <span className="text-lg font-bold text-blue-700 dark:text-blue-300">{formatLargeNumber(currentRetirementCorpus)}</span>
+          <div className="flex justify-between items-center p-3 rounded-xl border" style={{ backgroundColor: 'var(--color-info-bg)', borderColor: 'var(--color-info-border)' }}>
+            <span className="text-sm font-medium" style={{ color: 'var(--color-info)' }}>Total Included Corpus:</span>
+            <span className="text-lg font-bold" style={{ color: 'var(--color-info)' }}>{formatLargeNumber(currentRetirementCorpus)}</span>
           </div>
 
           <div className="mt-4 pr-2">
@@ -981,7 +981,7 @@ const ForecastOverview: React.FC = () => {
                               type="checkbox"
                               checked={!isExcluded}
                               onChange={() => toggleAssetExclusion(asset.id)}
-                              className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded cursor-pointer"
+                              className="h-4 w-4 rounded cursor-pointer border-[color:var(--color-border-primary)]"
                             />
                           </div>
                           <div className="ml-3 text-sm flex-1">
@@ -991,13 +991,13 @@ const ForecastOverview: React.FC = () => {
                             <div className="flex justify-between items-center mt-1">
                               <span className="text-gray-500 text-xs">{formatCurrency(asset.currentValue)}</span>
                               {linkedGoal ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" title={`Linked to goal: ${linkedGoal.name}`}>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" style={{ color: 'var(--color-warning)', backgroundColor: 'var(--color-warning-bg)' }} title={`Linked to goal: ${linkedGoal.name}`}>
                                   <Target className="w-3 h-3 mr-1" />
                                   {linkedGoal.name}
                                 </span>
                               ) : (
                                 growthRates[asset.category] && (
-                                  <span className="text-xs text-green-600 dark:text-green-400">
+                                  <span className="text-xs" style={{ color: 'var(--color-success)' }}>
                                     <TrendingUp className="w-3 h-3 inline mr-0.5" />
                                     {growthRates[asset.category]}%
                                   </span>
@@ -1041,7 +1041,7 @@ const ForecastOverview: React.FC = () => {
                     type="number"
                     value={userProfile?.financialInfo.monthlyIncome || ''}
                     onChange={(e) => handleFinancialChange('monthlyIncome', Number(e.target.value))}
-                    className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+                    className="input-field pl-8 pr-3"
                     placeholder="e.g., 75000"
                     min="0"
                   />
@@ -1058,7 +1058,7 @@ const ForecastOverview: React.FC = () => {
                     type="number"
                     value={userProfile?.financialInfo.monthlyExpenses || ''}
                     onChange={(e) => handleFinancialChange('monthlyExpenses', Number(e.target.value))}
-                    className="w-full pl-8 pr-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+                    className="input-field pl-8 pr-3"
                     placeholder="e.g., 45000"
                     min="0"
                   />
@@ -1108,7 +1108,7 @@ const ForecastOverview: React.FC = () => {
           <div className="flex justify-end pt-4">
             <button
               onClick={() => setIsSettingsModalOpen(false)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              className="btn-primary"
             >
               Done
             </button>

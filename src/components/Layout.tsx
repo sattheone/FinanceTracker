@@ -16,7 +16,7 @@ import {
   Sun,
   Bell,
   Tags,
-  Menu,
+  RefreshCw,
   X,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -24,6 +24,8 @@ import { useData } from '../contexts/DataContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
 import AlertService from '../services/AlertService';
+import BottomNav from './BottomNav';
+import NavSheet from './NavSheet';
 
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 400;
@@ -36,6 +38,7 @@ const Layout: React.FC = () => {
   const { actualTheme, toggleTheme } = useTheme();
   const theme = useThemeClasses();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
 
@@ -72,13 +75,13 @@ const Layout: React.FC = () => {
     { to: '/transactions', icon: CreditCard, label: 'Transactions' },
     { to: '/categories', icon: Tags, label: 'Categories' },
     { to: '/calendar', icon: Calendar, label: 'Calendar' },
-    { to: '/recurring', icon: Calendar, label: 'Recurring & Bills' },
+    { to: '/recurring', icon: RefreshCw, label: 'Recurring & Bills' },
     { to: '/assets', icon: TrendingUp, label: 'Assets' },
     { to: '/liabilities', icon: TrendingDown, label: 'Liabilities' },
     { to: '/goals', icon: Target, label: 'Goals' },
     { to: '/insurance', icon: Shield, label: 'Insurance' },
     { to: '/reports', icon: PieChart, label: 'Reports' },
-    { to: '/forecast', icon: Calendar, label: 'Forecast' },
+    { to: '/forecast', icon: TrendingUp, label: 'Forecast' },
     { to: '/alerts', icon: Bell, label: 'Alerts', showBadge: true },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ];
@@ -88,8 +91,8 @@ const Layout: React.FC = () => {
   const alerts = AlertService.generateAlerts(transactions, bills, bankAccounts, monthlyBudget);
   const alertCount = alerts.filter(a => a.severity === 'critical' || a.severity === 'warning').length;
 
-  const closeSidebar = () => setSidebarOpen(false);
   const isCategoriesPage = location.pathname === '/categories';
+  const isFullHeightPage = isCategoriesPage || location.pathname === '/transactions';
 
   if (!isDataLoaded) {
     return (
@@ -97,7 +100,7 @@ const Layout: React.FC = () => {
         <div className={theme.loading}>
           <div className="text-center">
             <div className={theme.spinner}></div>
-            <p className={cn(theme.textMuted, 'mt-4')}>Loading your financial data...</p>
+            <p className={cn(theme.textMuted, 'mt-4 text-sm')}>Loading your financial data…</p>
           </div>
         </div>
       </div>
@@ -105,62 +108,58 @@ const Layout: React.FC = () => {
   }
 
   return (
-    <div className={cn(theme.page, 'h-screen flex flex-col overflow-hidden')}>
-      {/* Skip to main content link for screen readers */}
+    <div className={cn(theme.page, 'h-[100dvh] flex flex-col overflow-hidden fixed-layout')}>
+      {/* Skip link */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-blue-600 text-white px-4 py-2 rounded-md z-50"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-[var(--color-accent-primary)] text-[var(--color-text-inverse)] px-4 py-2 rounded-full z-50"
       >
         Skip to main content
       </a>
 
-      {/* Header */}
-      <header className={cn(theme.bgElevated, theme.border, 'border-b shadow-sm sticky top-0 z-40')} role="banner">
+      {/* ── Compact Header ── */}
+      <header
+        className="sticky top-0 z-40 border-b flex-shrink-0"
+        style={{ backgroundColor: 'var(--color-card-bg)', borderColor: 'var(--color-border-primary)' }}
+        role="banner"
+      >
         <div className="px-4 lg:px-6">
-          <div className="flex justify-between items-center h-14 lg:h-16">
-            <div className="flex items-center">
-              {/* Mobile menu button */}
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-2 -ml-2 mr-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                aria-label="Open menu"
-              >
-                <Menu className="h-6 w-6" />
-              </button>
-
-              <TrendingUp className="h-6 w-6 lg:h-8 lg:w-8 text-blue-600 dark:text-blue-400" aria-hidden="true" />
-              <h1 className={cn(theme.textPrimary, 'ml-2 text-lg lg:text-xl font-bold')}>
+          <div className="flex items-center justify-between h-12 lg:h-14">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 lg:h-6 lg:w-6 flex-shrink-0" style={{ color: 'var(--color-highlight)' }} />
+              <span className={cn(theme.textPrimary, 'text-base font-bold tracking-tight')}>
                 <span className="hidden sm:inline">FinanceTracker</span>
                 <span className="sm:hidden">Finance</span>
-              </h1>
+              </span>
             </div>
 
-            <div className="flex items-center space-x-2 lg:space-x-4">
-              <div className={cn(theme.textSecondary, 'hidden md:flex items-center text-sm')} role="status" aria-live="polite">
-                <User className="h-4 w-4 mr-2" aria-hidden="true" />
-                <span>Welcome, {user?.name}</span>
+            <div className="flex items-center gap-1">
+              <div className={cn(theme.textSecondary, 'hidden md:flex items-center text-sm mr-2')}>
+                <User className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                <span className="truncate max-w-[120px]">{user?.name}</span>
               </div>
 
-              {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
-                className={cn(theme.interactive, 'p-2')}
+                className="p-2 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center hover:[background-color:var(--color-bg-secondary)]"
                 title={`Switch to ${actualTheme === 'light' ? 'dark' : 'light'} mode`}
                 aria-label={`Switch to ${actualTheme === 'light' ? 'dark' : 'light'} mode`}
+                style={{ color: 'var(--color-text-secondary)' }}
               >
                 {actualTheme === 'light' ? (
-                  <Moon className="h-4 w-4 lg:h-5 lg:w-5" aria-hidden="true" />
+                  <Moon className="h-4 w-4 lg:h-5 lg:w-5" />
                 ) : (
-                  <Sun className="h-4 w-4 lg:h-5 lg:w-5" aria-hidden="true" />
+                  <Sun className="h-4 w-4 lg:h-5 lg:w-5" />
                 )}
               </button>
 
               <button
                 onClick={logout}
-                className={cn(theme.interactive, 'flex items-center text-sm px-2 lg:px-3 py-2')}
-                aria-label="Logout from your account"
+                className="hidden lg:flex items-center text-sm px-3 py-2 rounded-xl transition-colors min-h-[44px] hover:[background-color:var(--color-bg-secondary)]"
+                style={{ color: 'var(--color-text-secondary)' }}
+                aria-label="Logout"
               >
-                <LogOut className="h-4 w-4 lg:mr-2" aria-hidden="true" />
+                <LogOut className="h-4 w-4 lg:mr-2" />
                 <span className="hidden lg:inline">Logout</span>
               </button>
             </div>
@@ -168,65 +167,73 @@ const Layout: React.FC = () => {
         </div>
       </header>
 
-      {/* Mobile sidebar overlay */}
+      {/* ── Sidebar overlay ── */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-50 lg:hidden"
-          onClick={closeSidebar}
+          className="fixed inset-0 bg-black/50 z-50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Sidebar - Hidden on mobile, shown on lg+ */}
+        {/* ── Sidebar ── */}
         <nav
           className={cn(
-            theme.bgElevated,
-            theme.border,
-            'fixed lg:static inset-y-0 left-0 z-50 shadow-lg lg:shadow-sm h-full border-r flex-shrink-0 lg:relative',
+            'fixed lg:static inset-y-0 left-0 z-50 flex-shrink-0 border-r flex flex-col',
             'transform transition-transform duration-300 ease-in-out lg:transform-none',
-            // Visibility: slide off-screen on mobile when closed
             sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
-            // Width: fixed w-64 on mobile, variable on desktop
-            'w-64 lg:w-[var(--sidebar-width)]'
+            'w-72 lg:w-[var(--sidebar-width)]'
           )}
-          style={{ ['--sidebar-width' as any]: `${sidebarWidth}px` }}
+          style={{
+            ['--sidebar-width' as any]: `${sidebarWidth}px`,
+            backgroundColor: 'var(--color-card-bg)',
+            borderColor: 'var(--color-border-primary)',
+          }}
           role="navigation"
           aria-label="Main navigation"
         >
           {/* Mobile sidebar header */}
-          <div className="lg:hidden flex items-center justify-between h-14 px-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center">
-              <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              <span className={cn(theme.textPrimary, 'ml-2 font-bold')}>FinanceTracker</span>
+          <div
+            className="lg:hidden flex items-center justify-between h-12 px-4 border-b flex-shrink-0"
+            style={{ borderColor: 'var(--color-border-primary)' }}
+          >
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" style={{ color: 'var(--color-highlight)' }} />
+              <span className={cn(theme.textPrimary, 'font-bold text-sm')}>FinanceTracker</span>
             </div>
             <button
-              onClick={closeSidebar}
-              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              onClick={() => setSidebarOpen(false)}
+              className="p-2 rounded-lg min-h-[44px] min-w-[44px] flex items-center justify-center hover:[background-color:var(--color-bg-secondary)]"
+              style={{ color: 'var(--color-text-secondary)' }}
               aria-label="Close menu"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
-          <div className="p-4 overflow-y-auto h-[calc(100%-3.5rem)] lg:h-full">
-            <ul className="space-y-1" role="list">
+          {/* Nav items */}
+          <div className="flex-1 overflow-y-auto py-3 px-3">
+            <ul className="space-y-0.5" role="list">
               {navItems.map((item) => (
-                <li key={item.to} role="listitem">
+                <li key={item.to}>
                   <NavLink
                     to={item.to}
-                    onClick={closeSidebar}
+                    end={item.to === '/'}
+                    onClick={() => setSidebarOpen(false)}
                     className={({ isActive }) =>
                       cn(
-                        theme.navLink,
-                        isActive ? theme.navLinkActive : theme.navLinkInactive
+                        'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors min-h-[44px]',
+                        isActive
+                          ? 'bg-[color:var(--color-accent-primary)]/10 text-[color:var(--color-accent-primary)] font-semibold'
+                          : 'text-[color:var(--color-text-secondary)] hover:[background-color:var(--color-bg-secondary)] hover:text-[color:var(--color-text-primary)]'
                       )
                     }
-                    aria-current={undefined}
                   >
-                    <item.icon className="mr-3 h-5 w-5" aria-hidden="true" />
-                    {item.label}
+                    <item.icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                    <span className="flex-1">{item.label}</span>
                     {item.showBadge && alertCount > 0 && (
-                      <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                      <span className="inline-flex items-center justify-center h-5 min-w-[1.25rem] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full">
                         {alertCount}
                       </span>
                     )}
@@ -236,11 +243,34 @@ const Layout: React.FC = () => {
             </ul>
           </div>
 
-          {/* Resize Handle - only visible on desktop */}
+          {/* Sidebar footer — user + logout */}
+          <div className="flex-shrink-0 border-t px-3 py-3" style={{ borderColor: 'var(--color-border-primary)' }}>
+            <div className="flex items-center gap-2 px-3 py-2 mb-1">
+              <div
+                className="h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                style={{ backgroundColor: 'var(--color-accent-primary)', color: 'var(--color-text-inverse)' }}
+              >
+                {user?.name?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <span className={cn(theme.textSecondary, 'text-sm truncate flex-1')}>{user?.name}</span>
+            </div>
+            <button
+              onClick={logout}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors min-h-[44px] hover:[background-color:var(--color-bg-secondary)]"
+              style={{ color: 'var(--color-error)' }}
+            >
+              <LogOut className="h-4 w-4 flex-shrink-0" />
+              <span>Sign out</span>
+            </button>
+          </div>
+
+          {/* Desktop resize handle */}
           <div
             className={cn(
-              "hidden lg:block absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 transition-colors z-10",
-              isResizing ? "bg-blue-500" : "bg-transparent hover:bg-blue-400"
+              'hidden lg:block absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors z-10',
+              isResizing
+                ? 'bg-[var(--color-border-secondary)]'
+                : 'bg-transparent hover:bg-[var(--color-border-secondary)]'
             )}
             onMouseDown={(e) => {
               e.preventDefault();
@@ -249,20 +279,37 @@ const Layout: React.FC = () => {
           />
         </nav>
 
-        {/* Main Content */}
+        {/* ── Main content ── */}
         <main
           id="main-content"
           className={cn(
-            theme.bgPrimary,
-            'flex-1 overflow-y-auto',
-            isCategoriesPage ? 'p-0 overflow-hidden' : 'p-4 lg:p-6'
+            'flex-1 min-w-0',
+            isFullHeightPage
+              ? 'overflow-hidden p-0'
+              : 'overflow-y-auto p-3 lg:p-5 pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-5'
           )}
+          style={{ backgroundColor: 'var(--color-bg-primary)' }}
           role="main"
           tabIndex={-1}
         >
           <Outlet />
         </main>
       </div>
+
+      {/* ── Bottom nav (mobile only) ── */}
+      <BottomNav
+        onMoreClick={() => setSheetOpen(true)}
+        alertCount={alertCount}
+      />
+
+      {/* ── Mobile nav sheet (More → bottom sheet) ── */}
+      <NavSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        user={user}
+        onLogout={logout}
+        alertCount={alertCount}
+      />
     </div>
   );
 };

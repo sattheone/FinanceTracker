@@ -249,7 +249,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
     const budgetStatus = getBudgetStatus();
 
     return (
-        <div className="h-fit w-full min-w-0 overflow-x-hidden flex flex-col bg-white dark:bg-gray-800">
+        <div className="h-fit w-full min-w-0 overflow-x-hidden flex flex-col" style={{ backgroundColor: 'var(--color-card-bg)' }}>
 
             {/* Header Section */}
             <div className="p-4 border-b border-gray-100 dark:border-gray-700">
@@ -364,7 +364,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
             </div>
 
             {/* Transaction List */}
-            <div className="bg-white dark:bg-gray-900 p-4 flex-1 overflow-x-hidden" ref={listContainerRef}>
+            <div className="p-4 flex-1 overflow-x-hidden" style={{ backgroundColor: 'var(--color-card-bg)' }} ref={listContainerRef}>
                 <TransactionTable
                     transactions={sortedTransactions}
                     selectedTransactions={selectedTransactions}

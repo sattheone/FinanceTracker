@@ -63,12 +63,12 @@ const Insurance: React.FC = () => {
     }
   };
 
-  const getInsuranceColor = (type: string) => {
+  const getInsuranceStyle = (type: string): React.CSSProperties => {
     switch (type) {
-      case 'term': return 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700';
-      case 'endowment': return 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700';
-      case 'health': return 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700';
-      default: return 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600';
+      case 'term': return { backgroundColor: 'var(--color-info-bg)', borderColor: 'var(--color-info-border)' };
+      case 'endowment': return { backgroundColor: 'var(--color-success-bg)', borderColor: 'var(--color-success-border)' };
+      case 'health': return { backgroundColor: 'var(--color-error-bg)', borderColor: 'var(--color-error-border)' };
+      default: return { backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-primary)' };
     }
   };
 
@@ -133,12 +133,12 @@ const Insurance: React.FC = () => {
       {/* Insurance Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="metric-card text-center">
-          <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
+          <Shield className="h-8 w-8 mx-auto mb-2" style={{ color: 'var(--color-highlight)' }} />
           <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total Sum Assured</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">{formatLargeNumber(totalCover)}</p>
         </div>
         <div className="metric-card text-center">
-          <Calendar className="h-8 w-8 text-green-600 dark:text-green-400 mx-auto mb-2" />
+          <Calendar className="h-8 w-8 mx-auto mb-2" style={{ color: 'var(--color-success)' }} />
           <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Annual Premiums</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white dark:text-white">{formatCurrency(totalPremiums)}</p>
         </div>
@@ -170,7 +170,7 @@ const Insurance: React.FC = () => {
       <div className="card">
         <div className="space-y-4">
           {insurance.map((policy) => (
-            <div key={policy.id} className={`p-4 border-l-4 rounded-lg ${getInsuranceColor(policy.type)}`}>
+            <div key={policy.id} className="p-4 border-l-4 rounded-xl" style={getInsuranceStyle(policy.type)}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center mb-2">
@@ -214,7 +214,7 @@ const Insurance: React.FC = () => {
                     {policy.maturityAmount && (
                       <div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Maturity Amount</p>
-                        <p className="text-lg font-semibold text-green-600 dark:text-green-400">
+                        <p className="text-lg font-semibold" style={{ color: 'var(--color-success)' }}>
                           {formatLargeNumber(policy.maturityAmount)}
                         </p>
                       </div>
@@ -226,14 +226,14 @@ const Insurance: React.FC = () => {
                 <div className="flex gap-2 ml-4">
                   <button
                     onClick={() => handleDuplicateInsurance(policy)}
-                    className="p-2 text-green-600 dark:text-green-400 hover:bg-green-50 dark:bg-green-900/20 rounded-lg transition-colors"
+                    className="p-2 theme-text-secondary hover:bg-[color:var(--color-bg-tertiary)] rounded-lg transition-colors"
                     title="Duplicate Policy"
                   >
                     <Copy className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleEditInsurance(policy)}
-                    className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:bg-blue-900/20 rounded-lg transition-colors"
+                    className="p-2 theme-text-secondary hover:bg-[color:var(--color-bg-tertiary)] rounded-lg transition-colors"
                     title="Edit Policy"
                   >
                     <Edit3 className="w-4 h-4" />

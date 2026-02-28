@@ -13,8 +13,8 @@ export const useThemeClasses = () => {
     cardContent: 'theme-text-secondary',
 
     // Typography
-    heading1: 'text-3xl font-bold theme-text-primary',
-    heading2: 'text-2xl font-semibold theme-text-primary',
+    heading1: 'text-3xl font-bold theme-text-primary font-serif',
+    heading2: 'text-2xl font-semibold theme-text-primary font-serif',
     heading3: 'text-lg font-semibold theme-text-primary',
     heading4: 'text-base font-medium theme-text-primary',
 
@@ -26,13 +26,13 @@ export const useThemeClasses = () => {
     // Buttons
     btnPrimary: 'theme-btn-primary',
     btnSecondary: 'theme-btn-secondary',
-    btnDanger: 'bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors',
-    btnSuccess: 'bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors',
+    btnDanger: 'bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-full font-medium transition-colors',
+    btnSuccess: 'bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full font-medium transition-colors',
 
     // Forms
-    input: 'w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors',
-    select: 'w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors appearance-none',
-    textarea: 'w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors resize-none',
+    input: 'w-full px-4 py-2 rounded-xl border border-[var(--color-border-primary)] bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-border-focus)] focus:border-[var(--color-border-focus)] outline-none transition-colors',
+    select: 'w-full px-4 py-2 rounded-xl border border-[var(--color-border-primary)] bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] focus:ring-2 focus:ring-[var(--color-border-focus)] focus:border-[var(--color-border-focus)] outline-none transition-colors appearance-none',
+    textarea: 'w-full px-4 py-2 rounded-xl border border-[var(--color-border-primary)] bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:ring-2 focus:ring-[var(--color-border-focus)] focus:border-[var(--color-border-focus)] outline-none transition-colors resize-none',
     label: 'block text-sm font-medium theme-text-secondary mb-2',
 
     // Tables
@@ -42,8 +42,8 @@ export const useThemeClasses = () => {
     tableCell: 'theme-table-cell',
 
     // Navigation
-    navLink: 'flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors',
-    navLinkActive: 'theme-bg-secondary theme-text-primary border-r-2 border-blue-500',
+    navLink: 'flex items-center px-3 py-1.5 text-sm font-medium rounded-xl transition-colors',
+    navLinkActive: 'theme-bg-tertiary theme-text-primary font-semibold',
     navLinkInactive: 'theme-text-tertiary hover:theme-bg-secondary hover:theme-text-primary',
 
     // Status & Badges
@@ -74,7 +74,7 @@ export const useThemeClasses = () => {
 
     // Loading & Empty States
     loading: 'flex items-center justify-center p-8',
-    spinner: 'animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500',
+    spinner: 'animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-accent-primary)]',
     emptyState: 'text-center py-12',
     emptyStateIcon: 'mx-auto h-12 w-12 theme-text-muted mb-4',
     emptyStateTitle: 'theme-text-primary text-lg font-medium mb-2',

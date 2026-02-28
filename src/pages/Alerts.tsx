@@ -61,25 +61,25 @@ const Alerts: React.FC = () => {
         }
     };
 
-    const getSeverityColor = (severity: AlertSeverity) => {
+    const getSeverityStyles = (severity: AlertSeverity): React.CSSProperties => {
         switch (severity) {
             case 'critical':
-                return 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-800 dark:text-red-200';
+                return { backgroundColor: 'var(--color-error-bg)', borderColor: 'var(--color-error-border)' };
             case 'warning':
-                return 'bg-yellow-100 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200';
+                return { backgroundColor: 'var(--color-warning-bg)', borderColor: 'var(--color-warning-border)' };
             case 'info':
-                return 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-200';
+                return { backgroundColor: 'var(--color-info-bg)', borderColor: 'var(--color-info-border)' };
         }
     };
 
-    const getSeverityIconColor = (severity: AlertSeverity) => {
+    const getSeverityIconStyle = (severity: AlertSeverity): React.CSSProperties => {
         switch (severity) {
             case 'critical':
-                return 'text-red-600 dark:text-red-400';
+                return { color: 'var(--color-error)' };
             case 'warning':
-                return 'text-yellow-600 dark:text-yellow-400';
+                return { color: 'var(--color-warning)' };
             case 'info':
-                return 'text-blue-600 dark:text-blue-400';
+                return { color: 'var(--color-info)' };
         }
     };
 
@@ -110,12 +110,12 @@ const Alerts: React.FC = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className={cn(theme.textSecondary, 'text-sm mb-1')}>Critical Alerts</p>
-                            <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                            <p className="text-2xl font-bold" style={{ color: 'var(--color-error)' }}>
                                 {allAlerts.filter(a => a.severity === 'critical' && !dismissedAlerts.has(a.id)).length}
                             </p>
                         </div>
-                        <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                            <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                        <div className="p-3 rounded-xl" style={{ backgroundColor: 'var(--color-error-bg)' }}>
+                            <AlertTriangle className="w-6 h-6" style={{ color: 'var(--color-error)' }} />
                         </div>
                     </div>
                 </div>
@@ -124,12 +124,12 @@ const Alerts: React.FC = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className={cn(theme.textSecondary, 'text-sm mb-1')}>Warnings</p>
-                            <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                            <p className="text-2xl font-bold" style={{ color: 'var(--color-warning)' }}>
                                 {allAlerts.filter(a => a.severity === 'warning' && !dismissedAlerts.has(a.id)).length}
                             </p>
                         </div>
-                        <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-                            <Bell className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+                        <div className="p-3 rounded-xl" style={{ backgroundColor: 'var(--color-warning-bg)' }}>
+                            <Bell className="w-6 h-6" style={{ color: 'var(--color-warning)' }} />
                         </div>
                     </div>
                 </div>
@@ -138,12 +138,12 @@ const Alerts: React.FC = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className={cn(theme.textSecondary, 'text-sm mb-1')}>Info</p>
-                            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                            <p className="text-2xl font-bold" style={{ color: 'var(--color-info)' }}>
                                 {allAlerts.filter(a => a.severity === 'info' && !dismissedAlerts.has(a.id)).length}
                             </p>
                         </div>
-                        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                            <Receipt className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                        <div className="p-3 rounded-xl" style={{ backgroundColor: 'var(--color-info-bg)' }}>
+                            <Receipt className="w-6 h-6" style={{ color: 'var(--color-info)' }} />
                         </div>
                     </div>
                 </div>
@@ -168,7 +168,7 @@ const Alerts: React.FC = () => {
             <div className="space-y-4">
                 {filteredAlerts.length === 0 ? (
                     <div className="card text-center py-12">
-                        <Check className="w-12 h-12 mx-auto mb-4 text-green-500" />
+                        <Check className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--color-success)' }} />
                         <h3 className={cn(theme.heading3, 'mb-2')}>All Clear!</h3>
                         <p className={theme.textSecondary}>
                             {filter === 'all'
@@ -181,14 +181,12 @@ const Alerts: React.FC = () => {
                     filteredAlerts.map(alert => (
                         <div
                             key={alert.id}
-                            className={cn(
-                                'card border-l-4 transition-all',
-                                getSeverityColor(alert.severity)
-                            )}
+                            className="card border-l-4 transition-all"
+                            style={getSeverityStyles(alert.severity)}
                         >
                             <div className="flex items-start justify-between">
                                 <div className="flex items-start space-x-4 flex-1">
-                                    <div className={cn('p-2 rounded-lg', getSeverityIconColor(alert.severity))}>
+                                    <div className="p-2 rounded-xl" style={getSeverityIconStyle(alert.severity)}>
                                         {getAlertIcon(alert.type)}
                                     </div>
                                     <div className="flex-1">

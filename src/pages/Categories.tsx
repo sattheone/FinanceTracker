@@ -467,11 +467,11 @@ const Categories: React.FC = () => {
     };
 
     return (
-        <div className="h-[calc(100vh-4rem)] flex bg-white dark:bg-gray-900 overflow-hidden min-w-0">
+        <div className="h-[calc(100vh-4rem)] flex theme-bg-primary overflow-hidden min-w-0">
 
             {/* LEFT PANE: Category List */}
             <div className={cn(
-                "w-full md:w-80 lg:w-96 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col overflow-visible",
+                "w-full md:w-80 lg:w-96 border-r border-gray-200 dark:border-gray-700 theme-bg-primary flex flex-col overflow-visible",
                 selectedCategoryId ? "hidden md:flex" : "flex"
             )}>
                 {/* Header */}
@@ -492,13 +492,13 @@ const Categories: React.FC = () => {
                                     className={cn(
                                         "relative p-2 rounded-lg transition-all",
                                         showFilters || activeFilterCount > 0
-                                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                            ? "bg-[color:var(--color-bg-tertiary)] text-[color:var(--color-text-primary)]"
                                             : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
                                     )}
                                 >
                                     <Filter className="w-4 h-4" />
                                     {activeFilterCount > 0 && (
-                                        <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center bg-blue-600 text-white text-[10px] rounded-full">
+                                        <span className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center text-[10px] font-medium rounded-full" style={{ backgroundColor: 'var(--color-accent-primary)', color: 'var(--color-text-inverse)' }}>
                                             {activeFilterCount}
                                         </span>
                                     )}
@@ -506,10 +506,12 @@ const Categories: React.FC = () => {
 
                                 {/* Popover Content */}
                                 {showFilters && (
-                                    <div className="fixed mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-[100]"
+                                    <div className="fixed mt-1.5 w-72 popup-surface rounded-xl z-[100]"
                                         style={{
                                             top: filterRef.current?.getBoundingClientRect().bottom ?? 0,
-                                            left: Math.max(16, (filterRef.current?.getBoundingClientRect().right ?? 0) - 288)
+                                            left: Math.max(16, (filterRef.current?.getBoundingClientRect().right ?? 0) - 288),
+                                            backgroundColor: 'var(--color-card-bg)',
+                                            borderColor: 'var(--color-border-primary)'
                                         }}>
                                         <div className="p-3 space-y-3">
                                             {/* Account Filter */}
@@ -522,7 +524,7 @@ const Categories: React.FC = () => {
                                                     <select
                                                         value={selectedAccountId}
                                                         onChange={(e) => setSelectedAccountId(e.target.value)}
-                                                        className="w-full appearance-none bg-gray-100 dark:bg-gray-700 text-xs font-medium text-gray-800 dark:text-gray-200 pl-2 pr-6 py-1.5 rounded-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 truncate"
+                                                        className="w-full appearance-none text-xs font-medium pl-2 pr-6 py-1.5 rounded-lg cursor-pointer focus:outline-none focus:ring-2 truncate input-field"
                                                     >
                                                         <option value="all">All Accounts</option>
                                                         {bankAccounts.map(account => {
@@ -550,13 +552,13 @@ const Categories: React.FC = () => {
                                                     className={cn(
                                                         "relative w-9 h-5 rounded-full transition-colors",
                                                         includeInvestments
-                                                            ? "bg-purple-600"
+                                                            ? "[background-color:var(--color-accent-primary)]"
                                                             : "bg-gray-300 dark:bg-gray-600"
                                                     )}
                                                 >
                                                     <span
                                                         className={cn(
-                                                            "absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
+                                                            "absolute top-0.5 left-0.5 w-4 h-4 keep-white rounded-full shadow transition-transform",
                                                             includeInvestments && "translate-x-4"
                                                         )}
                                                     />
@@ -574,13 +576,13 @@ const Categories: React.FC = () => {
                                                     className={cn(
                                                         "relative w-9 h-5 rounded-full transition-colors",
                                                         includeIncome
-                                                            ? "bg-green-600"
+                                                            ? "[background-color:var(--color-accent-primary)]"
                                                             : "bg-gray-300 dark:bg-gray-600"
                                                     )}
                                                 >
                                                     <span
                                                         className={cn(
-                                                            "absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
+                                                            "absolute top-0.5 left-0.5 w-4 h-4 keep-white rounded-full shadow transition-transform",
                                                             includeIncome && "translate-x-4"
                                                         )}
                                                     />
@@ -598,13 +600,13 @@ const Categories: React.FC = () => {
                                                     className={cn(
                                                         "relative w-9 h-5 rounded-full transition-colors",
                                                         includeTransfer
-                                                            ? "bg-blue-600"
+                                                            ? "[background-color:var(--color-accent-primary)]"
                                                             : "bg-gray-300 dark:bg-gray-600"
                                                     )}
                                                 >
                                                     <span
                                                         className={cn(
-                                                            "absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
+                                                            "absolute top-0.5 left-0.5 w-4 h-4 keep-white rounded-full shadow transition-transform",
                                                             includeTransfer && "translate-x-4"
                                                         )}
                                                     />
@@ -637,7 +639,7 @@ const Categories: React.FC = () => {
                                 className={cn(
                                     "relative p-2 rounded-lg transition-all",
                                     categoryDisplayMode === 'grouped'
-                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                        ? "bg-[color:var(--color-bg-tertiary)] text-[color:var(--color-text-primary)]"
                                         : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
                                 )}
                                 title={categoryDisplayMode === 'grouped' ? 'Grouped View' : 'Individual View'}
@@ -650,7 +652,7 @@ const Categories: React.FC = () => {
                             </button>
                             <button
                                 onClick={() => setShowAddPanel(true)}
-                                className={cn("p-2 rounded-lg transition-all bg-black text-white hover:bg-gray-900")}
+                                className={cn("p-2 rounded-lg transition-all [background-color:var(--color-accent-primary)] text-[color:var(--color-text-inverse)] hover:[background-color:var(--color-accent-hover)]")}
                                 title="Add Category"
                             >
                                 <Plus className="w-4 h-4" />
@@ -663,9 +665,9 @@ const Categories: React.FC = () => {
                         <button
                             onClick={() => setViewMode('month')}
                             className={cn(
-                                "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
+                                "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-all",
                                 viewMode === 'month'
-                                    ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm"
+                                    ? "bg-[color:var(--color-card-bg)] text-[color:var(--color-text-primary)] shadow-sm"
                                     : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                             )}
                         >
@@ -674,9 +676,9 @@ const Categories: React.FC = () => {
                         <button
                             onClick={() => setViewMode('prevMonth')}
                             className={cn(
-                                "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
+                                "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-all",
                                 viewMode === 'prevMonth'
-                                    ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm"
+                                    ? "bg-[color:var(--color-card-bg)] text-[color:var(--color-text-primary)] shadow-sm"
                                     : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                             )}
                         >
@@ -685,9 +687,9 @@ const Categories: React.FC = () => {
                         <button
                             onClick={() => setViewMode('year')}
                             className={cn(
-                                "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
+                                "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-all",
                                 viewMode === 'year'
-                                    ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm"
+                                    ? "bg-[color:var(--color-card-bg)] text-[color:var(--color-text-primary)] shadow-sm"
                                     : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                             )}
                         >
@@ -696,9 +698,9 @@ const Categories: React.FC = () => {
                         <button
                             onClick={() => setViewMode('prevYear')}
                             className={cn(
-                                "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all",
+                                "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-all",
                                 viewMode === 'prevYear'
-                                    ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm"
+                                    ? "bg-[color:var(--color-card-bg)] text-[color:var(--color-text-primary)] shadow-sm"
                                     : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                             )}
                         >
@@ -711,48 +713,48 @@ const Categories: React.FC = () => {
                     {activeFilterCount > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1.5">
                             {selectedAccountId !== 'all' && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-[10px] font-medium rounded-full">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>
                                     <Building2 className="w-3 h-3" />
                                     {getAccountName(selectedAccountId)}
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setSelectedAccountId('all'); }}
-                                        className="ml-0.5 hover:text-blue-900 dark:hover:text-blue-200"
+                                        className="ml-0.5 hover:opacity-70"
                                     >
                                         <X className="w-3 h-3" />
                                     </button>
                                 </span>
                             )}
                             {includeInvestments && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-[10px] font-medium rounded-full">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>
                                     <TrendingUp className="w-3 h-3" />
                                     + Investments
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setIncludeInvestments(false); }}
-                                        className="ml-0.5 hover:text-purple-900 dark:hover:text-purple-200"
+                                        className="ml-0.5 hover:opacity-70"
                                     >
                                         <X className="w-3 h-3" />
                                     </button>
                                 </span>
                             )}
                             {includeIncome && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-medium rounded-full">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>
                                     <Wallet className="w-3 h-3" />
                                     + Income
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setIncludeIncome(false); }}
-                                        className="ml-0.5 hover:text-green-900 dark:hover:text-green-200"
+                                        className="ml-0.5 hover:opacity-70"
                                     >
                                         <X className="w-3 h-3" />
                                     </button>
                                 </span>
                             )}
                             {includeTransfer && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-[10px] font-medium rounded-full">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>
                                     <List className="w-3 h-3" />
                                     + Transfer
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setIncludeTransfer(false); }}
-                                        className="ml-0.5 hover:text-blue-900 dark:hover:text-blue-200"
+                                        className="ml-0.5 hover:opacity-70"
                                     >
                                         <X className="w-3 h-3" />
                                     </button>
@@ -787,7 +789,7 @@ const Categories: React.FC = () => {
                     headerActions={(
                         <button
                             onClick={() => formRef.current?.submit()}
-                            className="px-4 py-1.5 bg-black text-white rounded-lg text-sm font-semibold shadow hover:bg-gray-900"
+                            className="btn-primary text-sm"
                         >
                             Add
                         </button>
@@ -822,7 +824,7 @@ const Categories: React.FC = () => {
 
             {/* RIGHT PANE: Detail View */}
             <div className={cn(
-                "flex-1 basis-0 bg-white dark:bg-gray-900 flex flex-col min-w-0 overflow-x-hidden transition-all duration-300",
+                "flex-1 basis-0 theme-bg-primary flex flex-col min-w-0 overflow-x-hidden transition-all duration-300",
                 !selectedCategoryId ? "hidden md:flex" : "flex"
             )}>
                 {selectedCategory ? (
