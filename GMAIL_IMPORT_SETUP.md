@@ -31,49 +31,48 @@ This guide will help you set up automatic import of bank statement PDFs from you
 2. Search for **"Gmail API"**
 3. Click on **Gmail API** and click **"Enable"**
 
-### Step 3: Create OAuth 2.0 Credentials
+### Step 3: Configure the OAuth Consent Screen
 
-1. Go to **"APIs & Services" → "Credentials"**
-2. Click **"Create Credentials" → "OAuth 2.0 Client IDs"**
-3. If prompted, configure OAuth consent screen:
-   - Choose **"External"** user type
-   - Fill in app name: "Personal Finance Manager"
-   - Add your email as developer contact
-   - Add scopes: `https://www.googleapis.com/auth/gmail.readonly`
-4. For OAuth 2.0 Client ID:
-   - Application type: **"Web application"**
-   - Name: "Personal Finance Manager"
-   - Authorized redirect URIs: `http://localhost:3000/auth/callback`
-5. Click **"Create"**
-6. **Copy the Client ID and Client Secret** (you'll need these)
+1. Go to **"APIs & Services" → "OAuth consent screen"** (Google Auth Platform → Branding / Audience / Data access)
+2. User type: **External**; app name e.g. "FinanceTracker"; add your support/developer email
+3. Data access → add scope `https://www.googleapis.com/auth/gmail.readonly`
+4. Audience → while the app is in **Testing**, add every Gmail address that will connect as a **Test user**
+   - `gmail.readonly` is a *restricted* scope: publishing to production for other users requires Google verification + a security assessment
+   - In Testing mode, consent expires after 7 days and must be granted again
 
-### Step 4: Configure App Settings
+### Step 4: Create an OAuth 2.0 Client ID (no secret needed)
 
-1. Open your Personal Finance Manager
-2. Go to **Settings → Gmail Import**
-3. Toggle **"Enable Gmail Import"** to ON
-4. Enter your **Google Client ID** and **Client Secret**
-5. Click **"Test Connection"** to authenticate
+1. Go to **"APIs & Services" → "Credentials" → "Create Credentials" → "OAuth client ID"**
+2. Application type: **Web application**
+3. **Authorized JavaScript origins**: `http://localhost:3000` and your hosting origin(s), e.g. `https://<project>.web.app`, `https://<project>.firebaseapp.com`
+4. Redirect URIs are **not** needed (the app uses the Google Identity Services token popup)
+5. Copy the **Client ID** only. Do **not** put the client secret anywhere in the frontend.
 
-### Step 5: Configure HDFC Bank Settings
+### Step 5: Configure the App
 
-1. In Gmail Import settings, enable **HDFC Bank Settings**
-2. Verify sender email: `alerts@hdfcbank.net` (or your bank's email)
-3. Adjust subject keywords if needed
-4. Link to your HDFC bank account from the dropdown
+1. Add to `.env` (see `.env.example`) and restart `npm run dev`:
+   ```
+   VITE_GOOGLE_OAUTH_CLIENT_ID=1234567890-abc123.apps.googleusercontent.com
+   ```
+   (Alternatively paste it under **Settings → Gmail Import → Advanced Settings → Client ID override**.)
+2. Open **Settings → Gmail Import**, toggle **"Enable Gmail Statement Import"**
+3. Click **"Connect with Google"** and allow read-only Gmail access
 
-### Step 6: Test Manual Import
+### Step 6: Configure Banks
 
-1. Click **"Import Now"** to test the setup
-2. Check your Gmail for HDFC statement emails
-3. Verify transactions are imported correctly
-4. Review auto-categorization results
+1. Enable each bank you receive statements from; the sender can be an address or a domain (e.g. `hdfcbank.net`)
+2. Choose the account to import into (or pick it during review)
+3. Enter the statement PDF password. Passwords are stored **only in this browser** (localStorage), never in Firestore
 
-### Step 7: Enable Auto Import (Optional)
+### Step 7: Scan, Review, Import
 
-1. Click **"Start Auto Import"** for automatic processing
-2. The system will check every 6 hours for new statements
-3. Monitor the import logs for any issues
+1. Click **"Scan now"** – statements found are listed and parsed one by one
+2. Locked PDFs show a password prompt; tick "Remember" to save it locally for that bank
+3. Click **"Review & Import"** – edit/deselect rows, pick the account, confirm
+4. Possible duplicates of existing transactions are shown for resolution before saving
+5. Imported/skipped emails are recorded in Firestore (`users/{uid}/gmailProcessedMessages`) and are not offered again
+
+Google access tokens last about one hour and are kept only for the browser session; click "Connect with Google" again when they expire. Background scanning while the app is closed is not supported yet (it needs a server-side refresh-token flow).
 
 ## 🔧 **Gmail Search Filters**
 
@@ -122,10 +121,10 @@ Date        Description                    Amount    Dr/Cr   Balance
 
 **Problem**: "Failed to authenticate with Gmail"
 **Solution**:
-1. Verify Client ID and Secret are correct
-2. Check OAuth consent screen is configured
-3. Ensure Gmail API is enabled
-4. Try re-creating OAuth credentials
+1. Verify the Client ID is a *Web application* client and the current origin is listed under Authorized JavaScript origins
+2. Check the OAuth consent screen is configured and your Gmail address is a Test user
+3. Ensure the Gmail API is enabled for the same Google Cloud project
+4. Allow popups for the app (the Google sign-in opens in a popup)
 
 ### No Emails Found
 
@@ -167,7 +166,7 @@ Date        Description                    Amount    Dr/Cr   Balance
 
 ### Best Practices:
 1. **Regular Review**: Check imported transactions monthly
-2. **Secure Credentials**: Keep Client ID/Secret confidential
+2. **No Secrets in the Browser**: Only the public Client ID is used; never add the client secret to `.env`
 3. **Revoke Access**: Can revoke app access anytime in Google Account settings
 4. **Monitor Usage**: Check Google Cloud Console for API usage
 

@@ -25,6 +25,9 @@ class BankStatementParser {
 
   constructor() {
     this.registerStrategy(this.createHDFCStandardStrategy());
+    this.registerStrategy(this.createICICIStrategy());
+    this.registerStrategy(this.createSBIStrategy());
+    this.registerStrategy(this.createAxisStrategy());
     this.registerStrategy(this.createGenericStrategy());
   }
 
@@ -49,21 +52,31 @@ class BankStatementParser {
   }
 
   private detectStrategy(text: string): StatementParserStrategy {
-    // Find the first strategy whose identifiers match the text
+    // Statements often mention other banks in transaction narrations (e.g. a UPI
+    // transfer to an ICICI account inside an SBI statement). Among the strategies
+    // whose identifiers all match, prefer the one whose primary identifier appears
+    // earliest - i.e. in the statement's own header rather than in a narration.
+    const lowerText = text.toLowerCase();
+    let best: StatementParserStrategy | null = null;
+    let bestPosition = Infinity;
+
     for (const strategy of this.strategies) {
       if (strategy.name === 'Generic') continue; // Check specific ones first
 
       const isMatch = strategy.identifiers.every(id =>
-        text.toLowerCase().includes(id.toLowerCase())
+        lowerText.includes(id.toLowerCase())
       );
+      if (!isMatch) continue;
 
-      if (isMatch) {
-        return strategy;
+      const position = lowerText.indexOf(strategy.identifiers[0].toLowerCase());
+      if (position < bestPosition) {
+        best = strategy;
+        bestPosition = position;
       }
     }
 
     // Fallback to Generic
-    return this.strategies.find(s => s.name === 'Generic')!;
+    return best || this.strategies.find(s => s.name === 'Generic')!;
   }
 
   // --- HDFC Standard Strategy ---
@@ -116,6 +129,225 @@ class BankStatementParser {
           closingBalance,
           transactions,
           bankName: 'HDFC Bank'
+        };
+      }
+    };
+  }
+
+  // --- ICICI Bank Strategy ---
+  private createICICIStrategy(): StatementParserStrategy {
+    return {
+      name: 'ICICI Bank',
+      identifiers: ['ICICI Bank'],
+      parse: (text: string) => {
+        const patterns = {
+          accountNumber: /(?:Account\s*(?:No|Number)|A\/C\s*No)[:\s]+(\d{10,16})/i,
+          accountHolder: /(?:Name|Account\s*Holder)[:\s]+([A-Z\s\.]+)/i,
+          statementPeriod: /(?:Period|Statement\s*Period)[:\s]+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})\s+to\s+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i,
+        };
+
+        const accountNumber = this.extractPattern(text, patterns.accountNumber) || 'Unknown';
+        const accountHolder = this.extractPattern(text, patterns.accountHolder) || 'Unknown';
+
+        const periodMatch = text.match(patterns.statementPeriod);
+        const statementPeriod = periodMatch ? {
+          from: this.convertDateFormat(periodMatch[1]),
+          to: this.convertDateFormat(periodMatch[2])
+        } : {
+          from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          to: new Date().toISOString().split('T')[0]
+        };
+
+        const transactions: ParsedTransaction[] = [];
+        const lines = text.split('\n');
+        // Date regex: DD/MM/YYYY or DD-MM-YYYY
+        const datePattern = /^(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})\s+(.+)/;
+        let previousBalance: number | null = null;
+
+        for (const line of lines) {
+          const match = line.trim().match(datePattern);
+          if (!match) continue;
+
+          const dateStr = match[1];
+          const rest = match[2];
+
+          // Check for amounts: could have withdrawal, deposit, balance
+          const amountMatches = this.matchCurrencyAmounts(rest);
+          if (amountMatches.length === 0) continue;
+
+          const date = this.convertDateFormat(dateStr);
+
+          // Clean description by stripping out amounts
+          let desc = rest;
+          amountMatches.forEach(amt => {
+            desc = desc.replace(amt.raw, '');
+          });
+
+          const { amount, isCredit, balance } = this.resolveAmountAndType(
+            rest, amountMatches, previousBalance, /\b(?:cr|credit|deposit)\b/i, /\b(?:dr|debit)\b/i
+          );
+          if (balance !== null) previousBalance = balance;
+
+          if (amount > 0) {
+            transactions.push({
+              date,
+              description: this.cleanDescription(desc),
+              amount,
+              type: isCredit ? 'income' : 'expense',
+              category: '',
+              confidence: 0.85
+            });
+          }
+        }
+
+        return {
+          accountNumber,
+          accountHolder,
+          statementPeriod,
+          openingBalance: 0,
+          closingBalance: 0,
+          transactions,
+          bankName: 'ICICI Bank'
+        };
+      }
+    };
+  }
+
+  // --- State Bank of India (SBI) Strategy ---
+  private createSBIStrategy(): StatementParserStrategy {
+    return {
+      name: 'State Bank of India',
+      identifiers: ['State Bank of India'],
+      parse: (text: string) => {
+        const patterns = {
+          accountNumber: /(?:Account\s*No|A\/C\s*No)[:\s]+(\d{10,18})/i,
+          accountHolder: /(?:Account\s*Name|Name)[:\s]+([A-Z\s\.]+)/i,
+          statementPeriod: /(?:Statement\s*Period|Period)[:\s]+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})\s+to\s+(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/i,
+        };
+
+        const accountNumber = this.extractPattern(text, patterns.accountNumber) || 'Unknown';
+        const accountHolder = this.extractPattern(text, patterns.accountHolder) || 'Unknown';
+
+        const periodMatch = text.match(patterns.statementPeriod);
+        const statementPeriod = periodMatch ? {
+          from: this.convertDateFormat(periodMatch[1]),
+          to: this.convertDateFormat(periodMatch[2])
+        } : {
+          from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          to: new Date().toISOString().split('T')[0]
+        };
+
+        const transactions: ParsedTransaction[] = [];
+        const lines = text.split('\n');
+        // SBI format usually: Txn Date | Value Date | Description | Ref | Debit | Credit | Balance
+        const datePattern = /(\d{2}[\/\-\s][A-Za-z0-9]{2,3}[\/\-\s]\d{2,4})/;
+        let previousBalance: number | null = null;
+
+        for (const line of lines) {
+          const dateMatch = line.match(datePattern);
+          if (!dateMatch) continue;
+
+          const amountMatches = this.matchCurrencyAmounts(line.replace(dateMatch[0], ' '));
+          if (amountMatches.length === 0) continue;
+
+          const date = this.convertDateFormat(dateMatch[1]);
+
+          let desc = line.replace(dateMatch[0], '');
+          amountMatches.forEach(amt => {
+            desc = desc.replace(amt.raw, '');
+          });
+
+          const { amount, isCredit, balance } = this.resolveAmountAndType(
+            line, amountMatches, previousBalance, /\b(?:cr|credit|transfer\s+from|by\s+transfer)\b/i, /\b(?:dr|debit|transfer\s+to|to\s+transfer)\b/i
+          );
+          if (balance !== null) previousBalance = balance;
+
+          if (amount > 0) {
+            transactions.push({
+              date,
+              description: this.cleanDescription(desc),
+              amount,
+              type: isCredit ? 'income' : 'expense',
+              category: '',
+              confidence: 0.85
+            });
+          }
+        }
+
+        return {
+          accountNumber,
+          accountHolder,
+          statementPeriod,
+          openingBalance: 0,
+          closingBalance: 0,
+          transactions,
+          bankName: 'State Bank of India'
+        };
+      }
+    };
+  }
+
+  // --- Axis Bank Strategy ---
+  private createAxisStrategy(): StatementParserStrategy {
+    return {
+      name: 'Axis Bank',
+      identifiers: ['Axis Bank'],
+      parse: (text: string) => {
+        const patterns = {
+          accountNumber: /(?:Account\s*No|A\/C\s*No)[:\s]+(\d{12,18})/i,
+          accountHolder: /(?:Name|Customer\s*Name)[:\s]+([A-Z\s\.]+)/i,
+        };
+
+        const accountNumber = this.extractPattern(text, patterns.accountNumber) || 'Unknown';
+        const accountHolder = this.extractPattern(text, patterns.accountHolder) || 'Unknown';
+
+        const transactions: ParsedTransaction[] = [];
+        const lines = text.split('\n');
+        const datePattern = /(\d{2}[\/\-]\d{2}[\/\-]\d{2,4})/;
+        let previousBalance: number | null = null;
+
+        for (const line of lines) {
+          const dateMatch = line.match(datePattern);
+          if (!dateMatch) continue;
+
+          const amountMatches = this.matchCurrencyAmounts(line.replace(dateMatch[0], ' '));
+          if (amountMatches.length === 0) continue;
+
+          const date = this.convertDateFormat(dateMatch[1]);
+
+          let desc = line.replace(dateMatch[0], '');
+          amountMatches.forEach(amt => {
+            desc = desc.replace(amt.raw, '');
+          });
+
+          const { amount, isCredit, balance } = this.resolveAmountAndType(
+            line, amountMatches, previousBalance, /\b(?:cr|credit)\b/i, /\b(?:dr|debit)\b/i
+          );
+          if (balance !== null) previousBalance = balance;
+
+          if (amount > 0) {
+            transactions.push({
+              date,
+              description: this.cleanDescription(desc),
+              amount,
+              type: isCredit ? 'income' : 'expense',
+              category: '',
+              confidence: 0.85
+            });
+          }
+        }
+
+        return {
+          accountNumber,
+          accountHolder,
+          statementPeriod: {
+            from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            to: new Date().toISOString().split('T')[0]
+          },
+          openingBalance: 0,
+          closingBalance: 0,
+          transactions,
+          bankName: 'Axis Bank'
         };
       }
     };
@@ -268,6 +500,83 @@ class BankStatementParser {
 
   // --- Helpers ---
 
+  /**
+   * Currency-looking amounts on a line: exactly two decimals, optional Indian/
+   * Western thousands separators, and not embedded in a longer token (so parts of
+   * reference numbers, dates like 01.02.24 or IDs like ABC123.45 are ignored).
+   * Each match also reports an adjacent Dr/Cr marker if one follows it.
+   */
+  private matchCurrencyAmounts(text: string): { raw: string; value: number; marker: 'dr' | 'cr' | null }[] {
+    const pattern = /(^|[\s(:])((?:\d{1,3}(?:,\d{2,3})+|\d+)\.\d{2})(?:\s*\(?\s*(Dr|Cr)\b\.?\)?)?(?=$|[\s)])/gi;
+    const results: { raw: string; value: number; marker: 'dr' | 'cr' | null }[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(text)) !== null) {
+      results.push({
+        raw: match[2],
+        value: this.parseAmount(match[2]),
+        marker: match[3] ? (match[3].toLowerCase() as 'dr' | 'cr') : null
+      });
+    }
+    return results;
+  }
+
+  /**
+   * Work out the transaction amount and direction for one statement row.
+   * - With 2+ amounts the last one is the running balance; with 3+ amounts the two
+   *   before it are the Debit/Withdrawal and Credit/Deposit columns (in that order).
+   * - Direction preference: Dr/Cr marker next to the amount, change in running
+   *   balance, column position, then whole-word keywords in the narration.
+   */
+  private resolveAmountAndType(
+    line: string,
+    amountMatches: { raw: string; value: number; marker: 'dr' | 'cr' | null }[],
+    previousBalance: number | null,
+    creditKeywords: RegExp,
+    debitKeywords: RegExp
+  ): { amount: number; isCredit: boolean; balance: number | null } {
+    const hasBalance = amountMatches.length >= 2;
+    const balance = hasBalance ? amountMatches[amountMatches.length - 1].value : null;
+    const txnColumns = hasBalance ? amountMatches.slice(0, -1) : amountMatches;
+
+    let amountEntry = txnColumns[txnColumns.length - 1];
+    let columnCredit: boolean | null = null;
+
+    // Separate Debit and Credit columns, one of them empty/zero
+    if (txnColumns.length >= 2) {
+      const debitCol = txnColumns[txnColumns.length - 2];
+      const creditCol = txnColumns[txnColumns.length - 1];
+      if (debitCol.value > 0 && creditCol.value === 0) {
+        amountEntry = debitCol;
+        columnCredit = false;
+      } else if (creditCol.value > 0 && debitCol.value === 0) {
+        amountEntry = creditCol;
+        columnCredit = true;
+      }
+    }
+
+    const amount = amountEntry.value;
+
+    let isCredit: boolean;
+    if (amountEntry.marker) {
+      isCredit = amountEntry.marker === 'cr';
+    } else if (balance !== null && previousBalance !== null && Math.abs(previousBalance + amount - balance) < 0.01) {
+      isCredit = true;
+    } else if (balance !== null && previousBalance !== null && Math.abs(previousBalance - amount - balance) < 0.01) {
+      isCredit = false;
+    } else if (columnCredit !== null) {
+      isCredit = columnCredit;
+    } else {
+      // Ignore Dr/Cr markers attached to other amounts (e.g. "10,500.00 Cr" balance)
+      // and "CREDIT CARD PAYMENT", which is money going out of this account
+      const narration = line
+        .replace(/(\d\.\d{2})\s*\(?\s*(?:Dr|Cr)\b\.?\)?/gi, '$1')
+        .replace(/credit\s+card/gi, ' ');
+      isCredit = creditKeywords.test(narration) && !debitKeywords.test(narration);
+    }
+
+    return { amount, isCredit, balance };
+  }
+
   private extractPattern(text: string, pattern: RegExp): string | null {
     const match = text.match(pattern);
     return match ? match[1].trim() : null;
@@ -307,7 +616,7 @@ class BankStatementParser {
   }
 
   // AI-powered PDF text extraction (using pdfjs-dist)
-  public async extractTextFromPDF(base64Data: string, password?: string): Promise<string> {
+  public async extractTextFromPDF(base64Data: string, password?: string | string[]): Promise<string> {
     try {
       // Dynamically import pdfjs-dist
       const pdfjsLib = await import('pdfjs-dist');
@@ -327,26 +636,44 @@ class BankStatementParser {
         bytes[i] = binaryString.charCodeAt(i);
       }
 
+      // Normalize candidate passwords
+      const rawCandidates = Array.isArray(password) ? password : (password ? [password] : []);
+      const candidatePasswords = rawCandidates.map(p => (p || '').trim()).filter(Boolean);
+      // The first candidate is passed to getDocument; onPassword feeds the rest
+      let attemptIndex = 1;
+      let passwordsExhausted = false;
+
       // Load the PDF document
-      console.log('Loading PDF document...');
+      console.log('Loading PDF document... Candidate passwords available:', candidatePasswords.length);
       const loadingTask = pdfjsLib.getDocument({
         data: bytes,
-        password: password
+        password: candidatePasswords[0] || ''
       });
 
       loadingTask.onPassword = (updatePassword: any, reason: any) => {
-        console.log('Password requested by PDF.js. Reason:', reason);
-        if (password) {
-          console.log('Retrying with provided password');
-          updatePassword(password);
+        console.log('Password requested by PDF.js. Reason:', reason, 'Candidates left:', candidatePasswords.length - attemptIndex);
+        if (attemptIndex < candidatePasswords.length) {
+          const nextPassword = candidatePasswords[attemptIndex++];
+          console.log(`Unlocking PDF with candidate password #${attemptIndex}`);
+          updatePassword(nextPassword);
         } else {
-          console.log('No password provided, cancelling');
-          // This might not throw immediately, need to check behavior
-          throw new Error('PASSWORD_REQUIRED');
+          // Calling updatePassword('') here would make PDF.js ask again forever,
+          // so abort the load and report that a password is needed
+          console.log('No password provided or all candidate passwords failed');
+          passwordsExhausted = true;
+          loadingTask.destroy();
         }
       };
 
-      const pdf = await loadingTask.promise;
+      let pdf;
+      try {
+        pdf = await loadingTask.promise;
+      } catch (loadError) {
+        if (passwordsExhausted) {
+          throw new Error('PASSWORD_REQUIRED');
+        }
+        throw loadError;
+      }
       console.log('PDF loaded successfully. Pages:', pdf.numPages);
       let fullText = '';
 
@@ -395,7 +722,12 @@ class BankStatementParser {
       console.error('Error extracting PDF text:', error);
 
       // Check for password error
-      if (error.name === 'PasswordException' || error.message?.includes('Password') || error.code === 1) {
+      if (
+        error.name === 'PasswordException' ||
+        error.message?.includes('Password') ||
+        error.message?.includes('PASSWORD') ||
+        error.code === 1
+      ) {
         throw new Error('PASSWORD_REQUIRED');
       }
 

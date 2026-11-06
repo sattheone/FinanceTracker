@@ -32,84 +32,78 @@ service cloud.firestore {
     match /transactions/{transactionId} {
       allow read, write, delete: if isDocumentOwner();
       allow create: if isNewDocumentOwner();
-      allow list: if request.auth != null;
     }
     
     // Users can only access their own assets
     match /assets/{assetId} {
       allow read, write, delete: if isDocumentOwner();
       allow create: if isNewDocumentOwner();
-      allow list: if request.auth != null;
     }
     
     // Users can only access their own insurance
     match /insurance/{insuranceId} {
       allow read, write, delete: if isDocumentOwner();
       allow create: if isNewDocumentOwner();
-      allow list: if request.auth != null;
     }
     
     // Users can only access their own goals
     match /goals/{goalId} {
       allow read, write, delete: if isDocumentOwner();
       allow create: if isNewDocumentOwner();
-      allow list: if request.auth != null;
     }
     
     // Users can only access their own liabilities
     match /liabilities/{liabilityId} {
       allow read, write, delete: if isDocumentOwner();
       allow create: if isNewDocumentOwner();
-      allow list: if request.auth != null;
     }
     
     // Users can only access their own monthly budgets
     match /monthlyBudgets/{budgetId} {
       allow read, write, delete: if isDocumentOwner();
       allow create: if isNewDocumentOwner();
-      allow list: if request.auth != null;
     }
     
     // Users can only access their own LIC policies
     match /licPolicies/{policyId} {
       allow read, write, delete: if isDocumentOwner();
       allow create: if isNewDocumentOwner();
-      allow list: if request.auth != null;
     }
     
     // Users can only access their own bank accounts
     match /bankAccounts/{accountId} {
       allow read, write, delete: if isDocumentOwner();
       allow create: if isNewDocumentOwner();
-      allow list: if request.auth != null;
     }
     
     // Users can only access their own recurring transactions
     match /recurringTransactions/{transactionId} {
       allow read, write, delete: if isDocumentOwner();
       allow create: if isNewDocumentOwner();
-      allow list: if request.auth != null;
     }
     
     // Users can only access their own bills
     match /bills/{billId} {
       allow read, write, delete: if isDocumentOwner();
       allow create: if isNewDocumentOwner();
-      allow list: if request.auth != null;
     }
 
     // Users can only access their own category rules
     match /categoryRules/{ruleId} {
       allow read, write, delete: if isDocumentOwner();
       allow create: if isNewDocumentOwner();
-      allow list: if request.auth != null;
     }
 
     // Users can only access their own SIP rules
     match /sipRules/{ruleId} {
       allow read, write, delete: if isDocumentOwner();
       allow create: if isNewDocumentOwner();
-      allow list: if request.auth != null;
+    }
+
+    // Email queue for notifications
+    match /mail/{mailId} {
+      allow create: if request.auth != null && request.resource.data.metadata.userId == request.auth.uid;
+      allow read: if request.auth != null && resource.data.metadata.userId == request.auth.uid;
     }
 
     // Users can only access their own category summaries
@@ -128,6 +122,13 @@ service cloud.firestore {
 
     // Users can only access their own tags
     match /users/{userId}/tags/{tagId} {
+      allow read, write, delete: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow list: if isOwner(userId);
+    }
+
+    // Gmail statement import: message IDs already imported/skipped (no passwords or tokens stored here)
+    match /users/{userId}/gmailProcessedMessages/{messageId} {
       allow read, write, delete: if isOwner(userId);
       allow create: if isOwner(userId);
       allow list: if isOwner(userId);

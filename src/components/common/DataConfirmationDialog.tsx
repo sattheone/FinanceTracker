@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Check, X, AlertTriangle, DollarSign, Calendar, Tag, ChevronDown } from 'lucide-react';
+import { Check, X, AlertTriangle, ChevronDown } from 'lucide-react';
 
 import { Category } from '../../constants/categories';
 import InlineCategoryEditor from '../transactions/InlineCategoryEditor';
@@ -126,6 +126,8 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
   };
 
   const handleConfirm = () => {
+    // Keep the dialog (and the user's edits) open until an account is chosen
+    if (type === 'transactions' && !accountId) return;
     const confirmedData = editableData.filter((_, index) => selectedItems.has(index));
     onConfirm(confirmedData, isHistorical, accountId);
     onClose();
@@ -223,14 +225,19 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
     return ['Other'];
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'income': return 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800';
-      case 'expense': return 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800';
-      case 'investment': return 'text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800';
-      case 'insurance': return 'text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800';
-      default: return 'text-gray-700 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700';
+  const getTypeStyle = (txType: string): React.CSSProperties => {
+    switch (txType) {
+      case 'income': return { color: 'var(--color-success)', backgroundColor: 'color-mix(in srgb, var(--color-success) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--color-success) 25%, transparent)' };
+      case 'expense': return { color: 'var(--color-error)', backgroundColor: 'color-mix(in srgb, var(--color-error) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--color-error) 25%, transparent)' };
+      case 'investment': return { color: 'var(--color-accent-primary)', backgroundColor: 'color-mix(in srgb, var(--color-accent-primary) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--color-accent-primary) 25%, transparent)' };
+      default: return { color: 'var(--color-text-muted)', backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)' };
     }
+  };
+
+  const getConfidenceStyle = (conf: number): React.CSSProperties => {
+    if (conf >= 0.8) return { color: 'var(--color-success)', backgroundColor: 'color-mix(in srgb, var(--color-success) 12%, transparent)' };
+    if (conf >= 0.6) return { color: 'var(--color-warning, #b45309)', backgroundColor: 'color-mix(in srgb, #b45309 10%, transparent)' };
+    return { color: 'var(--color-error)', backgroundColor: 'color-mix(in srgb, var(--color-error) 12%, transparent)' };
   };
 
   const formatCurrency = (amount: number) => {
@@ -243,284 +250,179 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
   };
 
   const renderTransactionTable = () => (
-    <div className="space-y-4">
-      {/* Mobile Card View (visible on small screens) */}
-      <div className="md:hidden space-y-4">
-        {/* Select All Checkbox for Mobile */}
-        <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-          <label className="flex items-center space-x-3">
+    <div className="space-y-3">
+      {/* Mobile card view */}
+      <div className="md:hidden space-y-2">
+        <div
+          className="flex items-center justify-between px-3 py-2 rounded-xl text-sm"
+          style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)' }}
+        >
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={selectedItems.size === editableData.length}
-              onChange={(e) => {
-                if (e.target.checked) {
-                  setSelectedItems(new Set(editableData.map((_, i) => i)));
-                } else {
-                  setSelectedItems(new Set());
-                }
-              }}
-              className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 transition duration-150 ease-in-out cursor-pointer"
-              style={{ width: '1rem', height: '1rem' }}
+              onChange={(e) => setSelectedItems(e.target.checked ? new Set(editableData.map((_, i) => i)) : new Set())}
+              className="w-4 h-4 cursor-pointer"
             />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Select All Transactions</span>
+            <span className="font-medium theme-text-primary">Select All</span>
           </label>
+          <span className="theme-text-muted text-xs">{selectedItems.size} / {editableData.length} selected</span>
         </div>
 
         {editableData.map((item, index) => (
           <div
             key={index}
-            className={`bg-white dark:bg-gray-800 rounded-lg border shadow-sm p-4 space-y-3 transition-colors ${selectedItems.has(index)
-              ? 'border-blue-300 dark:border-blue-700 ring-1 ring-blue-300 dark:ring-blue-700'
-              : 'border-gray-200 dark:border-gray-700'
-              }`}
+            className="rounded-xl p-3 space-y-2"
+            style={{
+              backgroundColor: selectedItems.has(index) ? 'color-mix(in srgb, var(--color-accent-primary) 6%, var(--color-card-bg))' : 'var(--color-card-bg)',
+              border: `1px solid ${selectedItems.has(index) ? 'var(--color-accent-primary)' : 'var(--color-border-primary)'}`,
+            }}
           >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  checked={selectedItems.has(index)}
-                  onChange={() => handleItemToggle(index)}
-                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 transition duration-150 ease-in-out cursor-pointer"
-                  style={{ width: '1rem', height: '1rem' }}
-                />
-                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">#{index + 1}</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <input type="checkbox" checked={selectedItems.has(index)} onChange={() => handleItemToggle(index)} className="w-4 h-4 cursor-pointer" />
+                <input type="date" value={item.date} onChange={(e) => handleFieldChange(index, 'date', e.target.value)}
+                  className="input-field theme-input text-xs py-1" style={{ colorScheme: 'auto' }} />
               </div>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${item.confidence >= 0.8 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                item.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                }`}>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={getConfidenceStyle(item.confidence)}>
                 {Math.round(item.confidence * 100)}%
               </span>
             </div>
-
-            <div className="space-y-2">
-              <div>
-                <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">Description</label>
-                <input
-                  type="text"
-                  value={item.description}
-                  onChange={(e) => handleFieldChange(index, 'description', e.target.value)}
-                  className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 transition-colors"
-                  placeholder="Description"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">Date</label>
-                  <input
-                    type="date"
-                    value={item.date}
-                    onChange={(e) => handleFieldChange(index, 'date', e.target.value)}
-                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:[color-scheme:dark]"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">Amount</label>
-                  <input
-                    type="number"
-                    value={item.amount}
-                    onChange={(e) => handleFieldChange(index, 'amount', Number(e.target.value))}
-                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">Type</label>
-                  <select
-                    value={item.type}
-                    onChange={(e) => handleFieldChange(index, 'type', e.target.value)}
-                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="expense">Expense</option>
-                    <option value="income">Income</option>
-                    <option value="investment">Investment</option>
-                    <option value="insurance">Insurance</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400 uppercase">Category</label>
-                  {/* Use categories prop for proper IDs */}
-                  <select
-                    value={item.category}
-                    onChange={(e) => handleFieldChange(index, 'category', e.target.value)}
-                    className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
-                  >
-                    {categories.length > 0 ? (
-                      categories
-                        .filter(cat => !cat.parentId) // Only show parent categories in simple dropdown
-                        .map(cat => (
-                          <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
-                        ))
-                    ) : (
-                      getCategoryOptions(item.type).map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))
-                    )}
-                  </select>
-                </div>
-              </div>
+            <input type="text" value={item.description} onChange={(e) => handleFieldChange(index, 'description', e.target.value)}
+              className="input-field theme-input w-full text-xs" placeholder="Description" />
+            <div className="grid grid-cols-3 gap-2">
+              <input type="number" value={item.amount} onChange={(e) => handleFieldChange(index, 'amount', Number(e.target.value))}
+                className="input-field theme-input text-xs" min="0" step="0.01" />
+              <select value={item.type} onChange={(e) => handleFieldChange(index, 'type', e.target.value)}
+                className="input-field theme-input text-xs rounded-lg px-1" style={getTypeStyle(item.type)}>
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+                <option value="investment">Investment</option>
+                <option value="insurance">Insurance</option>
+              </select>
+              <InlineCategoryEditor
+                currentCategory={item.category || 'uncategorized'}
+                onSave={(categoryId) => handleFieldChange(index, 'category', categoryId)}
+                renderTrigger={(onClick) => {
+                  const cat = categories.find(c => c.id === item.category);
+                  return (
+                    <button type="button" onClick={onClick}
+                      className="input-field theme-input text-xs flex items-center gap-1 truncate">
+                      <span>{cat?.icon || '❓'}</span>
+                      <span className="truncate">{cat?.name || 'Other'}</span>
+                    </button>
+                  );
+                }}
+              />
             </div>
           </div>
         ))}
       </div>
 
-      {/* Desktop Table View (hidden on mobile) */}
-      <div className="hidden md:block overflow-x-auto ring-1 ring-gray-200 dark:ring-gray-700 rounded-lg">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed">
-          <thead className="bg-gray-50 dark:bg-gray-800">
-            <tr>
-              <th className="px-3 py-3 text-left w-12">
-                <input
-                  type="checkbox"
+      {/* Desktop table */}
+      <div className="hidden md:block rounded-xl overflow-hidden" style={{ border: '1px solid var(--color-border-primary)' }}>
+        <table className="w-full table-fixed">
+          <colgroup>
+            <col style={{ width: '2.5rem' }} />
+            <col style={{ width: '9rem' }} />
+            <col />
+            <col style={{ width: '8rem' }} />
+            <col style={{ width: '8rem' }} />
+            <col style={{ width: '10rem' }} />
+            <col style={{ width: '5rem' }} />
+          </colgroup>
+          <thead>
+            <tr style={{ backgroundColor: 'var(--color-bg-secondary)', borderBottom: '1px solid var(--color-border-primary)' }}>
+              <th className="px-3 py-2.5">
+                <input type="checkbox"
                   checked={selectedItems.size === editableData.length}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelectedItems(new Set(editableData.map((_, i) => i)));
-                    } else {
-                      setSelectedItems(new Set());
-                    }
-                  }}
-                  className="h-4 w-4 text-blue-600 rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:ring-blue-500 cursor-pointer"
-                  style={{ width: '1rem', height: '1rem' }}
-                />
+                  onChange={(e) => setSelectedItems(e.target.checked ? new Set(editableData.map((_, i) => i)) : new Set())}
+                  className="w-4 h-4 cursor-pointer" />
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">
-                <div className="flex items-center">
-                  <Calendar className="w-4 h-4 mr-1" />
-                  Date
-                </div>
-              </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Description
-                <span className="text-gray-400 dark:text-gray-500 font-normal normal-case ml-1 text-xs">(hover for full)</span>
-              </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">
-                <div className="flex items-center">
-                  <DollarSign className="w-4 h-4 mr-1" />
-                  Amount
-                </div>
-              </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">
-                Type
-              </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-40">
-                <div className="flex items-center">
-                  <Tag className="w-4 h-4 mr-1" />
-                  Category
-                </div>
-              </th>
-              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
-                Confidence
-              </th>
+              {['Date', 'Description', 'Amount', 'Type', 'Category', 'Conf.'].map(h => (
+                <th key={h} className="px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wide theme-text-muted">{h}</th>
+              ))}
             </tr>
           </thead>
-          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
+          <tbody style={{ backgroundColor: 'var(--color-card-bg)' }}>
             {editableData.map((item, index) => (
-              <tr key={index} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${selectedItems.has(index) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+              <tr
+                key={index}
+                style={{
+                  backgroundColor: selectedItems.has(index) ? 'color-mix(in srgb, var(--color-accent-primary) 5%, var(--color-card-bg))' : undefined,
+                  borderTop: '1px solid var(--color-border-primary)',
+                }}
+              >
                 <td className="px-3 py-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedItems.has(index)}
+                  <input type="checkbox" checked={selectedItems.has(index)}
                     onClick={(e) => handleItemCheckboxClick(index, e)}
-                    className="h-4 w-4 text-blue-600 rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus:ring-blue-500 cursor-pointer"
-                    style={{ width: '1rem', height: '1rem' }}
-                  />
+                    className="w-4 h-4 cursor-pointer" />
                 </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="date"
-                    value={item.date}
+                <td className="px-2 py-1.5">
+                  <input type="date" value={item.date}
                     onChange={(e) => handleFieldChange(index, 'date', e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm dark:[color-scheme:dark]"
-                  />
+                    className="input-field theme-input w-full text-xs py-1" style={{ colorScheme: 'auto' }} />
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-2 py-1.5">
                   <div className="relative group">
-                    <input
-                      type="text"
-                      value={item.description}
+                    <input type="text" value={item.description}
                       onChange={(e) => handleFieldChange(index, 'description', e.target.value)}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 truncate transition-colors shadow-sm"
-                      placeholder="Transaction description"
-                      title={item.description} // Native tooltip as fallback
-                    />
-                    {item.description && item.description.length > 40 && (
-                      <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-gray-900 dark:bg-black text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 max-w-md whitespace-normal pointer-events-none border border-gray-700">
+                      className="input-field theme-input w-full text-xs py-1 truncate"
+                      placeholder="Description" title={item.description} />
+                    {item.description?.length > 40 && (
+                      <div className="absolute bottom-full left-0 mb-1.5 px-2.5 py-1.5 text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-30 max-w-sm whitespace-normal pointer-events-none"
+                        style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border-primary)' }}>
                         {item.description}
-                        <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-black"></div>
                       </div>
                     )}
                   </div>
                 </td>
-                <td className="px-3 py-2">
-                  <div className="relative">
-                    <span className="currency-prefix text-xs">₹</span>
-                    <input
-                      type="number"
-                      value={item.amount}
+                <td className="px-2 py-1.5">
+                  <div className="relative flex items-center">
+                    <span className="absolute left-2.5 text-xs theme-text-muted pointer-events-none">₹</span>
+                    <input type="number" value={item.amount}
                       onChange={(e) => handleFieldChange(index, 'amount', Number(e.target.value))}
-                      className="w-full currency-input pr-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm"
-                      min="0"
-                      step="0.01"
-                    />
+                      className="input-field theme-input w-full text-xs py-1 pl-6"
+                      min="0" step="0.01" />
                   </div>
                 </td>
-                <td className="px-3 py-2">
-                  <select
-                    value={item.type}
+                <td className="px-2 py-1.5">
+                  <select value={item.type}
                     onChange={(e) => {
                       const newType = e.target.value;
                       handleFieldChange(index, 'type', newType);
-
-                      if (categories.length > 0) {
-                        // Default to Uncategorized when changing types to avoid incorrect guesses
-                        const defaultCatId = 'uncategorized';
-                        handleFieldChange(index, 'category', defaultCatId);
-                      } else {
-                        // Legacy mode
-                        const options = getCategoryOptions(newType);
-                        if (options.length > 0) {
-                          handleFieldChange(index, 'category', options[0]);
-                        }
-                      }
+                      handleFieldChange(index, 'category', categories.length > 0 ? 'uncategorized' : (getCategoryOptions(newType)[0] || ''));
                     }}
-                    className={`w-full px-2 py-1.5 text-sm border rounded shadow-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium ${getTypeColor(item.type)}`}
-                  >
+                    className="w-full text-xs font-medium rounded-lg px-2 py-1 transition-colors"
+                    style={getTypeStyle(item.type)}>
                     <option value="income">Income</option>
                     <option value="expense">Expense</option>
                     <option value="investment">Investment</option>
                     <option value="insurance">Insurance</option>
                   </select>
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-2 py-1.5">
                   <InlineCategoryEditor
                     currentCategory={item.category || 'uncategorized'}
                     onSave={(categoryId) => handleFieldChange(index, 'category', categoryId)}
                     renderTrigger={(onClick) => {
-                      const category = categories.find(c => c.id === item.category);
+                      const cat = categories.find(c => c.id === item.category);
                       return (
-                        <button
-                          type="button"
-                          onClick={onClick}
-                          className="w-full flex items-center justify-between px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-colors"
-                        >
-                          <span className="flex items-center truncate">
-                            {category?.icon || '❓'} <span className="ml-1 truncate">{category?.name || 'Uncategorized'}</span>
+                        <button type="button" onClick={onClick}
+                          className="w-full flex items-center justify-between text-xs rounded-lg px-2 py-1 transition-colors"
+                          style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)', color: 'var(--color-text-primary)' }}>
+                          <span className="flex items-center gap-1 truncate">
+                            <span>{cat?.icon || '❓'}</span>
+                            <span className="truncate">{cat?.name || 'Uncategorized'}</span>
                           </span>
-                          <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-1" />
+                          <ChevronDown className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />
                         </button>
                       );
                     }}
                   />
                 </td>
-                <td className="px-3 py-2 text-center">
-                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${item.confidence >= 0.8 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' :
-                    item.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300' :
-                      'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                    }`}>
+                <td className="px-2 py-1.5 text-center">
+                  <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full" style={getConfidenceStyle(item.confidence)}>
                     {Math.round(item.confidence * 100)}%
                   </span>
                 </td>
@@ -626,38 +528,34 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-7xl w-full max-h-[95vh] flex flex-col shadow-2xl">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-600">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                Review and edit the extracted data before adding to your account
-              </p>
+    <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+      <div className="rounded-2xl max-w-7xl w-full max-h-[95vh] flex flex-col shadow-2xl"
+        style={{ backgroundColor: 'var(--color-card-bg)', border: '1px solid var(--color-border-primary)' }}>
+
+        {/* Header */}
+        <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--color-border-primary)' }}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-semibold theme-text-primary">{title}</h2>
+              <p className="text-sm theme-text-muted mt-0.5">Review and edit before saving to your account</p>
               {type === 'transactions' && (
-                <div className="mt-3">
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Account</label>
-                  <div className="w-80">
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-xs theme-text-muted">Account</span>
+                  <div className="w-64">
                     <InlineAccountPicker
                       currentAccountId={accountId}
-                      onSave={(id) => {
-                        setAccountId(id);
-                        onAccountChange?.(id);
-                      }}
+                      onSave={(id) => { setAccountId(id); onAccountChange?.(id); }}
                       renderTrigger={(onClick) => {
                         const selected = accounts.find(a => a.id === accountId);
                         return (
-                          <button
-                            type="button"
-                            onClick={onClick}
-                            className={`flex items-center justify-between w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm ${selected ? 'text-gray-900 dark:text-white' : 'text-gray-500'}`}
-                          >
+                          <button type="button" onClick={onClick}
+                            className="flex items-center justify-between w-full px-3 py-1.5 rounded-xl text-sm transition-colors"
+                            style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)', color: 'var(--color-text-primary)' }}>
                             <span className="flex items-center gap-2 truncate">
-                              <span className="text-lg">{selected?.logo || '🏦'}</span>
+                              <span>{selected?.logo || '🏦'}</span>
                               <span className="truncate">{selected ? `${selected.bank} ••••${selected.number?.slice(-4)}` : 'Select account'}</span>
                             </span>
-                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                            <ChevronDown className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />
                           </button>
                         );
                       }}
@@ -666,113 +564,85 @@ const DataConfirmationDialog: React.FC<DataConfirmationDialogProps> = ({
                 </div>
               )}
             </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 dark:text-gray-300"
-            >
-              <X className="w-6 h-6" />
+            <button onClick={onClose} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--color-text-muted)' }}>
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
+        {/* Summary bar */}
+        {editableData.length > 0 && (
+          <div className="px-5 py-2.5 flex items-center justify-between gap-3 flex-wrap"
+            style={{ backgroundColor: 'var(--color-bg-secondary)', borderBottom: '1px solid var(--color-border-primary)' }}>
+            <div className="flex items-center gap-3 text-sm flex-wrap">
+              <span className="font-medium theme-text-primary">Found {editableData.length} {type === 'transactions' ? 'transactions' : 'items'}</span>
+              {type === 'transactions' && (
+                <>
+                  <span className="flex items-center gap-1 theme-text-muted">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-success)' }} />
+                    Income: {editableData.filter(t => t.type === 'income').length}
+                  </span>
+                  <span className="flex items-center gap-1 theme-text-muted">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-error)' }} />
+                    Expenses: {editableData.filter(t => t.type === 'expense').length}
+                  </span>
+                  <span className="flex items-center gap-1 theme-text-muted">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-accent-primary)' }} />
+                    Investments: {editableData.filter(t => t.type === 'investment').length}
+                  </span>
+                </>
+              )}
+            </div>
+            <div className="flex gap-1.5">
+              <button onClick={() => setSelectedItems(new Set(editableData.map((_, i) => i)))}
+                className="text-xs px-2.5 py-1 rounded-lg transition-colors btn-secondary !py-1">Select All</button>
+              <button onClick={() => setSelectedItems(new Set())}
+                className="text-xs px-2.5 py-1 rounded-lg transition-colors btn-secondary !py-1">Select None</button>
+            </div>
+          </div>
+        )}
+
+        {/* Content */}
         <div className="flex-1 overflow-y-auto min-h-0">
           {editableData.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p className="text-lg font-medium">No data extracted</p>
-              <p className="text-sm">The AI couldn't find any relevant financial data in the image.</p>
+            <div className="text-center py-12">
+              <AlertTriangle className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--color-text-muted)' }} />
+              <p className="font-medium theme-text-primary">No data extracted</p>
+              <p className="text-sm theme-text-muted mt-1">The AI couldn't find any relevant financial data.</p>
             </div>
           ) : (
-            <div>
-              {/* Summary Header */}
-              <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      Found {editableData.length} {type === 'transactions' ? 'transactions' : 'items'}
-                    </p>
-                    {type === 'transactions' && (
-                      <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
-                        <span className="flex items-center">
-                          <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-                          Income: {editableData.filter(t => t.type === 'income').length}
-                        </span>
-                        <span className="flex items-center">
-                          <span className="w-2 h-2 bg-red-500 rounded-full mr-1"></span>
-                          Expenses: {editableData.filter(t => t.type === 'expense').length}
-                        </span>
-                        <span className="flex items-center">
-                          <span className="w-2 h-2 bg-blue-500 rounded-full mr-1"></span>
-                          Investments: {editableData.filter(t => t.type === 'investment').length}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setSelectedItems(new Set(editableData.map((_, i) => i)))}
-                      className="text-xs px-3 py-1 text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded"
-                    >
-                      Select All
-                    </button>
-                    <button
-                      onClick={() => setSelectedItems(new Set())}
-                      className="text-xs px-3 py-1 text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 dark:bg-gray-700 rounded"
-                    >
-                      Select None
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="p-6">
-                {renderContent()}
-              </div>
+            <div className="p-4 sm:p-5">
+              {renderContent()}
             </div>
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 flex justify-between items-center">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
-              <span>Selected: {selectedItems.size} of {editableData.length}</span>
+        {/* Footer */}
+        <div className="px-5 py-3 flex justify-between items-center flex-wrap gap-3"
+          style={{ borderTop: '1px solid var(--color-border-primary)', backgroundColor: 'var(--color-bg-secondary)' }}>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-3 text-sm theme-text-secondary">
+              <span>Selected: <strong className="theme-text-primary">{selectedItems.size}</strong> of {editableData.length}</span>
               {type === 'transactions' && selectedItems.size > 0 && (
-                <span>
-                  Total Amount: {formatCurrency(
-                    editableData
-                      .filter((_, index) => selectedItems.has(index))
-                      .reduce((sum, item) => sum + (item.amount || 0), 0)
-                  )}
-                </span>
+                <span>Total: <strong className="theme-text-primary">{formatCurrency(
+                  editableData.filter((_, i) => selectedItems.has(i)).reduce((s, item) => s + (item.amount || 0), 0)
+                )}</strong></span>
               )}
             </div>
             {type === 'transactions' && (
-              <label className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isHistorical}
-                  onChange={(e) => setIsHistorical(e.target.checked)}
-                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
-                  style={{ width: '1rem', height: '1rem' }}
-                />
-                <span>Historical Data (Keep current balance unchanged)</span>
+              <label className="flex items-center gap-2 text-xs theme-text-muted cursor-pointer">
+                <input type="checkbox" checked={isHistorical} onChange={(e) => setIsHistorical(e.target.checked)}
+                  className="w-3.5 h-3.5 cursor-pointer" />
+                Historical data (keep current balance unchanged)
               </label>
             )}
           </div>
-          <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfirm}
+          <div className="flex gap-2">
+            <button onClick={onClose} className="btn-secondary">Cancel</button>
+            <button onClick={handleConfirm}
               disabled={selectedItems.size === 0 || (type === 'transactions' && !accountId)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors shadow-sm whitespace-nowrap"
-            >
-              <Check className="w-4 h-4 mr-2" />
+              className="btn-primary flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+              <Check className="w-4 h-4" />
               Add {selectedItems.size} {selectedItems.size === 1 ? 'Transaction' : 'Transactions'}
             </button>
           </div>

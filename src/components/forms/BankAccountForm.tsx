@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { BankAccount, AccountType } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
-import { Building2, Wallet, CreditCard } from 'lucide-react';
+import statementPasswordStore from '../../services/statementPasswordStore';
+import { Building2, Wallet, CreditCard, Lock, Eye, EyeOff } from 'lucide-react';
 
 interface BankAccountFormProps {
   account?: BankAccount;
@@ -10,13 +11,13 @@ interface BankAccountFormProps {
   onCancel: () => void;
 }
 
-const accountTypes: { type: AccountType; name: string; icon: any; description: string }[] = [
-  { type: 'bank', name: 'Bank Account', icon: Building2, description: 'Savings or checking account' },
-  { type: 'cash', name: 'Cash', icon: Wallet, description: 'Physical cash or wallet' },
-  { type: 'credit_card', name: 'Credit Card', icon: CreditCard, description: 'Credit card account' },
+const accountTypes: { type: AccountType; name: string; icon: any }[] = [
+  { type: 'bank', name: 'Bank Account', icon: Building2 },
+  { type: 'cash', name: 'Cash / Wallet', icon: Wallet },
+  { type: 'credit_card', name: 'Credit Card', icon: CreditCard },
 ];
 
-const bankLogos = [
+const bankOptions = [
   { name: 'HDFC Bank', logo: '🏦' },
   { name: 'State Bank of India', logo: '🏛️' },
   { name: 'ICICI Bank', logo: '🏢' },
@@ -41,8 +42,10 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
   const [accountType, setAccountType] = useState<AccountType>(account?.accountType || 'bank');
 
   // Determine if initial bank is custom (not in the predefined list, ignoring 'Other')
-  const isInitiallyCustom = account?.bank && !bankLogos.some(b => b.name === account.bank && b.name !== 'Other');
+  const isInitiallyCustom = account?.bank && !bankOptions.some(b => b.name === account.bank && b.name !== 'Other');
   const [isCustomBank, setIsCustomBank] = useState(isInitiallyCustom || false);
+
+  const [showStatementPassword, setShowStatementPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     bank: account?.bank || '',
@@ -50,6 +53,8 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
     initialBalance: account?.initialBalance || 0,
     currentBalance: currentBalance ?? (account?.initialBalance || 0),
     logo: account?.logo || '🏦',
+    // Prefer the device-local copy; fall back to a legacy value loaded from Firestore
+    statementPassword: (account?.id && statementPasswordStore.get(account.id)) || account?.statementPassword || '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -86,278 +91,235 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
     // Mask account number for display (show last 4 digits)
     const maskedNumber = accountType === 'cash' ? '' : `xx${formData.accountNumber.slice(-4)}`;
 
+    // Outstanding balance on credit card is debt (negative)
+    const finalInitialBalance = accountType === 'credit_card'
+      ? -Math.abs(formData.initialBalance)
+      : formData.initialBalance;
+
     onSubmit({
       accountType,
       bank: formData.bank,
       number: maskedNumber,
-      initialBalance: formData.initialBalance,
+      initialBalance: finalInitialBalance,
       logo: formData.logo,
       userId: user?.id || '',
+      statementPassword: formData.statementPassword.trim() || undefined,
     });
-  };
-
-  const handleBankSelect = (bankName: string, logo: string) => {
-    const isCustom = bankName === 'Other';
-    setIsCustomBank(isCustom);
-
-    setFormData(prev => ({
-      ...prev,
-      bank: isCustom ? '' : bankName, // Clear bank name if custom so user can type
-      logo: logo,
-    }));
   };
 
   const handleAccountTypeChange = (type: AccountType) => {
     setAccountType(type);
     setIsCustomBank(false);
-
-    // Set default values based on account type
     if (type === 'cash') {
-      setFormData(prev => ({
-        ...prev,
-        bank: 'Cash Wallet',
-        logo: '💵',
-        accountNumber: '',
-      }));
+      setFormData(prev => ({ ...prev, bank: 'Cash Wallet', logo: '💵', accountNumber: '' }));
     } else if (type === 'credit_card') {
-      setFormData(prev => ({
-        ...prev,
-        bank: '',
-        logo: '💳',
-      }));
+      setFormData(prev => ({ ...prev, bank: '', logo: '💳' }));
     } else {
-      setFormData(prev => ({
-        ...prev,
-        bank: '',
-        logo: '🏦',
-      }));
+      setFormData(prev => ({ ...prev, bank: '', logo: '🏦' }));
     }
   };
 
-  // Handle current balance change
   const handleCurrentBalanceChange = (newBalance: number) => {
-    // Calculate the difference between the old current balance and the new one
-    // But importantly, we need to know the 'transactions sum' essentially.
-    // transactionsSum = originalCurrentBalance - originalInitialBalance
-    // newInitialBalance = newCurrentBalance - transactionsSum
-
+    const normalizedNewBalance = accountType === 'credit_card' ? -Math.abs(newBalance) : newBalance;
     const originalCurrentBalance = currentBalance ?? (account?.initialBalance || 0);
     const originalInitialBalance = account?.initialBalance || 0;
     const transactionsSum = originalCurrentBalance - originalInitialBalance;
-
-    const newInitialBalance = newBalance - transactionsSum;
-
     setFormData(prev => ({
       ...prev,
-      currentBalance: newBalance,
-      initialBalance: newInitialBalance
+      currentBalance: normalizedNewBalance,
+      initialBalance: normalizedNewBalance - transactionsSum,
     }));
   };
 
+  const handleBankSelectChange = (value: string) => {
+    if (value === 'Other') {
+      setIsCustomBank(true);
+      setFormData(prev => ({ ...prev, bank: '', logo: '💳' }));
+    } else {
+      const found = bankOptions.find(b => b.name === value);
+      setIsCustomBank(false);
+      setFormData(prev => ({ ...prev, bank: value, logo: found?.logo || '🏦' }));
+    }
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Account Type Selection */}
+    <form onSubmit={handleSubmit} className="space-y-4">
+
+      {/* Account Type — segmented control */}
       <div>
-        <label className="form-label">
-          Account Type
-        </label>
-        <div className="grid grid-cols-3 gap-3">
-          {accountTypes.map((type) => {
+        <label className="form-label">Account Type</label>
+        <div className="flex rounded-xl overflow-hidden border" style={{ borderColor: 'var(--color-border-primary)' }}>
+          {accountTypes.map((type, i) => {
             const Icon = type.icon;
+            const active = accountType === type.type;
             return (
               <button
                 key={type.type}
                 type="button"
                 onClick={() => handleAccountTypeChange(type.type)}
-                className={`flex flex-col items-center p-4 border-2 rounded-lg transition-all ${accountType === type.type
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
-                  }`}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-colors ${
+                  i > 0 ? 'border-l' : ''
+                }`}
+                style={{
+                  borderColor: 'var(--color-border-primary)',
+                  backgroundColor: active ? 'var(--color-accent-primary)' : 'var(--color-bg-secondary)',
+                  color: active ? 'var(--color-text-inverse)' : 'var(--color-text-secondary)',
+                }}
               >
-                <Icon className={`w-6 h-6 mb-2 ${accountType === type.type ? 'text-blue-600' : 'text-gray-500'}`} />
-                <span className="text-sm font-medium text-gray-900 dark:text-white">{type.name}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-center">{type.description}</span>
+                <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate">{type.name}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Bank Selection - Only for Bank accounts */}
+      {/* Bank — dropdown for bank type */}
       {accountType === 'bank' && (
         <div>
-          <label className="form-label">
-            Select Bank
-          </label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {bankLogos.map((option) => (
-              <button
-                key={option.name}
-                type="button"
-                onClick={() => handleBankSelect(option.name, option.logo)}
-                className={`flex items-center space-x-2 p-3 border-2 rounded-lg transition-all ${(!isCustomBank && formData.bank === option.name) || (isCustomBank && option.name === 'Other')
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                  : 'border-gray-200 hover:border-gray-300'
-                  }`}
-              >
-                <span className="text-xl">{option.logo}</span>
-                <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                  {option.name}
-                </span>
-              </button>
+          <label className="form-label">Bank</label>
+          <select
+            value={isCustomBank ? 'Other' : (formData.bank || '')}
+            onChange={(e) => handleBankSelectChange(e.target.value)}
+            className="input-field theme-input w-full"
+          >
+            <option value="" disabled>Select a bank…</option>
+            {bankOptions.map(b => (
+              <option key={b.name} value={b.name}>{b.logo} {b.name}</option>
             ))}
-          </div>
-          {errors.bank && (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.bank}</p>
+          </select>
+          {isCustomBank && (
+            <input
+              type="text"
+              value={formData.bank}
+              onChange={(e) => setFormData(prev => ({ ...prev, bank: e.target.value }))}
+              className="input-field theme-input w-full mt-2"
+              placeholder="Enter bank name"
+              autoFocus
+            />
           )}
+          {errors.bank && <p className="mt-1 text-xs" style={{ color: 'var(--color-error)' }}>{errors.bank}</p>}
         </div>
       )}
 
-      {/* Custom Bank Name (if Other is selected) */}
-      {accountType === 'bank' && isCustomBank && (
-        <div>
-          <label className="form-label">
-            Bank Name
-          </label>
-          <input
-            type="text"
-            value={formData.bank}
-            onChange={(e) => setFormData(prev => ({ ...prev, bank: e.target.value }))}
-            className="input-field theme-input"
-            placeholder="Enter bank name"
-            autoFocus
-          />
-        </div>
-      )}
-
-      {/* Credit Card Name */}
+      {/* Card name */}
       {accountType === 'credit_card' && (
         <div>
-          <label className="form-label">
-            Card Name
-          </label>
+          <label className="form-label">Card Name</label>
           <input
             type="text"
             value={formData.bank}
             onChange={(e) => setFormData(prev => ({ ...prev, bank: e.target.value }))}
-            className="input-field theme-input"
+            className="input-field theme-input w-full"
             placeholder="e.g., HDFC Regalia, SBI SimplyCLICK"
           />
-          {errors.bank && (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.bank}</p>
-          )}
+          {errors.bank && <p className="mt-1 text-xs" style={{ color: 'var(--color-error)' }}>{errors.bank}</p>}
         </div>
       )}
 
-      {/* Cash Account Name */}
+      {/* Wallet name */}
       {accountType === 'cash' && (
         <div>
-          <label className="form-label">
-            Wallet Name
-          </label>
+          <label className="form-label">Wallet Name</label>
           <input
             type="text"
             value={formData.bank}
             onChange={(e) => setFormData(prev => ({ ...prev, bank: e.target.value }))}
-            className="input-field theme-input"
+            className="input-field theme-input w-full"
             placeholder="e.g., Cash Wallet, Petty Cash"
           />
-          {errors.bank && (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.bank}</p>
-          )}
+          {errors.bank && <p className="mt-1 text-xs" style={{ color: 'var(--color-error)' }}>{errors.bank}</p>}
         </div>
       )}
 
-      {/* Account/Card Number - Not shown for Cash */}
+      {/* Account / Card number */}
       {accountType !== 'cash' && (
         <div>
           <label className="form-label">
-            {accountType === 'credit_card' ? 'Card Number (Last 4 digits)' : 'Account Number'}
+            {accountType === 'credit_card' ? 'Last 4 digits of card' : 'Account Number'}
           </label>
           <input
             type="text"
             value={formData.accountNumber}
             onChange={(e) => setFormData(prev => ({ ...prev, accountNumber: e.target.value }))}
-            className="input-field theme-input"
-            placeholder={accountType === 'credit_card' ? 'Enter last 4 digits' : 'Enter account number'}
+            className="input-field theme-input w-full"
+            placeholder={accountType === 'credit_card' ? '•••• •••• •••• 1234' : 'Enter account number'}
+            maxLength={accountType === 'credit_card' ? 4 : undefined}
           />
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Only the last 4 digits will be displayed for security
-          </p>
-          {errors.accountNumber && (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.accountNumber}</p>
-          )}
+          {errors.accountNumber && <p className="mt-1 text-xs" style={{ color: 'var(--color-error)' }}>{errors.accountNumber}</p>}
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Current Balance - Only shown when editing and currentBalance prop is provided */}
-        {account && currentBalance !== undefined && (
-          <div>
-            <label className="form-label">
-              Current Balance
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={formData.currentBalance}
-              onChange={(e) => handleCurrentBalanceChange(parseFloat(e.target.value) || 0)}
-              className="input-field theme-input font-semibold text-blue-600 dark:text-blue-400"
-              placeholder="0.00"
-            />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Updating this will automatically adjust the initial balance.
-            </p>
-          </div>
-        )}
-
-        {/* Initial Balance */}
+      {/* Balance row */}
+      {account && currentBalance !== undefined ? (
+        /* Editing existing account — only show Current Balance */
         <div>
           <label className="form-label">
-            {accountType === 'credit_card' ? 'Initial Outstanding Balance' : 'Initial Balance'}
+            {accountType === 'credit_card' ? 'Outstanding Balance' : 'Current Balance'}
           </label>
           <input
             type="number"
             step="0.01"
-            value={formData.initialBalance === 0 ? '' : formData.initialBalance}
-            onChange={(e) => {
-              const val = parseFloat(e.target.value) || 0;
-              // If we are editing, we should probably check if we need to update current balance as well?
-              // The user might be correcting the initial balance.
-              // If initial balance changes by +X, current balance should also change by +X
-              if (account && currentBalance !== undefined) {
-                const diff = val - formData.initialBalance;
-                setFormData(prev => ({ ...prev, initialBalance: val, currentBalance: prev.currentBalance + diff }));
-              } else {
-                setFormData(prev => ({ ...prev, initialBalance: val }));
-              }
-            }}
-            className="input-field theme-input"
+            value={accountType === 'credit_card' ? (formData.currentBalance === 0 ? '' : Math.abs(formData.currentBalance)) : formData.currentBalance}
+            onChange={(e) => handleCurrentBalanceChange(parseFloat(e.target.value) || 0)}
+            className="input-field theme-input w-full font-semibold"
+            style={{ color: 'var(--color-accent-primary)' }}
             placeholder="0.00"
           />
+        </div>
+      ) : (
+        /* New account — show Starting Balance */
+        <div>
+          <label className="form-label">
+            {accountType === 'credit_card' ? 'Outstanding Balance' : 'Starting Balance'}
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            value={formData.initialBalance === 0 ? '' : Math.abs(formData.initialBalance)}
+            onChange={(e) => setFormData(prev => ({ ...prev, initialBalance: parseFloat(e.target.value) || 0 }))}
+            className="input-field theme-input w-full"
+            placeholder="0.00"
+          />
+        </div>
+      )}
+
+      {/* Statement PDF Password */}
+      {accountType !== 'cash' && (
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="form-label !mb-0 flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 text-gray-500" />
+              Statement PDF Password (Optional)
+            </label>
+            <span className="text-xs text-gray-400">For auto email crawls</span>
+          </div>
+          <div className="relative">
+            <input
+              type={showStatementPassword ? 'text' : 'password'}
+              value={formData.statementPassword}
+              onChange={(e) => setFormData(prev => ({ ...prev, statementPassword: e.target.value }))}
+              className="input-field theme-input w-full pr-10"
+              placeholder="e.g. Customer ID or PAN / DOB format"
+            />
+            <button
+              type="button"
+              onClick={() => setShowStatementPassword(!showStatementPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            >
+              {showStatementPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {accountType === 'credit_card'
-              ? 'Starting outstanding balance'
-              : 'Starting account balance'}
+            Used to automatically unlock and import bank statement PDFs emailed from this bank. Stored only on this device.
           </p>
         </div>
-      </div>
+      )}
 
-      {/* Form Actions */}
-      <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-600">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="btn-secondary"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="btn-primary"
-        >
-          {account ? 'Update Account' : 'Add Account'}
-        </button>
+      {/* Actions */}
+      <div className="flex justify-end gap-2 pt-2">
+        <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
+        <button type="submit" className="btn-primary">{account ? 'Update Account' : 'Add Account'}</button>
       </div>
     </form>
   );

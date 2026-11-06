@@ -1,13 +1,22 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useMemo, ReactNode } from 'react';
-import { Asset, Insurance, Goal, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction, CategoryRule, SIPRule, Tag, DashboardSummary } from '../types';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback, ReactNode } from 'react';
+import { Asset, Insurance, Goal, LifeEvent, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction, CategoryRule, SIPRule, Tag, DashboardSummary } from '../types';
 import { Category } from '../constants/categories';
-import { UserProfile } from '../types/user';
+import { UserProfile, SyncSettings } from '../types/user';
 import { useAuth } from './AuthContext';
 import FirebaseService from '../services/firebaseService';
+import statementPasswordStore from '../services/statementPasswordStore';
+import { deleteField } from 'firebase/firestore';
+import { goOffline, goOnline } from '../config/firebase';
 import GoalMigrationService from '../services/goalMigration';
 import CategoryRuleService from '../services/categoryRuleService';
-import { incrementCategorySummary, decrementCategorySummary, updateCategorySummary, clearCategorySummaryCache } from '../services/categorySummaryService';
+import { clearCategorySummaryCache, setCurrentUserId, getAllOptimizedMonthlySummaries, MonthlySummary } from '../services/categorySummaryService';
 
+
+// Transaction pagination page sizes (each doc = 1 Firestore read).
+// First page is small for a fast first paint; subsequent pages are moderate so
+// a single "Load More" is not an 800-read burst.
+const TRANSACTIONS_INITIAL_PAGE_SIZE = 50;
+const TRANSACTIONS_MORE_PAGE_SIZE = 200;
 
 // Utility function to calculate next due date
 const calculateNextDueDate = (currentDueDate: string, frequency: RecurringTransaction['frequency']): string => {
@@ -42,6 +51,86 @@ const getMonthKey = (dateString: string) => {
 };
 
 const MONTH_TRANSACTIONS_CACHE_PREFIX = 'transactionsByMonth:v1';
+const USER_STORAGE_PREFIX = 'ft_v1';
+
+const safeLocalStorage = {
+  getItem: (key: string): string | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      console.warn(`[DataContext] Failed to read ${key} from storage:`, e);
+      return null;
+    }
+  },
+  setItem: (key: string, value: string): boolean => {
+    if (typeof window === 'undefined') return false;
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch (e) {
+      console.warn(`[DataContext] Failed to write ${key} to storage (quota exceeded or disabled):`, e);
+      return false;
+    }
+  },
+  removeItem: (key: string): void => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {
+      console.warn(`[DataContext] Failed to remove ${key} from storage:`, e);
+    }
+  }
+};
+
+const getUserStorageKey = (userId: string, key: string) => `${USER_STORAGE_PREFIX}:${userId}:${key}`;
+
+const readUserCache = <T = any>(userId: string, key: string, fallbackLegacyKey?: string): T | null => {
+  const primary = safeLocalStorage.getItem(getUserStorageKey(userId, key));
+  if (primary) {
+    try { return JSON.parse(primary) as T; } catch { return null; }
+  }
+  if (fallbackLegacyKey) {
+    const legacy = safeLocalStorage.getItem(fallbackLegacyKey);
+    if (legacy) {
+      try { return JSON.parse(legacy) as T; } catch { return null; }
+    }
+  }
+  return null;
+};
+
+const writeUserCache = (userId: string, key: string, data: any): void => {
+  if (!userId) return;
+  safeLocalStorage.setItem(getUserStorageKey(userId, key), JSON.stringify(data));
+};
+
+const clearAllUserStorage = (userId?: string | null) => {
+  if (typeof window === 'undefined') return;
+  const keysToRemove: string[] = [];
+
+  const userPrefix = userId ? `${USER_STORAGE_PREFIX}:${userId}:` : `${USER_STORAGE_PREFIX}:`;
+  const monthPrefix = userId ? `${MONTH_TRANSACTIONS_CACHE_PREFIX}:${userId}:` : `${MONTH_TRANSACTIONS_CACHE_PREFIX}:`;
+  const balancePrefix = userId ? `accountBalances:${userId}` : 'accountBalances:';
+
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (key.startsWith(userPrefix) || key.startsWith(monthPrefix) || key.startsWith(balancePrefix)) {
+      keysToRemove.push(key);
+    }
+  }
+
+  // Also clean up any un-namespaced legacy keys
+  const legacyKeys = [
+    'userProfile', 'dashboardSummary', 'bankAccounts', 'categoryRules',
+    'transactions', 'bills', 'recurringTransactions', 'customCategories',
+    'goals', 'assets', 'insurance', 'liabilities', 'monthlyBudget', 'lifeEvents',
+    'pendingNewIds', 'pendingEditSnapshots', 'pendingDeleteCount', 'lastSyncTimestamp'
+  ];
+  legacyKeys.forEach(k => keysToRemove.push(k));
+
+  keysToRemove.forEach(k => safeLocalStorage.removeItem(k));
+};
 
 const getMonthTransactionsCacheKey = (userId: string, monthKey: string) =>
   `${MONTH_TRANSACTIONS_CACHE_PREFIX}:${userId}:${monthKey}`;
@@ -53,7 +142,7 @@ const readMonthTransactionsCache = (userId: string, monthKey: string): Transacti
   if (typeof window === 'undefined') return null;
 
   try {
-    const raw = localStorage.getItem(getMonthTransactionsCacheKey(userId, monthKey));
+    const raw = safeLocalStorage.getItem(getMonthTransactionsCacheKey(userId, monthKey));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as Transaction[]) : null;
@@ -67,7 +156,7 @@ const writeMonthTransactionsCache = (userId: string, monthKey: string, monthTran
   if (typeof window === 'undefined') return;
 
   try {
-    localStorage.setItem(
+    safeLocalStorage.setItem(
       getMonthTransactionsCacheKey(userId, monthKey),
       JSON.stringify(monthTransactions)
     );
@@ -105,7 +194,7 @@ const clearMonthTransactionsCache = (userId: string) => {
     }
   }
 
-  keysToRemove.forEach(key => localStorage.removeItem(key));
+  keysToRemove.forEach(key => safeLocalStorage.removeItem(key));
 };
 
 interface DataContextType {
@@ -131,6 +220,7 @@ interface DataContextType {
   sipRules: SIPRule[];
   categories: Category[];
   tags: Tag[];
+  lifeEvents: LifeEvent[];
 
   // CRUD Operations
   addAsset: (asset: Omit<Asset, 'id'>) => void;
@@ -144,6 +234,12 @@ interface DataContextType {
   addGoal: (goal: Omit<Goal, 'id'>) => void;
   updateGoal: (id: string, goal: Partial<Goal>) => void;
   deleteGoal: (id: string) => void;
+
+  addLifeEvent: (event: Omit<LifeEvent, 'id'>) => Promise<string | undefined>;
+  updateLifeEvent: (id: string, event: Partial<LifeEvent>) => Promise<void>;
+  deleteLifeEvent: (id: string) => Promise<void>;
+  toggleLifeEventActive: (id: string) => Promise<void>;
+  importGoalAsLifeEvent: (goal: Goal, currentAge: number) => Promise<void>;
 
   addTransaction: (transaction: Omit<Transaction, 'id'>) => void;
   addTransactionsBulk: (transactions: Omit<Transaction, 'id'>[], options?: { isHistorical?: boolean; skipDuplicateCheck?: boolean }) => Promise<{ success: boolean; summary?: any; error?: string }>;
@@ -169,7 +265,7 @@ interface DataContextType {
   updateLiability: (id: string, liability: Partial<Liability>) => void;
   deleteLiability: (id: string) => void;
 
-  addRecurringTransaction: (recurringTransaction: Omit<RecurringTransaction, 'id'>) => void;
+  addRecurringTransaction: (recurringTransaction: Omit<RecurringTransaction, 'id'>) => Promise<string | undefined>;
   updateRecurringTransaction: (id: string, recurringTransaction: Partial<RecurringTransaction>) => void;
   deleteRecurringTransaction: (id: string) => void;
 
@@ -218,6 +314,7 @@ interface DataContextType {
   saveDashboardSummary: (summary: DashboardSummary) => void;
   isDataLoaded: boolean;
   categorySummaryVersion: number;
+  monthlySummaries: MonthlySummary[];
   indexes: {
     categoriesById: Map<string, Category>;
     bankAccountsById: Map<string, BankAccount>;
@@ -229,6 +326,7 @@ interface DataContextType {
 
   // Lazy loading functions
   loadGoals: () => Promise<void>;
+  loadLifeEvents: () => Promise<void>;
   loadAssets: () => Promise<void>;
   loadInsurance: () => Promise<void>;
   loadLiabilities: () => Promise<void>;
@@ -240,6 +338,19 @@ interface DataContextType {
 
   // Explicitly fetch transactions for a specific period (e.g., for reports/dashboard)
   loadTransactionsForPeriod: (startDate: string, endDate: string) => Promise<void>;
+
+  // Sync settings
+  lastSyncTimestamp: number | null;
+  isSyncing: boolean;
+  forceSync: () => Promise<void>;
+  syncSettings: SyncSettings;
+  updateSyncSettings: (s: Partial<SyncSettings>) => Promise<void>;
+  pendingEditIds: Set<string>;
+  pendingNewIds: Set<string>;
+  pendingEditSnapshots: Map<string, Transaction>;
+  pendingChangeCount: number;
+  discardPendingChange: (id: string) => void;
+  syncPendingChanges: () => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -290,15 +401,51 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const { user, isLoading: isAuthLoading } = useAuth();
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [categorySummaryVersion, setCategorySummaryVersion] = useState(0);
+  const [monthlySummaries, setMonthlySummaries] = useState<MonthlySummary[]>([]);
+  const [lastSyncTimestamp, setLastSyncTimestamp] = useState<number | null>(() => {
+    const ts = localStorage.getItem('lastSyncTimestamp');
+    return ts ? parseInt(ts, 10) : null;
+  });
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [pendingNewIds, setPendingNewIds] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem('pendingNewIds');
+      return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+    } catch { return new Set(); }
+  });
+  const [pendingEditSnapshots, setPendingEditSnapshots] = useState<Map<string, Transaction>>(() => {
+    try {
+      const raw = localStorage.getItem('pendingEditSnapshots');
+      return raw ? new Map(JSON.parse(raw) as [string, Transaction][]) : new Map();
+    } catch { return new Map(); }
+  });
+  const [pendingDeleteCount, setPendingDeleteCount] = useState<number>(() => {
+    return parseInt(localStorage.getItem('pendingDeleteCount') || '0', 10);
+  });
+  // Derived: union of new + edited IDs (used by TransactionTable badge)
+  const pendingEditIds = useMemo(() => {
+    const set = new Set(pendingNewIds);
+    pendingEditSnapshots.forEach((_, id) => set.add(id));
+    return set;
+  }, [pendingNewIds, pendingEditSnapshots]);
   const initialTransactionsLoadedRef = useRef(false);
   const loadedTransactionMonthsRef = useRef<Set<string>>(new Set());
+  // Last known-good per-account balance, snapshotted whenever the FULL
+  // transaction set is loaded. Used as a fallback when the in-memory
+  // transaction list is known to be partial (pagination), so we never render a
+  // balance summed from an incomplete set. Self-healing: refreshed every time a
+  // complete set is available.
+  const knownAccountBalancesRef = useRef<Record<string, number>>({});
+  // Firestore starts online by default. Keep local state aligned to avoid redundant toggles.
+  const firestoreNetworkRef = useRef<'online' | 'offline'>('online');
 
   // User Profile
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const userProfileRef = useRef<UserProfile | null>(null);
-  const dashboardSummaryPersistTimeoutRef = useRef<number | null>(null);
   const lastDashboardSummarySignatureRef = useRef<string>('');
+  // Debounce timer for persisting the (complete) dashboard summary to Firestore.
+  const dashboardSummaryWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     userProfileRef.current = userProfile;
@@ -348,6 +495,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [sipRules, setSipRules] = useState<SIPRule[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [lifeEvents, setLifeEvents] = useState<LifeEvent[]>([]);
 
   const indexes = useMemo(() => {
     const categoriesById = new Map<string, Category>();
@@ -396,51 +544,138 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     };
   }, [categories, bankAccounts, transactions]);
 
-  // Update localStorage for notification scheduler whenever data changes
+  // Update localStorage for notification scheduler whenever data changes (namespaced by userId)
   useEffect(() => {
-    if (isDataLoaded) {
-      localStorage.setItem('bills', JSON.stringify(bills));
-      localStorage.setItem('recurringTransactions', JSON.stringify(recurringTransactions));
-      localStorage.setItem('transactions', JSON.stringify(transactions));
+    if (isDataLoaded && user?.id) {
+      writeUserCache(user.id, 'bills', bills);
+      writeUserCache(user.id, 'recurringTransactions', recurringTransactions);
+      writeUserCache(user.id, 'transactions', transactions);
     }
-  }, [bills, recurringTransactions, transactions, isDataLoaded]);
+  }, [bills, recurringTransactions, transactions, isDataLoaded, user?.id]);
 
-  // Cache essential data to localStorage for offline-first loading
+  // Cache essential data to localStorage for offline-first loading (namespaced by userId)
   useEffect(() => {
-    if (isDataLoaded && bankAccounts.length > 0) {
-      localStorage.setItem('bankAccounts', JSON.stringify(bankAccounts));
+    if (isDataLoaded && bankAccounts.length > 0 && user?.id) {
+      writeUserCache(user.id, 'bankAccounts', bankAccounts);
     }
-  }, [bankAccounts, isDataLoaded]);
+  }, [bankAccounts, isDataLoaded, user?.id]);
 
   useEffect(() => {
-    if (isDataLoaded && categoryRules.length > 0) {
-      localStorage.setItem('categoryRules', JSON.stringify(categoryRules));
+    if (isDataLoaded && categoryRules.length > 0 && user?.id) {
+      writeUserCache(user.id, 'categoryRules', categoryRules);
     }
-  }, [categoryRules, isDataLoaded]);
+  }, [categoryRules, isDataLoaded, user?.id]);
 
   useEffect(() => {
-    if (isDataLoaded && userProfile) {
-      localStorage.setItem('userProfile', JSON.stringify(userProfile));
+    if (isDataLoaded && userProfile && user?.id) {
+      writeUserCache(user.id, 'userProfile', userProfile);
     }
-  }, [userProfile, isDataLoaded]);
+  }, [userProfile, isDataLoaded, user?.id]);
 
   useEffect(() => {
-    return () => {
-      if (dashboardSummaryPersistTimeoutRef.current) {
-        window.clearTimeout(dashboardSummaryPersistTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (isDataLoaded && categories.length > 0) {
+    if (isDataLoaded && categories.length > 0 && user?.id) {
       // Only cache custom categories (non-default)
       const customCats = categories.filter(c => (c as any).isCustom || (c as any).userId);
       if (customCats.length > 0) {
-        localStorage.setItem('customCategories', JSON.stringify(customCats));
+        writeUserCache(user.id, 'customCategories', customCats);
       }
     }
-  }, [categories, isDataLoaded]);
+  }, [categories, isDataLoaded, user?.id]);
+
+  // Persist pending tracking to localStorage (namespaced by userId)
+  useEffect(() => {
+    if (user?.id) {
+      writeUserCache(user.id, 'pendingNewIds', [...pendingNewIds]);
+    }
+  }, [pendingNewIds, user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      writeUserCache(user.id, 'pendingEditSnapshots', [...pendingEditSnapshots]);
+    }
+  }, [pendingEditSnapshots, user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      writeUserCache(user.id, 'pendingDeleteCount', String(pendingDeleteCount));
+    }
+  }, [pendingDeleteCount, user?.id]);
+
+  const trackPendingNew = useCallback((ids: string[]) => {
+    const mode = userProfileRef.current?.syncSettings?.mode ?? 'auto';
+    if (mode !== 'manual') return;
+    setPendingNewIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.add(id));
+      return next;
+    });
+  }, []);
+
+  const trackPendingEdit = useCallback((id: string, oldSnapshot: Transaction) => {
+    const mode = userProfileRef.current?.syncSettings?.mode ?? 'auto';
+    if (mode !== 'manual') return;
+    // Don't overwrite: if already tracked (or it's a new item), keep original snapshot
+    setPendingEditSnapshots(prev => {
+      if (prev.has(id)) return prev;
+      const next = new Map(prev);
+      next.set(id, oldSnapshot);
+      return next;
+    });
+  }, []);
+
+  const trackPendingDeletes = useCallback((count: number) => {
+    const mode = userProfileRef.current?.syncSettings?.mode ?? 'auto';
+    if (mode !== 'manual') return;
+    setPendingDeleteCount(prev => prev + count);
+  }, []);
+
+  const invalidateCaches = useCallback(() => {
+    if (!user) return;
+    clearMonthTransactionsCache(user.id);
+    clearCategorySummaryCache();
+    loadedTransactionMonthsRef.current.clear();
+    setCategorySummaryVersion(prev => prev + 1);
+  }, [user]);
+
+  const clearPendingEdits = useCallback(() => {
+    setPendingNewIds(new Set());
+    setPendingEditSnapshots(new Map());
+    setPendingDeleteCount(0);
+  }, []);
+
+  const discardPendingChange = useCallback((id: string) => {
+    if (!user) return;
+
+    // Case 1: newly added transaction — remove it entirely
+    if (pendingNewIds.has(id)) {
+      setTransactions(prev => prev.filter(t => t.id !== id));
+      invalidateCaches();
+      // Queue a delete to cancel the pending Firestore add
+      FirebaseService.deleteTransaction(id).catch(() => {});
+      setPendingNewIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      return;
+    }
+
+    // Case 2: edited existing transaction — revert to snapshot
+    const snapshot = pendingEditSnapshots.get(id);
+    if (snapshot) {
+      setTransactions(prev => prev.map(t => t.id === id ? snapshot : t));
+      invalidateCaches();
+      // Queue an update with the original values to counter the pending edit
+      const { id: _id, ...snapshotData } = snapshot;
+      FirebaseService.updateTransaction(id, snapshotData).catch(() => {});
+      setPendingEditSnapshots(prev => {
+        const next = new Map(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, pendingNewIds, pendingEditSnapshots]);
 
   // Load user data when user changes
   useEffect(() => {
@@ -451,8 +686,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
 
     if (user) {
+      setCurrentUserId(user.id);
       loadUserData(user.id);
     } else {
+      setCurrentUserId(null);
       resetUserData();
     }
   }, [user, isAuthLoading]);
@@ -474,76 +711,57 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setMonthlyBudget(getDefaultMonthlyBudget());
       setLicPolicies([]);
       setTags([]);
+      setLifeEvents([]);
       setDashboardSummary(null);
 
-      // ── PHASE 1: Load from localStorage cache (0 Firestore reads) ──
+      // ── PHASE 1: Load from user-scoped localStorage cache (0 Firestore reads) ──
       let hasCachedData = false;
 
       // Load cached user profile
-      try {
-        const cachedProfile = localStorage.getItem('userProfile');
-        if (cachedProfile) {
-          setUserProfile(JSON.parse(cachedProfile));
-          hasCachedData = true;
-        }
-      } catch (e) { console.warn('Error parsing cached user profile', e); }
+      const cachedProfile = readUserCache<UserProfile>(userId, 'userProfile', 'userProfile');
+      if (cachedProfile) {
+        setUserProfile(cachedProfile);
+        hasCachedData = true;
+      }
 
       // Load cached dashboard summary
-      try {
-        const cachedDashboardSummary = localStorage.getItem('dashboardSummary');
-        if (cachedDashboardSummary) {
-          const parsed = JSON.parse(cachedDashboardSummary) as DashboardSummary;
-          setDashboardSummary(parsed);
-          hasCachedData = true;
-        }
-      } catch (e) { console.warn('Error parsing cached dashboard summary', e); }
+      const cachedDashboardSummary = readUserCache<DashboardSummary>(userId, 'dashboardSummary', 'dashboardSummary');
+      if (cachedDashboardSummary) {
+        setDashboardSummary(cachedDashboardSummary);
+        hasCachedData = true;
+      }
 
       // Load cached bank accounts
-      try {
-        const cachedBankAccounts = localStorage.getItem('bankAccounts');
-        if (cachedBankAccounts) {
-          const parsed = JSON.parse(cachedBankAccounts);
-          if (parsed.length > 0) {
-            setBankAccounts(parsed);
-            hasCachedData = true;
-          }
-        }
-      } catch (e) { console.warn('Error parsing cached bank accounts', e); }
+      const cachedBankAccounts = readUserCache<BankAccount[]>(userId, 'bankAccounts', 'bankAccounts');
+      if (cachedBankAccounts && Array.isArray(cachedBankAccounts) && cachedBankAccounts.length > 0) {
+        setBankAccounts(cachedBankAccounts);
+        hasCachedData = true;
+      }
+
+      // Seed last known-good account balances (fallback for partial tx loads)
+      const cachedBalances = readUserCache<Record<string, number>>(userId, 'accountBalances', `accountBalances:${userId}`);
+      knownAccountBalancesRef.current = cachedBalances || {};
 
       // Load cached category rules
-      try {
-        const cachedRules = localStorage.getItem('categoryRules');
-        if (cachedRules) {
-          const parsed = JSON.parse(cachedRules);
-          if (parsed.length > 0) {
-            setCategoryRules(parsed);
-          }
-        }
-      } catch (e) { console.warn('Error parsing cached category rules', e); }
+      const cachedRules = readUserCache<CategoryRule[]>(userId, 'categoryRules', 'categoryRules');
+      if (cachedRules && Array.isArray(cachedRules) && cachedRules.length > 0) {
+        setCategoryRules(cachedRules);
+      }
 
       // Load cached transactions
       let hasCachedTransactions = false;
-      try {
-        const cachedTransactions = localStorage.getItem('transactions');
-        if (cachedTransactions) {
-          const parsed = JSON.parse(cachedTransactions);
-          if (parsed.length > 0) {
-            console.log(`[DataContext] Loaded ${parsed.length} transactions from local cache`);
-            setTransactions(parsed);
-            hasCachedTransactions = true;
-            hasCachedData = true;
+      const cachedTransactions = readUserCache<Transaction[]>(userId, 'transactions', 'transactions');
+      if (cachedTransactions && Array.isArray(cachedTransactions) && cachedTransactions.length > 0) {
+        console.log(`[DataContext] Loaded ${cachedTransactions.length} transactions from local cache`);
+        setTransactions(cachedTransactions);
+        hasCachedTransactions = true;
+        hasCachedData = true;
 
-            // Pre-populate loaded month set from dedicated month caches only.
-            // Avoid marking months as loaded from partial transaction lists.
-            const cachedMonthKeys = getCachedMonthKeys(userId);
-            cachedMonthKeys.forEach(monthKey => loadedTransactionMonthsRef.current.add(monthKey));
-            // Mark initial load as done since we have cache
-            initialTransactionsLoadedRef.current = true;
-            console.log(`[DataContext] Pre-populated ${loadedTransactionMonthsRef.current.size} month(s) from cache`);
-          }
-        }
-      } catch (e) {
-        console.error('Error parsing cached transactions', e);
+        // Pre-populate loaded month set from dedicated month caches only.
+        const cachedMonthKeys = getCachedMonthKeys(userId);
+        cachedMonthKeys.forEach(monthKey => loadedTransactionMonthsRef.current.add(monthKey));
+        initialTransactionsLoadedRef.current = true;
+        console.log(`[DataContext] Pre-populated ${loadedTransactionMonthsRef.current.size} month(s) from cache`);
       }
 
       if (!hasCachedTransactions) {
@@ -552,94 +770,53 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setTransactionsCursor(null);
       setHasMoreTransactions(false);
 
-      // Load cached assets
-      try {
-        const cachedAssets = localStorage.getItem('assets');
-        if (cachedAssets) {
-          const parsed = JSON.parse(cachedAssets);
-          if (parsed.length > 0) {
-            setAssets(parsed);
-            lazyLoadedRef.current.add('assets');
-            hasCachedData = true;
-          }
-        }
-      } catch (e) { console.warn('Error parsing cached assets', e); }
+      // Pre-warm lazy caches (assets, goals, insurance, liabilities, etc.)
+      const cachedAssets = readUserCache<Asset[]>(userId, 'assets', 'assets');
+      if (cachedAssets && Array.isArray(cachedAssets) && cachedAssets.length > 0) {
+        setAssets(cachedAssets);
+        lazyLoadedRef.current.add('assets');
+        hasCachedData = true;
+      }
 
-      // Load cached goals
-      try {
-        const cachedGoals = localStorage.getItem('goals');
-        if (cachedGoals) {
-          const parsed = JSON.parse(cachedGoals);
-          if (parsed.length > 0) {
-            const migrated = GoalMigrationService.migrateGoals(parsed);
-            setGoals(migrated);
-            lazyLoadedRef.current.add('goals');
-            hasCachedData = true;
-          }
-        }
-      } catch (e) { console.warn('Error parsing cached goals', e); }
+      const cachedGoals = readUserCache<Goal[]>(userId, 'goals', 'goals');
+      if (cachedGoals && Array.isArray(cachedGoals) && cachedGoals.length > 0) {
+        const migrated = GoalMigrationService.migrateGoals(cachedGoals);
+        setGoals(migrated);
+        lazyLoadedRef.current.add('goals');
+        hasCachedData = true;
+      }
 
-      // Load cached insurance
-      try {
-        const cachedInsurance = localStorage.getItem('insurance');
-        if (cachedInsurance) {
-          const parsed = JSON.parse(cachedInsurance);
-          if (parsed.length > 0) {
-            setInsurance(parsed);
-            lazyLoadedRef.current.add('insurance');
-            hasCachedData = true;
-          }
-        }
-      } catch (e) { console.warn('Error parsing cached insurance', e); }
+      const cachedInsurance = readUserCache<Insurance[]>(userId, 'insurance', 'insurance');
+      if (cachedInsurance && Array.isArray(cachedInsurance) && cachedInsurance.length > 0) {
+        setInsurance(cachedInsurance);
+        lazyLoadedRef.current.add('insurance');
+        hasCachedData = true;
+      }
 
-      // Load cached liabilities
-      try {
-        const cachedLiabilities = localStorage.getItem('liabilities');
-        if (cachedLiabilities) {
-          const parsed = JSON.parse(cachedLiabilities);
-          if (parsed.length > 0) {
-            setLiabilities(parsed);
-            lazyLoadedRef.current.add('liabilities');
-            hasCachedData = true;
-          }
-        }
-      } catch (e) { console.warn('Error parsing cached liabilities', e); }
+      const cachedLiabilities = readUserCache<Liability[]>(userId, 'liabilities', 'liabilities');
+      if (cachedLiabilities && Array.isArray(cachedLiabilities) && cachedLiabilities.length > 0) {
+        setLiabilities(cachedLiabilities);
+        lazyLoadedRef.current.add('liabilities');
+        hasCachedData = true;
+      }
 
-      // Load cached recurring transactions
-      try {
-        const cachedRecurring = localStorage.getItem('recurringTransactions');
-        if (cachedRecurring) {
-          const parsed = JSON.parse(cachedRecurring);
-          if (parsed.length > 0) {
-            setRecurringTransactions(parsed);
-            lazyLoadedRef.current.add('recurring');
-            hasCachedData = true;
-          }
-        }
-      } catch (e) { console.warn('Error parsing cached recurring transactions', e); }
+      const cachedRecurring = readUserCache<RecurringTransaction[]>(userId, 'recurringTransactions', 'recurringTransactions');
+      if (cachedRecurring && Array.isArray(cachedRecurring) && cachedRecurring.length > 0) {
+        setRecurringTransactions(cachedRecurring);
+        lazyLoadedRef.current.add('recurring');
+        hasCachedData = true;
+      }
 
-      // Load cached bills
-      try {
-        const cachedBills = localStorage.getItem('bills');
-        if (cachedBills) {
-          const parsed = JSON.parse(cachedBills);
-          if (parsed.length > 0) {
-            setBills(parsed);
-            lazyLoadedRef.current.add('bills');
-            hasCachedData = true;
-          }
-        }
-      } catch (e) { console.warn('Error parsing cached bills', e); }
+      const cachedBills = readUserCache<Bill[]>(userId, 'bills', 'bills');
+      if (cachedBills && Array.isArray(cachedBills) && cachedBills.length > 0) {
+        setBills(cachedBills);
+        lazyLoadedRef.current.add('bills');
+        hasCachedData = true;
+      }
 
       // Load categories (defaults + cached custom categories)
       const { defaultCategories } = await import('../constants/categories');
-      let customCategories: Category[] = [];
-      try {
-        const cachedCustomCats = localStorage.getItem('customCategories');
-        if (cachedCustomCats) {
-          customCategories = JSON.parse(cachedCustomCats);
-        }
-      } catch (e) { console.warn('Error parsing cached custom categories', e); }
+      const customCategories: Category[] = readUserCache<Category[]>(userId, 'customCategories', 'customCategories') || [];
 
       const customIds = new Set(customCategories.map(c => c.id));
       const mergedCategories = [
@@ -648,6 +825,33 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       ];
       setCategories(mergedCategories);
 
+      // Load cached monthly summaries (for category overview chart — offline-first)
+      try {
+        const cachedSummaries = localStorage.getItem(`allMonthlySummaries:v1:${userId}`);
+        if (cachedSummaries) {
+          const parsed: MonthlySummary[] = JSON.parse(cachedSummaries).map((s: any) => ({
+            ...s,
+            lastUpdated: new Date(s.lastUpdated)
+          }));
+          setMonthlySummaries(parsed);
+          hasCachedData = true;
+        }
+      } catch (e) { console.warn('Error parsing cached monthly summaries', e); }
+
+      // Load user-namespaced pending tracking
+      const cachedPendingNewIds = readUserCache<string[]>(userId, 'pendingNewIds', 'pendingNewIds');
+      if (cachedPendingNewIds && Array.isArray(cachedPendingNewIds)) {
+        setPendingNewIds(new Set(cachedPendingNewIds));
+      }
+      const cachedPendingEditSnapshots = readUserCache<[string, Transaction][]>(userId, 'pendingEditSnapshots', 'pendingEditSnapshots');
+      if (cachedPendingEditSnapshots && Array.isArray(cachedPendingEditSnapshots)) {
+        setPendingEditSnapshots(new Map(cachedPendingEditSnapshots));
+      }
+      const cachedPendingDeleteCount = readUserCache<number>(userId, 'pendingDeleteCount', 'pendingDeleteCount');
+      if (typeof cachedPendingDeleteCount === 'number') {
+        setPendingDeleteCount(cachedPendingDeleteCount);
+      }
+
       // Mark as loaded immediately if we have cached data
       if (hasCachedData) {
         console.log('[DataContext] ✅ Loaded from cache (0 Firestore reads). Syncing in background...');
@@ -655,11 +859,20 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       }
 
       // ── PHASE 2: Background sync from Firestore (updates cache silently) ──
-      // Only sync if cache is stale (older than 5 minutes) or no cache exists
-      const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-      const lastSyncTime = parseInt(localStorage.getItem('lastSyncTimestamp') || '0', 10);
+      // Determine sync interval from cached profile (state may not be set yet)
+      const cachedSyncSettings: SyncSettings = (() => {
+        try {
+          const p = readUserCache<UserProfile>(userId, 'userProfile', 'userProfile');
+          return p ? (p.syncSettings ?? { mode: 'auto', autoIntervalMinutes: 15 }) : { mode: 'auto', autoIntervalMinutes: 15 };
+        } catch { return { mode: 'auto', autoIntervalMinutes: 15 }; }
+      })();
+      const SYNC_INTERVAL_MS = cachedSyncSettings.autoIntervalMinutes * 60 * 1000;
+      const lastSyncCached = readUserCache<number | string>(userId, 'lastSyncTimestamp', 'lastSyncTimestamp');
+      const lastSyncTime = typeof lastSyncCached === 'number'
+        ? lastSyncCached
+        : parseInt((typeof lastSyncCached === 'string' ? lastSyncCached : safeLocalStorage.getItem('lastSyncTimestamp')) || '0', 10);
       const now = Date.now();
-      const shouldSync = !hasCachedData || (now - lastSyncTime) > SYNC_INTERVAL_MS;
+      const shouldSync = cachedSyncSettings.mode !== 'manual' && (!hasCachedData || (now - lastSyncTime) > SYNC_INTERVAL_MS);
 
       if (shouldSync) {
       try {
@@ -700,7 +913,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           console.warn('[DataContext] Failed to sync custom categories:', err);
         }
 
-        localStorage.setItem('lastSyncTimestamp', String(Date.now()));
+        const syncedAt = Date.now();
+        writeUserCache(userId, 'lastSyncTimestamp', syncedAt);
+        setLastSyncTimestamp(syncedAt);
         console.log('[DataContext] ✅ Background sync complete');
       } catch (error) {
         console.error('[DataContext] Background sync error:', error);
@@ -708,6 +923,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       } else {
         console.log('[DataContext] ⏭️ Skipping background sync (last sync was recent)');
       }
+
+      // Prefetch monthly summaries for category chart (1 Firestore read, cached in localStorage)
+      getAllOptimizedMonthlySummaries(userId)
+        .then(summaries => {
+          if (summaries.length > 0) setMonthlySummaries(summaries);
+        })
+        .catch(err => console.warn('[DataContext] Monthly summaries prefetch failed:', err));
 
       if (!hasCachedData) {
         setIsDataLoaded(true);
@@ -727,22 +949,44 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     lazyLoadedRef.current.add('goals');
     try {
       // Load from cache first
-      const cached = localStorage.getItem('goals');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed.length > 0 && goals.length === 0) {
-          const migrated = GoalMigrationService.migrateGoals(parsed);
-          setGoals(migrated);
-        }
+      const cached = readUserCache<Goal[]>(user.id, 'goals', 'goals');
+      if (cached && cached.length > 0 && goals.length === 0) {
+        const migrated = GoalMigrationService.migrateGoals(cached);
+        setGoals(migrated);
       }
       // Background sync from Firestore
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) return; // localStorage cache is sufficient when offline
       const goalsData = await FirebaseService.getGoals(user.id);
       const migratedGoals = GoalMigrationService.migrateGoals(goalsData);
       setGoals(migratedGoals);
-      localStorage.setItem('goals', JSON.stringify(goalsData));
+      writeUserCache(user.id, 'goals', goalsData);
     } catch (error) {
       lazyLoadedRef.current.delete('goals');
       console.error('[DataContext] Error loading goals:', error);
+    }
+  };
+
+  const loadLifeEvents = async () => {
+    try {
+      if (user) {
+        const cached = readUserCache<LifeEvent[]>(user.id, 'lifeEvents', 'lifeEvents');
+        if (Array.isArray(cached) && cached.length > 0) {
+          setLifeEvents(cached);
+        }
+      }
+      if (!user || lazyLoadedRef.current.has('lifeEvents')) return;
+      lazyLoadedRef.current.add('lifeEvents');
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) return;
+      const eventsData = await FirebaseService.getLifeEvents(user.id);
+      if (eventsData && eventsData.length > 0) {
+        setLifeEvents(eventsData);
+        writeUserCache(user.id, 'lifeEvents', eventsData);
+      }
+    } catch (error) {
+      lazyLoadedRef.current.delete('lifeEvents');
+      console.error('[DataContext] Error loading life events:', error);
     }
   };
 
@@ -750,16 +994,15 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user || lazyLoadedRef.current.has('assets')) return;
     lazyLoadedRef.current.add('assets');
     try {
-      const cached = localStorage.getItem('assets');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed.length > 0 && assets.length === 0) {
-          setAssets(parsed);
-        }
+      const cached = readUserCache<Asset[]>(user.id, 'assets', 'assets');
+      if (cached && cached.length > 0 && assets.length === 0) {
+        setAssets(cached);
       }
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) return;
       const assetsData = await FirebaseService.getAssets(user.id);
       setAssets(assetsData);
-      localStorage.setItem('assets', JSON.stringify(assetsData));
+      writeUserCache(user.id, 'assets', assetsData);
     } catch (error) {
       lazyLoadedRef.current.delete('assets');
       console.error('[DataContext] Error loading assets:', error);
@@ -770,16 +1013,15 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user || lazyLoadedRef.current.has('insurance')) return;
     lazyLoadedRef.current.add('insurance');
     try {
-      const cached = localStorage.getItem('insurance');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed.length > 0 && insurance.length === 0) {
-          setInsurance(parsed);
-        }
+      const cached = readUserCache<Insurance[]>(user.id, 'insurance', 'insurance');
+      if (cached && cached.length > 0 && insurance.length === 0) {
+        setInsurance(cached);
       }
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) return;
       const insuranceData = await FirebaseService.getInsurance(user.id);
       setInsurance(insuranceData);
-      localStorage.setItem('insurance', JSON.stringify(insuranceData));
+      writeUserCache(user.id, 'insurance', insuranceData);
     } catch (error) {
       lazyLoadedRef.current.delete('insurance');
       console.error('[DataContext] Error loading insurance:', error);
@@ -790,16 +1032,15 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user || lazyLoadedRef.current.has('liabilities')) return;
     lazyLoadedRef.current.add('liabilities');
     try {
-      const cached = localStorage.getItem('liabilities');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed.length > 0 && liabilities.length === 0) {
-          setLiabilities(parsed);
-        }
+      const cached = readUserCache<Liability[]>(user.id, 'liabilities', 'liabilities');
+      if (cached && cached.length > 0 && liabilities.length === 0) {
+        setLiabilities(cached);
       }
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) return;
       const liabilitiesData = await FirebaseService.getLiabilities(user.id);
       setLiabilities(liabilitiesData);
-      localStorage.setItem('liabilities', JSON.stringify(liabilitiesData));
+      writeUserCache(user.id, 'liabilities', liabilitiesData);
     } catch (error) {
       lazyLoadedRef.current.delete('liabilities');
       console.error('[DataContext] Error loading liabilities:', error);
@@ -810,16 +1051,15 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user || lazyLoadedRef.current.has('recurring')) return;
     lazyLoadedRef.current.add('recurring');
     try {
-      const cached = localStorage.getItem('recurringTransactions');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed.length > 0 && recurringTransactions.length === 0) {
-          setRecurringTransactions(parsed);
-        }
+      const cached = readUserCache<RecurringTransaction[]>(user.id, 'recurringTransactions', 'recurringTransactions');
+      if (cached && cached.length > 0 && recurringTransactions.length === 0) {
+        setRecurringTransactions(cached);
       }
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) return;
       const data = await FirebaseService.getRecurringTransactions(user.id);
       setRecurringTransactions(data);
-      localStorage.setItem('recurringTransactions', JSON.stringify(data));
+      writeUserCache(user.id, 'recurringTransactions', data);
     } catch (error) {
       lazyLoadedRef.current.delete('recurring');
       console.error('[DataContext] Error loading recurring transactions:', error);
@@ -830,16 +1070,15 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user || lazyLoadedRef.current.has('bills')) return;
     lazyLoadedRef.current.add('bills');
     try {
-      const cached = localStorage.getItem('bills');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed.length > 0 && bills.length === 0) {
-          setBills(parsed);
-        }
+      const cached = readUserCache<Bill[]>(user.id, 'bills', 'bills');
+      if (cached && cached.length > 0 && bills.length === 0) {
+        setBills(cached);
       }
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) return;
       const data = await FirebaseService.getBills(user.id);
       setBills(data);
-      localStorage.setItem('bills', JSON.stringify(data));
+      writeUserCache(user.id, 'bills', data);
     } catch (error) {
       lazyLoadedRef.current.delete('bills');
       console.error('[DataContext] Error loading bills:', error);
@@ -850,8 +1089,15 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user || lazyLoadedRef.current.has('sipRules')) return;
     lazyLoadedRef.current.add('sipRules');
     try {
+      const cached = readUserCache<SIPRule[]>(user.id, 'sipRules', 'sipRules');
+      if (cached && cached.length > 0 && sipRules.length === 0) {
+        setSipRules(cached);
+      }
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) return;
       const data = await FirebaseService.getSIPRules(user.id);
       setSipRules(data);
+      writeUserCache(user.id, 'sipRules', data);
     } catch (error) {
       lazyLoadedRef.current.delete('sipRules');
       console.error('[DataContext] Error loading SIP rules:', error);
@@ -862,17 +1108,16 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user || lazyLoadedRef.current.has('budget')) return;
     lazyLoadedRef.current.add('budget');
     try {
-      const cached = localStorage.getItem('monthlyBudget');
+      const cached = readUserCache<MonthlyBudget>(user.id, 'monthlyBudget', 'monthlyBudget');
       if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed) {
-          setMonthlyBudget(parsed);
-        }
+        setMonthlyBudget(cached);
       }
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) return;
       const budgetData = await FirebaseService.getMonthlyBudget(user.id);
       const budget = budgetData || getDefaultMonthlyBudget();
       setMonthlyBudget(budget);
-      localStorage.setItem('monthlyBudget', JSON.stringify(budget));
+      writeUserCache(user.id, 'monthlyBudget', budget);
     } catch (error) {
       lazyLoadedRef.current.delete('budget');
       console.error('[DataContext] Error loading monthly budget:', error);
@@ -884,15 +1129,18 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     lazyLoadedRef.current.add('dashboardSummary');
 
     try {
-      const cached = localStorage.getItem('dashboardSummary');
+      const cached = readUserCache<DashboardSummary>(user.id, 'dashboardSummary', 'dashboardSummary');
       if (cached && !dashboardSummary) {
-        setDashboardSummary(JSON.parse(cached));
+        setDashboardSummary(cached);
       }
+
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) return;
 
       const summary = await FirebaseService.getDashboardSummary(user.id);
       if (summary) {
         setDashboardSummary(summary);
-        localStorage.setItem('dashboardSummary', JSON.stringify(summary));
+        writeUserCache(user.id, 'dashboardSummary', summary);
       }
     } catch (error) {
       lazyLoadedRef.current.delete('dashboardSummary');
@@ -900,7 +1148,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
-  const saveDashboardSummary = (summary: DashboardSummary) => {
+  // `isComplete` = the summary was computed from FULLY loaded source data (all
+  // collections present), so it is safe to persist as the cross-device
+  // fast-paint value. A partial summary (some collections not yet loaded) is
+  // cached locally for this device only — persisting it would push a
+  // half-correct value to other devices and re-create the stale-value bug.
+  const saveDashboardSummary = (summary: DashboardSummary, isComplete: boolean = false) => {
     if (!user) return;
 
     const normalizedSummary: DashboardSummary = {
@@ -909,7 +1162,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     };
 
     setDashboardSummary(normalizedSummary);
-    localStorage.setItem('dashboardSummary', JSON.stringify(normalizedSummary));
+    writeUserCache(user.id, 'dashboardSummary', normalizedSummary);
 
     const signature = JSON.stringify({
       ...normalizedSummary,
@@ -922,17 +1175,23 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
     lastDashboardSummarySignatureRef.current = signature;
 
-    if (dashboardSummaryPersistTimeoutRef.current) {
-      window.clearTimeout(dashboardSummaryPersistTimeoutRef.current);
-    }
+    // Persist to Firestore only when the summary is complete AND auto-sync is on.
+    // The read side (getDashboardSummary) piggybacks on the shared user-doc
+    // cache, so this write is what makes the single-doc fast-paint actually work
+    // on a cold start / another device. Debounced to coalesce the bursts of
+    // recompute that happen during bulk edits or imports.
+    if (!isComplete) return;
+    const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+    if (isManual) return;
 
-    dashboardSummaryPersistTimeoutRef.current = window.setTimeout(async () => {
-      try {
-        await FirebaseService.upsertDashboardSummary(user.id, normalizedSummary);
-      } catch (error) {
-        console.error('[DataContext] Error saving dashboard summary:', error);
-      }
-    }, 1500);
+    if (dashboardSummaryWriteTimerRef.current) {
+      clearTimeout(dashboardSummaryWriteTimerRef.current);
+    }
+    const userId = user.id;
+    dashboardSummaryWriteTimerRef.current = setTimeout(() => {
+      FirebaseService.upsertDashboardSummary(userId, normalizedSummary)
+        .catch(err => console.warn('[DataContext] Failed to persist dashboard summary:', err));
+    }, 4000);
   };
 
   useEffect(() => {
@@ -1067,8 +1326,21 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       : '';
     const nextSignature = JSON.stringify({ ...nextSummary, updatedAt: undefined });
 
+    // Only a summary derived from every source collection is safe to persist
+    // cross-device. Bank balance additionally needs the full transaction set,
+    // which pagination doesn't guarantee — so require the "load more" cursor to
+    // be exhausted before treating the summary as complete.
+    const isComplete =
+      canUseAssets &&
+      canUseLiabilities &&
+      canUseGoals &&
+      canUseInsurance &&
+      canUseRecurring &&
+      canUseTransactions &&
+      !hasMoreTransactions;
+
     if (currentSignature !== nextSignature) {
-      saveDashboardSummary(nextSummary);
+      saveDashboardSummary(nextSummary, isComplete);
     }
   }, [
     user,
@@ -1081,7 +1353,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     bankAccounts,
     liabilities,
     recurringTransactions,
-    dashboardSummary
+    dashboardSummary,
+    hasMoreTransactions
   ]);
 
   const loadInitialTransactions = async () => {
@@ -1093,7 +1366,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       console.log(`[DataContext] Lazy loading initial transactions`);
       // Always fetch fresh data for page 1 to ensure sync
       const initialPage = await FirebaseService.getTransactionsPage(user.id, {
-        pageSize: 50
+        pageSize: TRANSACTIONS_INITIAL_PAGE_SIZE
       });
 
       setTransactions(prev => {
@@ -1140,7 +1413,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     setIsLoadingMoreTransactions(true);
     try {
       const page = await FirebaseService.getTransactionsPage(user.id, {
-        pageSize: 800,
+        pageSize: TRANSACTIONS_MORE_PAGE_SIZE,
         cursor: transactionsCursor
       });
 
@@ -1162,7 +1435,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
-  const loadTransactionsForPeriod = async (startDate: string, endDate: string) => {
+  const loadTransactionsForPeriod = useCallback(async (startDate: string, endDate: string) => {
     if (!user) return;
     const monthKey = getMonthKey(startDate);
     if (monthKey === 'invalid-date') return;
@@ -1228,18 +1501,25 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       loadedTransactionMonthsRef.current.delete(monthKey);
       console.error('[DataContext] Error loading detailed period transactions:', error);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Asset operations
   const addAsset = async (asset: Omit<Asset, 'id'>) => {
     if (!user) return;
 
     try {
-      const id = await FirebaseService.addAsset(user.id, asset);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      let id: string;
+      if (isManual) {
+        id = FirebaseService.addDocOfflineSafe('assets', { ...asset, userId: user.id });
+      } else {
+        id = await FirebaseService.addAsset(user.id, asset);
+      }
       const newAsset: Asset = { ...asset, id };
       setAssets(prev => {
         const updated = [...prev, newAsset];
-        localStorage.setItem('assets', JSON.stringify(updated));
+        if (user) writeUserCache(user.id, 'assets', updated);
         return updated;
       });
     } catch (error) {
@@ -1249,10 +1529,15 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const updateAsset = async (id: string, asset: Partial<Asset>) => {
     try {
-      await FirebaseService.updateAsset(id, asset);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.updateAsset(id, asset).catch(err => console.error('Error updating asset (queued):', err));
+      } else {
+        await FirebaseService.updateAsset(id, asset);
+      }
       setAssets(prev => {
         const updated = prev.map(a => a.id === id ? { ...a, ...asset } : a);
-        localStorage.setItem('assets', JSON.stringify(updated));
+        if (user) writeUserCache(user.id, 'assets', updated);
         return updated;
       });
     } catch (error) {
@@ -1262,10 +1547,15 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const deleteAsset = async (id: string) => {
     try {
-      await FirebaseService.deleteAsset(id);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.deleteAsset(id).catch(err => console.error('Error deleting asset (queued):', err));
+      } else {
+        await FirebaseService.deleteAsset(id);
+      }
       setAssets(prev => {
         const updated = prev.filter(a => a.id !== id);
-        localStorage.setItem('assets', JSON.stringify(updated));
+        if (user) writeUserCache(user.id, 'assets', updated);
         return updated;
       });
     } catch (error) {
@@ -1278,7 +1568,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user) return;
 
     try {
-      const id = await FirebaseService.addInsurance(user.id, insurance);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      let id: string;
+      if (isManual) {
+        id = FirebaseService.addDocOfflineSafe('insurance', { ...insurance, userId: user.id });
+      } else {
+        id = await FirebaseService.addInsurance(user.id, insurance);
+      }
       const newInsurance: Insurance = { ...insurance, id };
       setInsurance(prev => [...prev, newInsurance]);
     } catch (error) {
@@ -1288,7 +1584,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const updateInsurance = async (id: string, insurance: Partial<Insurance>) => {
     try {
-      await FirebaseService.updateInsurance(id, insurance);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.updateInsurance(id, insurance).catch(err => console.error('Error updating insurance (queued):', err));
+      } else {
+        await FirebaseService.updateInsurance(id, insurance);
+      }
       setInsurance(prev => prev.map(i => i.id === id ? { ...i, ...insurance } : i));
     } catch (error) {
       console.error('Error updating insurance:', error);
@@ -1297,7 +1598,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const deleteInsurance = async (id: string) => {
     try {
-      await FirebaseService.deleteInsurance(id);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.deleteInsurance(id).catch(err => console.error('Error deleting insurance (queued):', err));
+      } else {
+        await FirebaseService.deleteInsurance(id);
+      }
       setInsurance(prev => prev.filter(i => i.id !== id));
     } catch (error) {
       console.error('Error deleting insurance:', error);
@@ -1309,7 +1615,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user) return;
 
     try {
-      const id = await FirebaseService.addGoal(user.id, goal);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      let id: string;
+      if (isManual) {
+        id = FirebaseService.addDocOfflineSafe('goals', { ...goal, userId: user.id });
+      } else {
+        id = await FirebaseService.addGoal(user.id, goal);
+      }
       const newGoal: Goal = { ...goal, id };
       setGoals(prev => [...prev, newGoal]);
     } catch (error) {
@@ -1319,7 +1631,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const updateGoal = async (id: string, goal: Partial<Goal>) => {
     try {
-      await FirebaseService.updateGoal(id, goal);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.updateGoal(id, goal).catch(err => console.error('Error updating goal (queued):', err));
+      } else {
+        await FirebaseService.updateGoal(id, goal);
+      }
       setGoals(prev => prev.map(g => g.id === id ? { ...g, ...goal } : g));
     } catch (error) {
       console.error('Error updating goal:', error);
@@ -1328,34 +1645,147 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const deleteGoal = async (id: string) => {
     try {
-      await FirebaseService.deleteGoal(id);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.deleteGoal(id).catch(err => console.error('Error deleting goal (queued):', err));
+      } else {
+        await FirebaseService.deleteGoal(id);
+      }
       setGoals(prev => prev.filter(g => g.id !== id));
     } catch (error) {
       console.error('Error deleting goal:', error);
     }
   };
 
+  // Life Event Operations
+  const addLifeEvent = async (event: Omit<LifeEvent, 'id'>): Promise<string | undefined> => {
+    try {
+      let id: string;
+      if (user) {
+        const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+        if (isManual) {
+          id = FirebaseService.addDocOfflineSafe('lifeEvents', { ...event, userId: user.id });
+        } else {
+          id = await FirebaseService.addLifeEvent(user.id, event);
+        }
+      } else {
+        id = 'event_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+      }
+      const newEvent: LifeEvent = { ...event, id, targetAge: Number(event.targetAge) };
+      setLifeEvents(prev => {
+        const next = [...prev, newEvent].sort((a, b) => a.targetAge - b.targetAge);
+        if (user) writeUserCache(user.id, 'lifeEvents', next);
+        return next;
+      });
+      return id;
+    } catch (error) {
+      console.error('Error adding life event, saving locally:', error);
+      const fallbackId = 'event_' + Date.now();
+      const fallbackEvent: LifeEvent = { ...event, id: fallbackId, targetAge: Number(event.targetAge) };
+      setLifeEvents(prev => {
+        const next = [...prev, fallbackEvent].sort((a, b) => a.targetAge - b.targetAge);
+        if (user) writeUserCache(user.id, 'lifeEvents', next);
+        return next;
+      });
+      return fallbackId;
+    }
+  };
+
+  const updateLifeEvent = async (id: string, event: Partial<LifeEvent>): Promise<void> => {
+    try {
+      if (user) {
+        const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+        if (isManual) {
+          FirebaseService.updateLifeEvent(id, event).catch(err => console.error('Error updating life event (queued):', err));
+        } else {
+          await FirebaseService.updateLifeEvent(id, event);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating life event in Firebase:', error);
+    }
+    setLifeEvents(prev => {
+      const next = prev.map(e => e.id === id ? { ...e, ...event, ...(event.targetAge !== undefined ? { targetAge: Number(event.targetAge) } : {}) } : e).sort((a, b) => a.targetAge - b.targetAge);
+      if (user) writeUserCache(user.id, 'lifeEvents', next);
+      return next;
+    });
+  };
+
+  const deleteLifeEvent = async (id: string): Promise<void> => {
+    try {
+      if (user) {
+        const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+        if (isManual) {
+          FirebaseService.deleteLifeEvent(id).catch(err => console.error('Error deleting life event (queued):', err));
+        } else {
+          await FirebaseService.deleteLifeEvent(id);
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting life event from Firebase:', error);
+    }
+    setLifeEvents(prev => {
+      const next = prev.filter(e => e.id !== id);
+      if (user) writeUserCache(user.id, 'lifeEvents', next);
+      return next;
+    });
+  };
+
+  const toggleLifeEventActive = async (id: string): Promise<void> => {
+    const target = lifeEvents.find(e => e.id === id);
+    if (!target) return;
+    await updateLifeEvent(id, { isActive: !target.isActive });
+  };
+
+  const importGoalAsLifeEvent = async (goal: Goal, currentAge: number): Promise<void> => {
+    const targetYear = new Date(goal.targetDate).getFullYear();
+    const currentYear = new Date().getFullYear();
+    const targetAge = Math.max(currentAge, currentAge + (targetYear - currentYear));
+    
+    let cat: LifeEvent['category'] = 'other';
+    if (goal.category === 'education') cat = 'education';
+    else if (goal.category === 'house') cat = 'housing';
+    else if (goal.category === 'marriage') cat = 'family';
+    else if (goal.category === 'vacation') cat = 'travel';
+
+    await addLifeEvent({
+      name: goal.name,
+      type: 'expense_once',
+      targetAge,
+      durationYears: 1,
+      amount: goal.targetAmount,
+      isInflationAdjusted: goal.isInflationAdjusted ?? true,
+      category: cat,
+      linkedGoalId: goal.id,
+      isActive: true,
+      notes: `Imported from goal "${goal.name}"`
+    });
+  };
+
   // Transaction operations
   const addTransaction = async (transaction: Omit<Transaction, 'id'>) => {
     if (!user) return;
 
-    try {
-      const id = await FirebaseService.addTransaction(user.id, transaction);
+    const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+
+    if (isManual) {
+      // Offline-safe: get ID synchronously, write is queued by Firestore
+      const id = FirebaseService.addTransactionOfflineSafe(user.id, transaction);
       const newTransaction: Transaction = { ...transaction, id };
       setTransactions(prev => [...prev, newTransaction]);
-      clearMonthTransactionsCache(user.id);
-
-      // Update category summary
-      incrementCategorySummary(user.id, newTransaction).catch(err =>
-        console.warn('Failed to update category summary:', err)
-      );
-      clearCategorySummaryCache();
-      setCategorySummaryVersion(prev => prev + 1);
-
-      // No need to update bank account balance - it's computed from initialBalance + transactions
-    } catch (error) {
-      console.error('Error adding transaction:', error);
-      throw error;
+      invalidateCaches();
+      trackPendingNew([id]);
+    } else {
+      try {
+        const id = await FirebaseService.addTransaction(user.id, transaction);
+        const newTransaction: Transaction = { ...transaction, id };
+        setTransactions(prev => [...prev, newTransaction]);
+        invalidateCaches();
+        trackPendingNew([id]);
+      } catch (error) {
+        console.error('Error adding transaction:', error);
+        throw error;
+      }
     }
   };
 
@@ -1363,38 +1793,34 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user) return;
 
     const oldTransaction = transactions.find(t => t.id === id);
-    const optimisticTransaction = oldTransaction ? { ...oldTransaction, ...transaction } : undefined;
 
     // Optimistic local update for immediate UI feedback (list + summary views)
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...transaction } : t));
-    clearMonthTransactionsCache(user.id);
-    clearCategorySummaryCache();
-    setCategorySummaryVersion(prev => prev + 1);
-
-    // Keep derived category summaries in sync with optimistic update
-    if (oldTransaction && optimisticTransaction) {
-      updateCategorySummary(user.id, oldTransaction, optimisticTransaction).catch(err =>
-        console.warn('Failed to update category summary:', err)
-      );
+    invalidateCaches();
+    // Track: if it's already a new item, don't overwrite; otherwise save pre-edit snapshot
+    if (!pendingNewIds.has(id) && oldTransaction) {
+      trackPendingEdit(id, oldTransaction);
     }
 
-    try {
-      await FirebaseService.updateTransaction(id, transaction);
-      // No need to update bank account balance - it's computed from initialBalance + transactions
-    } catch (error) {
-      console.error('Error updating transaction:', error);
+    // Fire-and-forget in manual mode (write queues locally); await in online modes
+    const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+    if (isManual) {
+      FirebaseService.updateTransaction(id, transaction).catch(err =>
+        console.error('Error updating transaction (queued):', err)
+      );
+    } else {
+      try {
+        await FirebaseService.updateTransaction(id, transaction);
+      } catch (error) {
+        console.error('Error updating transaction:', error);
 
-      // Roll back local transaction state on persistence failure
-      if (oldTransaction) {
-        setTransactions(prev => prev.map(t => t.id === id ? oldTransaction : t));
-        clearCategorySummaryCache();
-        setCategorySummaryVersion(prev => prev + 1);
+        // Roll back local transaction state on persistence failure
+        if (oldTransaction) {
+          setTransactions(prev => prev.map(t => t.id === id ? oldTransaction : t));
+          clearCategorySummaryCache();
+          setCategorySummaryVersion(prev => prev + 1);
 
-        // Best-effort rollback for summary docs as well
-        if (optimisticTransaction) {
-          updateCategorySummary(user.id, optimisticTransaction, oldTransaction).catch(err =>
-            console.warn('Failed to rollback category summary after transaction update error:', err)
-          );
+
         }
       }
     }
@@ -1411,8 +1837,15 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         if (t) oldTransactionsMap.set(id, t);
       });
 
-      // 1. Update in Firebase (Batch)
-      await FirebaseService.bulkUpdateTransactions(ids, update);
+      // 1. Update in Firebase (Batch) — fire-and-forget when manual/offline
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.bulkUpdateTransactions(ids, update).catch(err =>
+          console.error('Error bulk updating transactions (queued):', err)
+        );
+      } else {
+        await FirebaseService.bulkUpdateTransactions(ids, update);
+      }
 
       // 2. Compute new state locally *once*
       const updatedTransactions = transactions.map(t =>
@@ -1420,22 +1853,14 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       );
 
       setTransactions(updatedTransactions);
-      clearMonthTransactionsCache(user.id);
-
-      // 3. Update category summaries if category changed
-      if (update.category) {
-        for (const id of ids) {
-          const oldTransaction = oldTransactionsMap.get(id);
-          const newTransaction = updatedTransactions.find(t => t.id === id);
-          if (oldTransaction && newTransaction && oldTransaction.category !== newTransaction.category) {
-            updateCategorySummary(user.id, oldTransaction, newTransaction).catch(err =>
-              console.warn('Failed to update category summary for bulk update:', err)
-            );
-          }
+      invalidateCaches();
+      // Track edits for items that aren't already new
+      ids.forEach(id => {
+        if (!pendingNewIds.has(id)) {
+          const old = oldTransactionsMap.get(id);
+          if (old) trackPendingEdit(id, old);
         }
-      }
-      clearCategorySummaryCache();
-      setCategorySummaryVersion(prev => prev + 1);
+      });
 
       // No need to update bank account balance - it's computed from initialBalance + transactions
 
@@ -1458,29 +1883,27 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         if (t) oldTransactionsMap.set(id, t);
       });
 
-      await FirebaseService.bulkUpdateTransactionsById(updatesById);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.bulkUpdateTransactionsById(updatesById).catch(err =>
+          console.error('Error bulk updating transactions by ID (queued):', err)
+        );
+      } else {
+        await FirebaseService.bulkUpdateTransactionsById(updatesById);
+      }
 
       const updatedTransactions = transactions.map(t =>
         updatesById[t.id] ? { ...t, ...updatesById[t.id] } : t
       );
       setTransactions(updatedTransactions);
-      clearMonthTransactionsCache(user.id);
-
-      // Update category summaries for transactions where category changed
-      for (const id of ids) {
-        const update = updatesById[id];
-        if (update.category) {
-          const oldTransaction = oldTransactionsMap.get(id);
-          const newTransaction = updatedTransactions.find(t => t.id === id);
-          if (oldTransaction && newTransaction && oldTransaction.category !== newTransaction.category) {
-            updateCategorySummary(user.id, oldTransaction, newTransaction).catch(err =>
-              console.warn('Failed to update category summary for bulk update by ID:', err)
-            );
-          }
+      invalidateCaches();
+      // Track edits for items that aren't already new
+      ids.forEach(id => {
+        if (!pendingNewIds.has(id)) {
+          const old = oldTransactionsMap.get(id);
+          if (old) trackPendingEdit(id, old);
         }
-      }
-      clearCategorySummaryCache();
-      setCategorySummaryVersion(prev => prev + 1);
+      });
 
       // No need to update bank account balance - it's computed from initialBalance + transactions
     } catch (error) {
@@ -1578,56 +2001,39 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         return cleaned as Omit<Transaction, 'id'>;
       });
 
-      const createdTransactions = await FirebaseService.bulkAddTransactions(user.id, cleanedTransactions);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      let createdTransactions: Transaction[];
+      if (isManual) {
+        createdTransactions = FirebaseService.bulkAddTransactionsOfflineSafe(user.id, cleanedTransactions);
+      } else {
+        createdTransactions = await FirebaseService.bulkAddTransactions(user.id, cleanedTransactions);
+      }
       const mergedTransactions = [...transactions, ...createdTransactions];
       setTransactions(mergedTransactions);
-      clearMonthTransactionsCache(user.id);
+      invalidateCaches();
+      trackPendingNew(createdTransactions.map(t => t.id));
 
-      // Recalculate balance for affected bank accounts
-      // Group transactions by bank account
-      const accountsToUpdate = new Set(transactionsToImport.map(t => t.bankAccountId).filter(Boolean));
+      // Transactions are already persisted at this point. Balance/account
+      // bookkeeping is best-effort: a failure here must not report the import
+      // as failed (callers would otherwise retry and create duplicates).
+      try {
+        // Recalculate balance for affected bank accounts
+        // Group transactions by bank account
+        const accountsToUpdate = new Set(transactionsToImport.map(t => t.bankAccountId).filter(Boolean));
 
-      if (accountsToUpdate.size > 0) {
-        setBankAccounts(prev => prev.map(account => {
-          if (!accountsToUpdate.has(account.id)) return account;
+        if (accountsToUpdate.size > 0) {
+          setBankAccounts(prev => prev.map(account => {
+            if (!accountsToUpdate.has(account.id)) return account;
 
-          // Calculate new balance from initialBalance + all transactions
-          const accountTransactions = mergedTransactions.filter(t => t.bankAccountId === account.id);
-          const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
-            return sum + (t.type === 'income' ? t.amount : -t.amount);
-          }, 0);
-
-          let initialBalance = account.initialBalance ?? account.balance ?? 0;
-
-          // If historical import, adjust initialBalance so that the FINAL balance remains unchanged
-          if (options?.isHistorical) {
-            const importedForAccount = cleanedTransactions.filter(t => t.bankAccountId === account.id);
-            const netImported = importedForAccount.reduce((sum, t) => {
+            // Calculate new balance from initialBalance + all transactions
+            const accountTransactions = mergedTransactions.filter(t => t.bankAccountId === account.id);
+            const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
               return sum + (t.type === 'income' ? t.amount : -t.amount);
             }, 0);
-            initialBalance -= netImported;
-          }
 
-          const newBalance = initialBalance + totalTransactionAmount;
+            let initialBalance = account.initialBalance ?? account.balance ?? 0;
 
-          // Update both balance and initialBalance if not set
-          return {
-            ...account,
-            balance: newBalance,
-            initialBalance: initialBalance
-          };
-        }));
-      }
-
-      if (accountsToUpdate.size > 0) {
-        const accountUpdates = bankAccounts
-          .filter(account => accountsToUpdate.has(account.id))
-          .map(account => {
-
-
-
-            let initialBalance = account.initialBalance ?? 0;
-
+            // If historical import, adjust initialBalance so that the FINAL balance remains unchanged
             if (options?.isHistorical) {
               const importedForAccount = cleanedTransactions.filter(t => t.bankAccountId === account.id);
               const netImported = importedForAccount.reduce((sum, t) => {
@@ -1636,30 +2042,58 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
               initialBalance -= netImported;
             }
 
+            const newBalance = initialBalance + totalTransactionAmount;
 
-
+            // Update both balance and initialBalance if not set
             return {
-              id: account.id,
-              update: {
-                initialBalance
-              }
+              ...account,
+              balance: newBalance,
+              initialBalance: initialBalance
             };
-          });
+          }));
+        }
 
-        await FirebaseService.bulkUpdateBankAccounts(accountUpdates);
+        if (accountsToUpdate.size > 0) {
+          const accountUpdates = bankAccounts
+            .filter(account => accountsToUpdate.has(account.id))
+            .map(account => {
 
-        setBankAccounts(prev => prev.map(account => {
-          const updateEntry = accountUpdates.find(entry => entry.id === account.id);
-          if (!updateEntry) return account;
-          return {
-            ...account,
-            ...updateEntry.update
-          };
-        }));
+
+
+              let initialBalance = account.initialBalance ?? 0;
+
+              if (options?.isHistorical) {
+                const importedForAccount = cleanedTransactions.filter(t => t.bankAccountId === account.id);
+                const netImported = importedForAccount.reduce((sum, t) => {
+                  return sum + (t.type === 'income' ? t.amount : -t.amount);
+                }, 0);
+                initialBalance -= netImported;
+              }
+
+
+
+              return {
+                id: account.id,
+                update: {
+                  initialBalance
+                }
+              };
+            });
+
+          await FirebaseService.bulkUpdateBankAccounts(accountUpdates);
+
+          setBankAccounts(prev => prev.map(account => {
+            const updateEntry = accountUpdates.find(entry => entry.id === account.id);
+            if (!updateEntry) return account;
+            return {
+              ...account,
+              ...updateEntry.update
+            };
+          }));
+        }
+      } catch (accountError) {
+        console.error('Transactions saved, but failed to update bank account balances:', accountError);
       }
-
-      clearCategorySummaryCache();
-      setCategorySummaryVersion(prev => prev + 1);
 
       return {
         success: true,
@@ -1682,21 +2116,30 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user) return;
     
     try {
-      // Get the transaction before deleting for summary update
-      const transactionToDelete = transactions.find(t => t.id === id);
-      
-      await FirebaseService.deleteTransaction(id);
-      setTransactions(prev => prev.filter(t => t.id !== id));
-      clearMonthTransactionsCache(user.id);
-
-      // Update category summary
-      if (transactionToDelete) {
-        decrementCategorySummary(user.id, transactionToDelete).catch(err =>
-          console.warn('Failed to update category summary:', err)
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.deleteTransaction(id).catch(err =>
+          console.error('Error deleting transaction (queued):', err)
         );
+      } else {
+        await FirebaseService.deleteTransaction(id);
       }
-      clearCategorySummaryCache();
-      setCategorySummaryVersion(prev => prev + 1);
+      setTransactions(prev => prev.filter(t => t.id !== id));
+      invalidateCaches();
+      trackPendingDeletes(1);
+      // Remove from pending tracking if it was tracked
+      setPendingNewIds(prev => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      setPendingEditSnapshots(prev => {
+        if (!prev.has(id)) return prev;
+        const next = new Map(prev);
+        next.delete(id);
+        return next;
+      });
 
       // No need to update bank account balance - it's computed from initialBalance + transactions
     } catch (error) {
@@ -1708,14 +2151,36 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user) return;
 
     try {
-      // 1. Delete from Firebase (Batch)
-      await FirebaseService.bulkDeleteTransactions(ids);
+      // 1. Delete from Firebase (Batch) — fire-and-forget when manual/offline
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.bulkDeleteTransactions(ids).catch(err =>
+          console.error('Error bulk deleting transactions (queued):', err)
+        );
+      } else {
+        await FirebaseService.bulkDeleteTransactions(ids);
+      }
 
       // 2. Update local state
       setTransactions(prev => prev.filter(t => !ids.includes(t.id)));
-      clearMonthTransactionsCache(user.id);
-      clearCategorySummaryCache();
-      setCategorySummaryVersion(prev => prev + 1);
+      invalidateCaches();
+      trackPendingDeletes(ids.length);
+      // Remove deleted IDs from pending tracking
+      setPendingNewIds(prev => {
+        const idsSet = new Set(ids);
+        const hasAny = [...prev].some(id => idsSet.has(id));
+        if (!hasAny) return prev;
+        const next = new Set(prev);
+        ids.forEach(id => next.delete(id));
+        return next;
+      });
+      setPendingEditSnapshots(prev => {
+        const hasAny = ids.some(id => prev.has(id));
+        if (!hasAny) return prev;
+        const next = new Map(prev);
+        ids.forEach(id => next.delete(id));
+        return next;
+      });
 
       // No need to update bank account balance - it's computed from initialBalance + transactions
 
@@ -1729,8 +2194,17 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user) return;
 
     try {
-      const id = await FirebaseService.addBankAccount(user.id, account);
-      const newAccount: BankAccount = { ...account, id };
+      // Statement PDF passwords stay on this device only - never written to Firestore
+      const { statementPassword, ...accountData } = account;
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      let id: string;
+      if (isManual) {
+        id = FirebaseService.addDocOfflineSafe('bankAccounts', { ...accountData, userId: user.id });
+      } else {
+        id = await FirebaseService.addBankAccount(user.id, accountData);
+      }
+      statementPasswordStore.set(id, statementPassword);
+      const newAccount: BankAccount = { ...accountData, id };
       setBankAccounts(prev => [...prev, newAccount]);
       return id;
     } catch (error) {
@@ -1740,23 +2214,43 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const updateBankAccount = async (id: string, account: Partial<BankAccount>) => {
     try {
-      // Only update the initialBalance field - balance is computed from transactions
-      const updateData = { ...account };
-
-      await FirebaseService.updateBankAccount(id, updateData);
-      setBankAccounts(prev => prev.map(a => a.id === id ? { ...a, ...updateData } : a));
+      // Statement PDF passwords stay on this device only. When the form sends the
+      // field, store it locally and clear any legacy plain-text copy in Firestore.
+      const { statementPassword, ...updateData } = account;
+      const hasPasswordField = 'statementPassword' in account;
+      if (hasPasswordField) {
+        statementPasswordStore.set(id, statementPassword);
+      }
+      const firestoreUpdate: Partial<BankAccount> = hasPasswordField
+        ? { ...updateData, statementPassword: deleteField() as any }
+        : updateData;
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.updateBankAccount(id, firestoreUpdate).catch(err => console.error('Error updating bank account (queued):', err));
+      } else {
+        await FirebaseService.updateBankAccount(id, firestoreUpdate);
+      }
+      setBankAccounts(prev => prev.map(a => {
+        if (a.id !== id) return a;
+        const { statementPassword: _legacyPassword, ...rest } = a;
+        return { ...(hasPasswordField ? rest : a), ...updateData };
+      }));
     } catch (error) {
       console.error('Error updating bank account:', error);
     }
   };
 
-  // Helper function to compute account balance from initialBalance + transactions
-  // Formula: currentBalance = initialBalance + sum(income) - sum(expenses)
-  const getAccountBalance = (accountId: string): number => {
-    const account = bankAccounts.find(a => a.id === accountId);
-    if (!account) return 0;
+  // Whether the in-memory transaction list holds the account's full history.
+  // Cursor-based pagination means the list is often partial (initial page = 50),
+  // and a balance summed from a partial set is wrong. When `hasMoreTransactions`
+  // is true we know more pages exist upstream, so we cannot trust a live sum.
+  const isTransactionSetComplete = (): boolean =>
+    initialTransactionsLoadedRef.current && !hasMoreTransactions;
 
-    const accountTransactions = transactions.filter(t => t.bankAccountId === accountId);
+  // Live balance from the currently-loaded transactions.
+  // Formula: currentBalance = initialBalance + sum(income) - sum(expenses/investment/insurance)
+  const computeAccountBalanceFromLoaded = (account: BankAccount): number => {
+    const accountTransactions = transactions.filter(t => t.bankAccountId === account.id);
     const totalTransactionAmount = accountTransactions.reduce((sum, t) => {
       if (t.type === 'income') return sum + t.amount;
       if (t.type === 'expense' || t.type === 'investment' || t.type === 'insurance') {
@@ -1765,12 +2259,62 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       return sum;
     }, 0);
 
-    return account.initialBalance + totalTransactionAmount;
+    // If account is a credit card, outstanding balance represents debt (negative).
+    // Normalize positive initial balance from legacy entries to negative so it reduces net worth.
+    const initial = (account.accountType === 'credit_card' && account.initialBalance > 0)
+      ? -account.initialBalance
+      : account.initialBalance;
+
+    return initial + totalTransactionAmount;
   };
+
+  const getAccountBalance = (accountId: string): number => {
+    const account = bankAccounts.find(a => a.id === accountId);
+    if (!account) return 0;
+
+    // Full history in memory → authoritative live computation.
+    if (isTransactionSetComplete()) {
+      return computeAccountBalanceFromLoaded(account);
+    }
+
+    // Partial set → prefer the last complete snapshot over a wrong partial sum.
+    const known = knownAccountBalancesRef.current[accountId];
+    if (typeof known === 'number') {
+      return known;
+    }
+
+    // No snapshot yet (e.g. first cold load) → best effort from what we have.
+    return computeAccountBalanceFromLoaded(account);
+  };
+
+  // Snapshot each account's balance whenever the full transaction set is loaded.
+  // This keeps `knownAccountBalancesRef` (and its localStorage mirror) current so
+  // that partial-data renders fall back to an accurate figure rather than a sum
+  // over an incomplete transaction list.
+  useEffect(() => {
+    if (!user || !isDataLoaded) return;
+    if (!isTransactionSetComplete()) return;
+    if (bankAccounts.length === 0) return;
+
+    const snapshot: Record<string, number> = {};
+    for (const account of bankAccounts) {
+      snapshot[account.id] = computeAccountBalanceFromLoaded(account);
+    }
+    knownAccountBalancesRef.current = snapshot;
+    if (user) {
+      writeUserCache(user.id, 'accountBalances', snapshot);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isDataLoaded, bankAccounts, transactions, hasMoreTransactions]);
 
   const deleteBankAccount = async (id: string) => {
     try {
-      await FirebaseService.deleteBankAccount(id);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.deleteBankAccount(id).catch(err => console.error('Error deleting bank account (queued):', err));
+      } else {
+        await FirebaseService.deleteBankAccount(id);
+      }
       setBankAccounts(prev => prev.filter(a => a.id !== id));
     } catch (error) {
       console.error('Error deleting bank account:', error);
@@ -1783,7 +2327,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const addSIPRule = async (rule: Omit<SIPRule, 'id'>) => {
     if (!user) return;
     try {
-      const id = await FirebaseService.addSIPRule(user.id, rule);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      let id: string;
+      if (isManual) {
+        id = FirebaseService.addDocOfflineSafe('sipRules', { ...rule, userId: user.id });
+      } else {
+        id = await FirebaseService.addSIPRule(user.id, rule);
+      }
       setSipRules(prev => [...prev, { ...rule, id }]);
     } catch (error) {
       console.error('Error adding SIP rule:', error);
@@ -1792,7 +2342,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const updateSIPRule = async (id: string, rule: Partial<SIPRule>) => {
     try {
-      await FirebaseService.updateSIPRule(id, rule);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.updateSIPRule(id, rule).catch(err => console.error('Error updating SIP rule (queued):', err));
+      } else {
+        await FirebaseService.updateSIPRule(id, rule);
+      }
       setSipRules(prev => prev.map(r => r.id === id ? { ...r, ...rule } : r));
     } catch (error) {
       console.error('Error updating SIP rule:', error);
@@ -1801,7 +2356,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const deleteSIPRule = async (id: string) => {
     try {
-      await FirebaseService.deleteSIPRule(id);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.deleteSIPRule(id).catch(err => console.error('Error deleting SIP rule (queued):', err));
+      } else {
+        await FirebaseService.deleteSIPRule(id);
+      }
       setSipRules(prev => prev.filter(r => r.id !== id));
     } catch (error) {
       console.error('Error deleting SIP rule:', error);
@@ -1815,7 +2375,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user) return;
 
     try {
-      const id = await FirebaseService.addLiability(user.id, liability);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      let id: string;
+      if (isManual) {
+        id = FirebaseService.addDocOfflineSafe('liabilities', { ...liability, userId: user.id });
+      } else {
+        id = await FirebaseService.addLiability(user.id, liability);
+      }
       const newLiability: Liability = { ...liability, id };
       setLiabilities(prev => [...prev, newLiability]);
     } catch (error) {
@@ -1824,10 +2390,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   };
 
   const updateLiability = async (id: string, liability: Partial<Liability>) => {
-    console.log('DataContext: Updating liability', id, liability);
     try {
-      await FirebaseService.updateLiability(id, liability);
-      console.log('DataContext: Firebase update success');
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.updateLiability(id, liability).catch(err => console.error('Error updating liability (queued):', err));
+      } else {
+        await FirebaseService.updateLiability(id, liability);
+      }
       setLiabilities(prev => prev.map(l => l.id === id ? { ...l, ...liability } : l));
     } catch (error) {
       console.error('Error updating liability:', error);
@@ -1836,7 +2405,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const deleteLiability = async (id: string) => {
     try {
-      await FirebaseService.deleteLiability(id);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.deleteLiability(id).catch(err => console.error('Error deleting liability (queued):', err));
+      } else {
+        await FirebaseService.deleteLiability(id);
+      }
       setLiabilities(prev => prev.filter(l => l.id !== id));
     } catch (error) {
       console.error('Error deleting liability:', error);
@@ -1850,28 +2424,48 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     setMonthlyBudget(updatedBudget);
 
     try {
-      await FirebaseService.updateMonthlyBudget(user.id, updatedBudget);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.updateMonthlyBudget(user.id, updatedBudget).catch(err => console.error('Error updating budget (queued):', err));
+      } else {
+        await FirebaseService.updateMonthlyBudget(user.id, updatedBudget);
+      }
     } catch (error) {
       console.error('Error updating monthly budget:', error);
     }
   };
 
   // Recurring Transactions operations
-  const addRecurringTransaction = async (recurringTransaction: Omit<RecurringTransaction, 'id'>) => {
-    if (!user) return;
+  const addRecurringTransaction = async (recurringTransaction: Omit<RecurringTransaction, 'id'>): Promise<string | undefined> => {
+    if (!user) return undefined;
 
     try {
-      const id = await FirebaseService.addRecurringTransaction(user.id, recurringTransaction);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      let id: string;
+      if (isManual) {
+        id = FirebaseService.addRecurringTransactionOfflineSafe(user.id, recurringTransaction);
+      } else {
+        id = await FirebaseService.addRecurringTransaction(user.id, recurringTransaction);
+      }
       const newRecurringTransaction: RecurringTransaction = { ...recurringTransaction, id };
       setRecurringTransactions(prev => [...prev, newRecurringTransaction]);
+      return id;
     } catch (error) {
       console.error('Error adding recurring transaction:', error);
+      return undefined;
     }
   };
 
   const updateRecurringTransaction = async (id: string, recurringTransaction: Partial<RecurringTransaction>) => {
     try {
-      await FirebaseService.updateRecurringTransaction(id, recurringTransaction);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.updateRecurringTransaction(id, recurringTransaction).catch(err =>
+          console.error('Error updating recurring transaction (queued):', err)
+        );
+      } else {
+        await FirebaseService.updateRecurringTransaction(id, recurringTransaction);
+      }
       setRecurringTransactions(prev => prev.map(rt => rt.id === id ? { ...rt, ...recurringTransaction } : rt));
     } catch (error) {
       console.error('Error updating recurring transaction:', error);
@@ -1880,7 +2474,14 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const deleteRecurringTransaction = async (id: string) => {
     try {
-      await FirebaseService.deleteRecurringTransaction(id);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.deleteRecurringTransaction(id).catch(err =>
+          console.error('Error deleting recurring transaction (queued):', err)
+        );
+      } else {
+        await FirebaseService.deleteRecurringTransaction(id);
+      }
       setRecurringTransactions(prev => prev.filter(rt => rt.id !== id));
     } catch (error) {
       console.error('Error deleting recurring transaction:', error);
@@ -1892,7 +2493,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user) return;
 
     try {
-      const id = await FirebaseService.addBill(user.id, bill);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      let id: string;
+      if (isManual) {
+        id = FirebaseService.addDocOfflineSafe('bills', { ...bill, userId: user.id });
+      } else {
+        id = await FirebaseService.addBill(user.id, bill);
+      }
       const newBill: Bill = { ...bill, id };
       setBills(prev => [...prev, newBill]);
     } catch (error) {
@@ -1902,7 +2509,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const updateBill = async (id: string, bill: Partial<Bill>) => {
     try {
-      await FirebaseService.updateBill(id, bill);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.updateBill(id, bill).catch(err => console.error('Error updating bill (queued):', err));
+      } else {
+        await FirebaseService.updateBill(id, bill);
+      }
       setBills(prev => prev.map(b => b.id === id ? { ...b, ...bill } : b));
     } catch (error) {
       console.error('Error updating bill:', error);
@@ -1911,7 +2523,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const deleteBill = async (id: string) => {
     try {
-      await FirebaseService.deleteBill(id);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.deleteBill(id).catch(err => console.error('Error deleting bill (queued):', err));
+      } else {
+        await FirebaseService.deleteBill(id);
+      }
       setBills(prev => prev.filter(b => b.id !== id));
     } catch (error) {
       console.error('Error deleting bill:', error);
@@ -1951,7 +2568,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user) return;
 
     try {
-      const id = await FirebaseService.addSIPTransaction(user.id, sipTransaction);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      let id: string;
+      if (isManual) {
+        id = FirebaseService.addDocOfflineSafe('sipTransactions', { ...sipTransaction, userId: user.id });
+      } else {
+        id = await FirebaseService.addSIPTransaction(user.id, sipTransaction);
+      }
       const newSIPTransaction: SIPTransaction = { ...sipTransaction, id };
       setSipTransactions(prev => [...prev, newSIPTransaction]);
     } catch (error) {
@@ -1961,7 +2584,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const updateSIPTransaction = async (id: string, sipTransaction: Partial<SIPTransaction>) => {
     try {
-      await FirebaseService.updateSIPTransaction(id, sipTransaction);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.updateSIPTransaction(id, sipTransaction).catch(err => console.error('Error updating SIP transaction (queued):', err));
+      } else {
+        await FirebaseService.updateSIPTransaction(id, sipTransaction);
+      }
       setSipTransactions(prev => prev.map(s => s.id === id ? { ...s, ...sipTransaction } : s));
     } catch (error) {
       console.error('Error updating SIP transaction:', error);
@@ -1970,7 +2598,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const deleteSIPTransaction = async (id: string) => {
     try {
-      await FirebaseService.deleteSIPTransaction(id);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.deleteSIPTransaction(id).catch(err => console.error('Error deleting SIP transaction (queued):', err));
+      } else {
+        await FirebaseService.deleteSIPTransaction(id);
+      }
       setSipTransactions(prev => prev.filter(s => s.id !== id));
     } catch (error) {
       console.error('Error deleting SIP transaction:', error);
@@ -1982,7 +2615,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user) return;
 
     try {
-      const id = await FirebaseService.addCategory(user.id, category);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      let id: string;
+      if (isManual) {
+        id = FirebaseService.addDocOfflineSafe('categories', { ...category, userId: user.id });
+      } else {
+        id = await FirebaseService.addCategory(user.id, category);
+      }
       const newCategory: Category = { ...category, id };
       setCategories(prev => [...prev, newCategory]);
       return id;
@@ -1993,15 +2632,16 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
   const updateCategory = async (id: string, category: Partial<Category>) => {
     if (!user) return;
-    console.log('[DataContext] updateCategory called:', { id, category });
     try {
-      console.log('[DataContext] Calling FirebaseService.updateCategory...');
-      await FirebaseService.updateCategory(user.id, id, category);
-      console.log('[DataContext] Firebase update successful, updating local state');
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.updateCategory(user.id, id, category).catch(err => console.error('Error updating category (queued):', err));
+      } else {
+        await FirebaseService.updateCategory(user.id, id, category);
+      }
       setCategories(prev => prev.map(c => c.id === id ? { ...c, ...category } : c));
-      console.log('[DataContext] Local state updated');
     } catch (error) {
-      console.error('[DataContext] Error updating category:', error);
+      console.error('Error updating category:', error);
     }
   };
 
@@ -2019,10 +2659,15 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       // If deleting a parent group, first ungroup its children (make them standalone)
       const children = categories.filter(c => c.parentId === id);
       if (children.length > 0) {
-        await Promise.all(children.map(child => updateCategory(child.id, { parentId: undefined })));
+        await Promise.all(children.map(child => updateCategory(child.id, { parentId: '' })));
       }
 
-      await FirebaseService.deleteCategory(user.id, id);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.deleteCategory(user.id, id).catch(err => console.error('Error deleting category (queued):', err));
+      } else {
+        await FirebaseService.deleteCategory(user.id, id);
+      }
       setCategories(prev => prev.filter(c => c.id !== id));
     } catch (error) {
       console.error('Error deleting category:', error);
@@ -2041,10 +2686,17 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       }
 
       // Update all children in Firebase first
-      await Promise.all(children.map(child => FirebaseService.updateCategory(user.id, child.id, { parentId: undefined })));
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        children.forEach(child => {
+          FirebaseService.updateCategory(user.id, child.id, { parentId: '' }).catch(err => console.error('Error ungrouping (queued):', err));
+        });
+      } else {
+        await Promise.all(children.map(child => FirebaseService.updateCategory(user.id, child.id, { parentId: '' })));
+      }
 
       // Compute new categories snapshot where children are ungrouped
-      const newCategories = categories.map(c => c.parentId === parentId ? { ...c, parentId: undefined } as Category : c);
+      const newCategories = categories.map(c => c.parentId === parentId ? { ...c, parentId: '' } as Category : c);
       setCategories(newCategories);
     } catch (error) {
       console.error('[DataContext] Error ungrouping children:', error);
@@ -2056,7 +2708,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user) return;
 
     try {
-      const id = await FirebaseService.addTag(user.id, tag);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      let id: string;
+      if (isManual) {
+        id = FirebaseService.addDocOfflineSafe('tags', { ...tag, userId: user.id });
+      } else {
+        id = await FirebaseService.addTag(user.id, tag);
+      }
       const newTag: Tag = { ...tag, id };
       setTags(prev => [...prev, newTag]);
       return newTag;
@@ -2069,7 +2727,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user) return;
 
     try {
-      await FirebaseService.updateTag(user.id, id, tag);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.updateTag(user.id, id, tag).catch(err => console.error('Error updating tag (queued):', err));
+      } else {
+        await FirebaseService.updateTag(user.id, id, tag);
+      }
       setTags(prev => prev.map(t => t.id === id ? { ...t, ...tag } : t));
     } catch (error) {
       console.error('Error updating tag:', error);
@@ -2080,7 +2743,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     if (!user) return;
 
     try {
-      await FirebaseService.deleteTag(user.id, id);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.deleteTag(user.id, id).catch(err => console.error('Error deleting tag (queued):', err));
+      } else {
+        await FirebaseService.deleteTag(user.id, id);
+      }
       setTags(prev => prev.filter(t => t.id !== id));
 
       // Remove tag from all transactions
@@ -2158,7 +2826,6 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
     try {
       // 1. Apply rule to existing transactions first to get match count
-      // We need a temp rule object for matching logic
       const tempRule: CategoryRule = { ...rule, id: 'temp' };
 
       const updatesById: Record<string, Partial<Transaction>> = {};
@@ -2185,7 +2852,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
       // 3. Remove temp ID and save to Firebase
       const { id: _, ...ruleToSave } = ruleWithStats;
-      const newId = await FirebaseService.addCategoryRule(user.id, ruleToSave);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      let newId: string;
+      if (isManual) {
+        newId = FirebaseService.addDocOfflineSafe('categoryRules', { ...ruleToSave, userId: user.id });
+      } else {
+        newId = await FirebaseService.addCategoryRule(user.id, ruleToSave);
+      }
 
       // 4. Update state with real ID
       const finalRule = { ...ruleWithStats, id: newId };
@@ -2198,7 +2871,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const updateCategoryRule = async (id: string, updates: Partial<CategoryRule>) => {
     try {
       if (!user) return;
-      await FirebaseService.updateCategoryRule(user.id, id, updates);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.updateCategoryRule(user.id, id, updates).catch(err => console.error('Error updating category rule (queued):', err));
+      } else {
+        await FirebaseService.updateCategoryRule(user.id, id, updates);
+      }
       setCategoryRules(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
     } catch (error) {
       console.error('Error updating category rule:', error);
@@ -2208,7 +2886,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const deleteCategoryRule = async (id: string) => {
     try {
       if (!user) return;
-      await FirebaseService.deleteCategoryRule(user.id, id);
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (isManual) {
+        FirebaseService.deleteCategoryRule(user.id, id).catch(err => console.error('Error deleting category rule (queued):', err));
+      } else {
+        await FirebaseService.deleteCategoryRule(user.id, id);
+      }
       setCategoryRules(prev => prev.filter(r => r.id !== id));
     } catch (error) {
       console.error('Error deleting category rule:', error);
@@ -2279,16 +2962,19 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     initialTransactionsLoadedRef.current = false;
     loadedTransactionMonthsRef.current = new Set();
     lazyLoadedRef.current = new Set();
-    if (dashboardSummaryPersistTimeoutRef.current) {
-      window.clearTimeout(dashboardSummaryPersistTimeoutRef.current);
-    }
     lastDashboardSummarySignatureRef.current = '';
+    knownAccountBalancesRef.current = {};
+    if (dashboardSummaryWriteTimerRef.current) {
+      clearTimeout(dashboardSummaryWriteTimerRef.current);
+      dashboardSummaryWriteTimerRef.current = null;
+    }
     setUserProfile(getDefaultUserProfile());
     setDashboardSummary(null);
     setAssets([]);
     setInsurance([]);
     setGoals([]);
     setLicPolicies([]);
+    setLifeEvents([]);
     setMonthlyBudget(getDefaultMonthlyBudget());
     setTransactions([]);
     setTransactionsCursor(null);
@@ -2300,30 +2986,156 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     setBills([]);
     setCategoryRules([]);
     setIsDataLoaded(false);
-    // Clear all localStorage caches
-    localStorage.removeItem('transactions');
-    localStorage.removeItem('bankAccounts');
-    localStorage.removeItem('categoryRules');
-    localStorage.removeItem('userProfile');
-    localStorage.removeItem('customCategories');
-    localStorage.removeItem('bills');
-    localStorage.removeItem('recurringTransactions');
-    localStorage.removeItem('lastSyncTimestamp');
-    localStorage.removeItem('goals');
-    localStorage.removeItem('assets');
-    localStorage.removeItem('insurance');
-    localStorage.removeItem('liabilities');
-    localStorage.removeItem('monthlyBudget');
-    localStorage.removeItem('dashboardSummary');
+    // Clear all localStorage caches for this user and clean up legacy caches
+    clearAllUserStorage(user?.id);
   };
+
+  // Derived sync settings from userProfile (falls back to sensible default)
+  const syncSettings: SyncSettings = userProfile?.syncSettings ?? { mode: 'auto', autoIntervalMinutes: 15 };
+
+  // Guarded wrappers — Firestore SDK crashes (assertion c050) if toggled rapidly
+  const safeGoOnline = async () => {
+    if (firestoreNetworkRef.current === 'online') return;
+    try {
+      await goOnline();
+      firestoreNetworkRef.current = 'online';
+    } catch (error) {
+      console.error('[DataContext] Failed to enable Firestore network:', error);
+      throw error;
+    }
+  };
+  const safeGoOffline = async () => {
+    if (firestoreNetworkRef.current === 'offline') return;
+    try {
+      await goOffline();
+      firestoreNetworkRef.current = 'offline';
+    } catch (error) {
+      console.error('[DataContext] Failed to disable Firestore network:', error);
+      throw error;
+    }
+  };
+
+  const forceSync = async (): Promise<void> => {
+    if (!user) return;
+    setIsSyncing(true);
+    try {
+      // Temporarily re-enable network so queued writes flush & we can read fresh data
+      await safeGoOnline();
+
+      // Targeted sync: fetch profile/accounts/rules without touching isDataLoaded.
+      const [profile, bankAccountsData, categoryRulesData] = await Promise.all([
+        FirebaseService.getUserProfile(user.id),
+        FirebaseService.getBankAccounts(user.id),
+        FirebaseService.getCategoryRules(user.id),
+      ]);
+
+      if (profile) {
+        setUserProfile(profile);
+        writeUserCache(user.id, 'userProfile', profile);
+      }
+      setBankAccounts(bankAccountsData);
+      writeUserCache(user.id, 'bankAccounts', bankAccountsData);
+      setCategoryRules(categoryRulesData);
+      writeUserCache(user.id, 'categoryRules', categoryRulesData);
+
+      // Always update sync timestamp
+      const syncedAt = Date.now();
+      writeUserCache(user.id, 'lastSyncTimestamp', syncedAt);
+      setLastSyncTimestamp(syncedAt);
+      clearPendingEdits();
+    } catch (error) {
+      console.error('[DataContext] Force sync error:', error);
+    } finally {
+      // If manual mode, go back offline after sync
+      const currentMode = userProfile?.syncSettings?.mode ?? 'auto';
+      if (currentMode === 'manual') {
+        await safeGoOffline();
+        console.log('[DataContext] Back offline (manual mode)');
+      }
+      setIsSyncing(false);
+    }
+  };
+
+  const updateSyncSettings = async (patch: Partial<SyncSettings>): Promise<void> => {
+    const merged: SyncSettings = { ...syncSettings, ...patch };
+
+    // Toggle Firestore network based on new mode — do this ONCE, never rapid-toggle
+    if (merged.mode === 'manual') {
+      await safeGoOffline();
+      console.log('[DataContext] Firestore network disabled (manual mode)');
+    } else {
+      await safeGoOnline();
+      console.log('[DataContext] Firestore network enabled');
+      // Switching away from manual — queued writes will flush, clear pending tracking
+      clearPendingEdits();
+    }
+
+    // Persist the setting — Firestore queues this locally if offline, flushes on next online
+    updateUserProfile({ syncSettings: merged });
+  };
+
+  // Lightweight flush — just pushes queued writes to Firestore then goes back offline.
+  // Does NOT re-read anything. Used by PendingSyncSheet individual/all sync buttons.
+  const syncPendingChanges = async (): Promise<void> => {
+    if (!user) return;
+    setIsSyncing(true);
+    try {
+      await safeGoOnline();
+      // Give Firestore SDK time to flush the write queue (~1.5s is enough for LAN/good connection)
+      await new Promise<void>(resolve => setTimeout(resolve, 1500));
+      clearPendingEdits();
+      const syncedAt = Date.now();
+      writeUserCache(user.id, 'lastSyncTimestamp', syncedAt);
+      setLastSyncTimestamp(syncedAt);
+    } catch (error) {
+      console.error('[DataContext] Sync pending error:', error);
+    } finally {
+      await safeGoOffline();
+      setIsSyncing(false);
+    }
+  };
+
+  // Re-sync when user returns to the tab (visibility change)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible' || !user || !isDataLoaded) return;
+      if (syncSettings.mode === 'manual') return;
+      if (syncSettings.mode === 'always') { forceSync(); return; }
+      // mode === 'auto': check staleness
+      const interval = syncSettings.autoIntervalMinutes * 60 * 1000;
+      const last = lastSyncTimestamp ?? 0;
+      if (Date.now() - last > interval) { forceSync(); }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isDataLoaded, syncSettings, lastSyncTimestamp]);
+
+  // On login / mode change: set Firestore network state
+  useEffect(() => {
+    if (!user || !isDataLoaded) return;
+    if (syncSettings.mode === 'manual') {
+      safeGoOffline()
+        .then(() => console.log('[DataContext] Firestore offline (manual mode on load)'))
+        .catch((error) => console.error('[DataContext] Failed to go offline on load:', error));
+    } else {
+      // Firestore is online by default; this is mostly a no-op unless we previously forced offline.
+      safeGoOnline()
+        .then(() => console.log('[DataContext] Firestore online'))
+        .catch((error) => console.error('[DataContext] Failed to go online on load:', error));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, isDataLoaded, syncSettings.mode]);
 
   const value: DataContextType = {
     userProfile,
     dashboardSummary,
     updateUserProfile,
+    // Financial Data
     assets,
     insurance,
     goals,
+    lifeEvents,
     licPolicies,
     monthlyBudget,
     transactions,
@@ -2344,6 +3156,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     addGoal,
     updateGoal,
     deleteGoal,
+
+    addLifeEvent,
+    updateLifeEvent,
+    deleteLifeEvent,
+    toggleLifeEventActive,
+    importGoalAsLifeEvent,
     addTransaction,
     addTransactionsBulk,
     updateTransaction,
@@ -2402,6 +3220,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     saveDashboardSummary,
     isDataLoaded,
     categorySummaryVersion,
+    monthlySummaries,
     indexes,
     bulkUpdateTransactions,
     bulkUpdateTransactionsById,
@@ -2409,6 +3228,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
     // Lazy loading functions
     loadGoals,
+    loadLifeEvents,
     loadAssets,
     loadInsurance,
     loadLiabilities,
@@ -2418,6 +3238,19 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     loadMonthlyBudget,
     loadInitialTransactions,
     loadTransactionsForPeriod,
+
+    // Sync
+    lastSyncTimestamp,
+    isSyncing,
+    forceSync,
+    syncSettings,
+    updateSyncSettings,
+    pendingEditIds,
+    pendingNewIds,
+    pendingEditSnapshots,
+    pendingChangeCount: pendingEditIds.size + pendingDeleteCount,
+    discardPendingChange,
+    syncPendingChanges,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

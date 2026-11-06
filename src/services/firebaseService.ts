@@ -15,10 +15,11 @@ import {
   documentId,
   onSnapshot,
   writeBatch,
-  serverTimestamp
+  serverTimestamp,
+  arrayUnion
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Asset, Insurance, Goal, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, CategoryRule, SIPRule, DashboardSummary } from '../types';
+import { Asset, Insurance, Goal, LifeEvent, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, CategoryRule, SIPRule, DashboardSummary } from '../types';
 import { UserProfile } from '../types/user';
 import { getMerchantKeyFromDescription } from '../utils/merchantSimilarity';
 import {
@@ -26,6 +27,23 @@ import {
   incrementFirestoreReads,
   incrementFirestoreWrites
 } from '../debug/firestoreUsageMonitor';
+
+export interface GmailProcessedAttachment {
+  status: 'imported' | 'skipped';
+  importedCount: number;
+  bankAccountId?: string;
+}
+
+export interface GmailProcessedMessage {
+  messageId: string;
+  bankKey: string;
+  bankName: string;
+  subject: string;
+  emailDate: string;
+  filenames: string[]; // Attachment filenames already handled for this email
+  attachments?: Record<string, GmailProcessedAttachment>;
+  processedAt?: any;
+}
 
 const removeUndefined = <T extends Record<string, any>>(obj: T): Partial<T> => {
   return Object.fromEntries(
@@ -143,8 +161,26 @@ export class FirebaseService {
     CATEGORY_RULES: 'categoryRules',
     CATEGORIES: 'categories',
     SIP_RULES: 'sipRules',
-    TAGS: 'tags'
+    TAGS: 'tags',
+    LIFE_EVENTS: 'lifeEvents',
+    GMAIL_PROCESSED_MESSAGES: 'gmailProcessedMessages'
   };
+
+  // Generate a Firestore document ID without writing — used for offline-safe add operations
+  static generateId(collectionName: string): string {
+    return doc(collection(db, collectionName)).id;
+  }
+
+  // Offline-safe add: generates ID synchronously + fire-and-forget setDoc (queued by Firestore)
+  static addDocOfflineSafe(collectionName: string, data: Record<string, any>): string {
+    const docRef = doc(collection(db, collectionName));
+    setDoc(docRef, {
+      ...data,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }).catch(err => console.error(`Error adding to ${collectionName} (queued):`, err));
+    return docRef.id;
+  }
 
   // User Profile Operations
   static async getUserProfile(userId: string): Promise<UserProfile | null> {
@@ -405,6 +441,26 @@ export class FirebaseService {
     }
   }
 
+  static addTransactionOfflineSafe(userId: string, transaction: Omit<Transaction, 'id'>): string {
+    // Pre-generate ID locally so the caller has it immediately (no await needed).
+    // The setDoc write is queued by Firestore and will flush when the network is re-enabled.
+    const cleanTransaction = removeUndefined({
+      ...transaction,
+      merchantKey: getMerchantKeyFromDescription(transaction.description || '')
+    } as any) as Record<string, any>;
+
+    const docRef = doc(collection(db, this.COLLECTIONS.TRANSACTIONS));
+    // Fire-and-forget: setDoc queues locally when offline
+    setDoc(docRef, {
+      ...cleanTransaction,
+      userId,
+      createdAt: serverTimestamp() as any,
+      updatedAt: serverTimestamp() as any
+    }).catch(error => console.error('Error adding transaction:', error));
+
+    return docRef.id;
+  }
+
   static async addTransaction(userId: string, transaction: Omit<Transaction, 'id'>): Promise<string> {
     try {
       // Filter out undefined values as Firebase doesn't support them
@@ -457,6 +513,48 @@ export class FirebaseService {
       console.error('Error deleting transaction:', error);
       throw error;
     }
+  }
+
+  static bulkAddTransactionsOfflineSafe(
+    userId: string,
+    transactions: Omit<Transaction, 'id'>[]
+  ): Transaction[] {
+    const BATCH_SIZE = 450;
+    const createdTransactions: Transaction[] = [];
+    const now = new Date().toISOString();
+
+    for (const chunk of this.chunkArray(transactions, BATCH_SIZE)) {
+      const batch = writeBatch(db);
+
+      chunk.forEach(transaction => {
+        const cleanTransaction = removeUndefined({
+          ...transaction,
+          merchantKey: getMerchantKeyFromDescription(transaction.description || '')
+        } as any) as Record<string, any>;
+
+        const docRef = doc(collection(db, this.COLLECTIONS.TRANSACTIONS));
+        batch.set(docRef, {
+          ...cleanTransaction,
+          userId,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+
+        createdTransactions.push({
+          id: docRef.id,
+          ...transaction,
+          userId,
+          createdAt: now,
+          updatedAt: now
+        } as Transaction);
+      });
+
+      // Fire-and-forget: batch queues locally when offline
+      batch.commit().catch(err =>
+        console.error('Error committing batch (queued):', err)
+      );
+    }
+    return createdTransactions;
   }
 
   static async bulkAddTransactions(
@@ -827,6 +925,67 @@ export class FirebaseService {
     }
   }
 
+  // Life Event Operations
+  static async getLifeEvents(userId: string): Promise<LifeEvent[]> {
+    try {
+      const q = query(
+        collection(db, this.COLLECTIONS.LIFE_EVENTS),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+
+      const events = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...(doc.data() as any)
+      })) as LifeEvent[];
+
+      return events.sort((a, b) => a.targetAge - b.targetAge);
+    } catch (error) {
+      console.error('Error getting life events:', error);
+      throw error;
+    }
+  }
+
+  static async addLifeEvent(userId: string, event: Omit<LifeEvent, 'id'>): Promise<string> {
+    try {
+      const cleanEvent = removeUndefined(event as any) as Record<string, any>;
+      const docRef = await addDoc(collection(db, this.COLLECTIONS.LIFE_EVENTS), {
+        ...cleanEvent,
+        userId,
+        createdAt: serverTimestamp() as any,
+        updatedAt: serverTimestamp() as any
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error('Error adding life event:', error);
+      throw error;
+    }
+  }
+
+  static async updateLifeEvent(eventId: string, updates: Partial<LifeEvent>): Promise<void> {
+    try {
+      const cleanUpdates = removeUndefined(updates as any) as Record<string, any>;
+      const docRef = doc(db, this.COLLECTIONS.LIFE_EVENTS, eventId);
+      await updateDoc(docRef, {
+        ...cleanUpdates,
+        updatedAt: serverTimestamp() as any
+      });
+    } catch (error) {
+      console.error('Error updating life event:', error);
+      throw error;
+    }
+  }
+
+  static async deleteLifeEvent(eventId: string): Promise<void> {
+    try {
+      const docRef = doc(db, this.COLLECTIONS.LIFE_EVENTS, eventId);
+      await deleteDoc(docRef);
+    } catch (error) {
+      console.error('Error deleting life event:', error);
+      throw error;
+    }
+  }
+
   // Monthly Budget Operations
   static async getMonthlyBudget(userId: string): Promise<MonthlyBudget | null> {
     try {
@@ -1135,6 +1294,22 @@ export class FirebaseService {
       console.error('Error adding recurring transaction:', error);
       throw error;
     }
+  }
+
+  static addRecurringTransactionOfflineSafe(userId: string, recurringTransaction: Omit<RecurringTransaction, 'id'>): string {
+    const cleanRecurringTransaction = Object.fromEntries(
+      Object.entries(recurringTransaction).filter(([_, value]) => value !== undefined)
+    );
+
+    const docRef = doc(collection(db, this.COLLECTIONS.RECURRING_TRANSACTIONS));
+    setDoc(docRef, {
+      ...cleanRecurringTransaction,
+      userId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }).catch(error => console.error('Error adding recurring transaction:', error));
+
+    return docRef.id;
   }
 
   static async updateRecurringTransaction(id: string, recurringTransaction: Partial<RecurringTransaction>): Promise<void> {
@@ -2013,6 +2188,65 @@ export class FirebaseService {
       await deleteDoc(doc(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.TAGS, tagId));
     } catch (error) {
       console.error('Error deleting tag:', error);
+      throw error;
+    }
+  }
+
+  // ==================== Gmail Statement Import Tracking ====================
+  // One doc per Gmail message under users/{uid}/gmailProcessedMessages/{messageId}.
+  // Tracks which statement attachments were already imported (or skipped) so a
+  // re-scan never offers the same statement twice, across devices.
+
+  static async getGmailProcessedMessages(userId: string): Promise<GmailProcessedMessage[]> {
+    try {
+      const snapshot = await getDocs(
+        collection(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.GMAIL_PROCESSED_MESSAGES)
+      );
+      return snapshot.docs.map(d => ({ messageId: d.id, ...(d.data() as any) })) as GmailProcessedMessage[];
+    } catch (error) {
+      console.error('Error getting processed Gmail messages:', error);
+      throw error;
+    }
+  }
+
+  static async markGmailStatementProcessed(
+    userId: string,
+    record: {
+      messageId: string;
+      bankKey: string;
+      bankName: string;
+      subject: string;
+      emailDate: string;
+      filename: string;
+      status: GmailProcessedAttachment['status'];
+      importedCount: number;
+      bankAccountId?: string;
+    }
+  ): Promise<void> {
+    try {
+      const { filename, status, importedCount, bankAccountId, ...messageInfo } = record;
+      const docRef = doc(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.GMAIL_PROCESSED_MESSAGES, record.messageId);
+      // merge: true deep-merges the attachments map, so other files of the same email are kept
+      await setDoc(docRef, {
+        ...messageInfo,
+        userId,
+        filenames: arrayUnion(filename),
+        attachments: {
+          [filename]: removeUndefined({ status, importedCount, bankAccountId })
+        },
+        processedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.error('Error marking Gmail statement as processed:', error);
+      throw error;
+    }
+  }
+
+  static async deleteGmailProcessedMessage(userId: string, messageId: string): Promise<void> {
+    try {
+      await deleteDoc(doc(db, this.COLLECTIONS.USERS, userId, this.COLLECTIONS.GMAIL_PROCESSED_MESSAGES, messageId));
+    } catch (error) {
+      console.error('Error deleting processed Gmail message:', error);
       throw error;
     }
   }
