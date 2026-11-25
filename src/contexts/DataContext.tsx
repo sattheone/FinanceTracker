@@ -324,6 +324,8 @@ interface DataContextType {
   monthlySummariesComplete: boolean;
   /** True when getAccountBalance uses complete summaries (correct on any device) */
   accountBalancesAuthoritative: boolean;
+  /** True once this collection was fetched from Firestore this session (not just shown from cache). */
+  isServerLoaded: (key: 'goals' | 'assets' | 'insurance' | 'liabilities' | 'recurring' | 'bills') => boolean;
   indexes: {
     categoriesById: Map<string, Category>;
     bankAccountsById: Map<string, BankAccount>;
@@ -738,7 +740,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setCurrentUserId(null);
       resetUserData();
     }
-  }, [user, isAuthLoading]);
+  // Keyed on the account id: AuthContext.updateUser (profile save) replaces the user
+  // object, and re-running loadUserData then reset collections to stale cache copies.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, isAuthLoading]);
 
   const loadUserData = async (userId: string) => {
     try {
@@ -1741,7 +1746,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         id = await FirebaseService.addInsurance(user.id, insurance);
       }
       const newInsurance: Insurance = { ...insurance, id };
-      setInsurance(prev => [...prev, newInsurance]);
+      setInsurance(prev => {
+        const updated = [...prev, newInsurance];
+        if (user) writeUserCache(user.id, 'insurance', updated);
+        return updated;
+      });
     } catch (error) {
       console.error('Error adding insurance:', error);
     }
@@ -1755,7 +1764,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       } else {
         await FirebaseService.updateInsurance(id, insurance);
       }
-      setInsurance(prev => prev.map(i => i.id === id ? { ...i, ...insurance } : i));
+      setInsurance(prev => {
+        const updated = prev.map(i => i.id === id ? { ...i, ...insurance } : i);
+        if (user) writeUserCache(user.id, 'insurance', updated);
+        return updated;
+      });
     } catch (error) {
       console.error('Error updating insurance:', error);
     }
@@ -1769,7 +1782,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       } else {
         await FirebaseService.deleteInsurance(id);
       }
-      setInsurance(prev => prev.filter(i => i.id !== id));
+      setInsurance(prev => {
+        const updated = prev.filter(i => i.id !== id);
+        if (user) writeUserCache(user.id, 'insurance', updated);
+        return updated;
+      });
     } catch (error) {
       console.error('Error deleting insurance:', error);
     }
@@ -1788,7 +1805,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         id = await FirebaseService.addGoal(user.id, goal);
       }
       const newGoal: Goal = { ...goal, id };
-      setGoals(prev => [...prev, newGoal]);
+      setGoals(prev => {
+        const updated = [...prev, newGoal];
+        if (user) writeUserCache(user.id, 'goals', updated);
+        return updated;
+      });
     } catch (error) {
       console.error('Error adding goal:', error);
     }
@@ -1802,7 +1823,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       } else {
         await FirebaseService.updateGoal(id, goal);
       }
-      setGoals(prev => prev.map(g => g.id === id ? { ...g, ...goal } : g));
+      setGoals(prev => {
+        const updated = prev.map(g => g.id === id ? { ...g, ...goal } : g);
+        if (user) writeUserCache(user.id, 'goals', updated);
+        return updated;
+      });
     } catch (error) {
       console.error('Error updating goal:', error);
     }
@@ -1816,7 +1841,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       } else {
         await FirebaseService.deleteGoal(id);
       }
-      setGoals(prev => prev.filter(g => g.id !== id));
+      setGoals(prev => {
+        const updated = prev.filter(g => g.id !== id);
+        if (user) writeUserCache(user.id, 'goals', updated);
+        return updated;
+      });
     } catch (error) {
       console.error('Error deleting goal:', error);
     }
@@ -3266,6 +3295,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     setMonthlySummaries([]);
     markSummariesLoaded(false);
     lazyLoadedRef.current = new Set();
+    serverLoadedRef.current = new Set();
+    pendingLazyLoadsRef.current = new Set();
     lastDashboardSummarySignatureRef.current = '';
     knownAccountBalancesRef.current = {};
     if (dashboardSummaryWriteTimerRef.current) {
@@ -3341,6 +3372,16 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       writeUserCache(user.id, 'bankAccounts', bankAccountsData);
       setCategoryRules(categoryRulesData);
       writeUserCache(user.id, 'categoryRules', categoryRulesData);
+
+      // Refetch the collections this session has opened, so a long-open app picks up
+      // changes made on other devices (they are otherwise fetched once per page load).
+      const refreshers: Record<string, () => Promise<void>> = {
+        goals: loadGoals, assets: loadAssets, insurance: loadInsurance,
+        liabilities: loadLiabilities, recurring: loadRecurringTransactions, bills: loadBills,
+      };
+      await Promise.all(Object.entries(refreshers)
+        .filter(([key]) => lazyLoadedRef.current.has(key))
+        .map(([key, load]) => { lazyLoadedRef.current.delete(key); return load(); }));
 
       // Always update sync timestamp
       const syncedAt = Date.now();
@@ -3530,6 +3571,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     monthlySummaries,
     monthlySummariesComplete: monthlySummariesComplete && monthlySummariesLoaded,
     accountBalancesAuthoritative: summaryAccountNet !== null,
+    isServerLoaded: (key) => serverLoadedRef.current.has(key),
     indexes,
     bulkUpdateTransactions,
     bulkUpdateTransactionsById,

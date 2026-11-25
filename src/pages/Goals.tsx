@@ -10,7 +10,7 @@ import UnifiedGoalCard from '../components/goals/UnifiedGoalCard';
 import { Goal } from '../types';
 
 const Goals: React.FC = () => {
-  const { goals, addGoal, updateGoal, deleteGoal, assets, loadGoals, loadAssets } = useData();
+  const { goals, addGoal, updateGoal, deleteGoal, assets, loadGoals, loadAssets, isServerLoaded } = useData();
   const [showGoalForm, setShowGoalForm] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
 
@@ -32,19 +32,20 @@ const Goals: React.FC = () => {
   // Get SIP assets (mutual funds and EPF with SIP enabled)
   const sipAssets = assets.filter(a => a.isSIP && (a.category === 'mutual_funds' || a.category === 'epf'));
 
-  // Auto-update goals from SIP contributions on mount
+  // Keep each goal's currentAmount equal to its linked SIP assets' value.
+  // Only from data fetched from Firestore: running on the cached copies wrote stale
+  // goals back and could undo edits made on another device. Writes only the derived
+  // fields, never the whole goal.
   useEffect(() => {
-    const updateGoalsFromSIPs = () => {
-      goals.forEach(goal => {
-        const updatedGoal = GoalSIPService.updateGoalFromSIPs(goal, assets);
-        if (updatedGoal.currentAmount !== goal.currentAmount) {
-          updateGoal(goal.id, updatedGoal);
-        }
-      });
-    };
-
-    updateGoalsFromSIPs();
-  }, []); // Run once on mount
+    if (!isServerLoaded('goals') || !isServerLoaded('assets')) return;
+    goals.forEach(goal => {
+      const updatedGoal = GoalSIPService.updateGoalFromSIPs(goal, assets);
+      if (updatedGoal.currentAmount !== goal.currentAmount) {
+        updateGoal(goal.id, { currentAmount: updatedGoal.currentAmount, lastSIPUpdate: updatedGoal.lastSIPUpdate });
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goals, assets]);
 
   // Handler functions
   const handleAddGoal = () => {

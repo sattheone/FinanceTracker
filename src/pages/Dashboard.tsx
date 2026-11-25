@@ -39,6 +39,7 @@ const Dashboard: React.FC = () => {
     loadDashboardSummary,
     loadAssets,
     loadLiabilities,
+    loadGoals,
     loadInsurance
   } = useData();
   const navigate = useNavigate();
@@ -54,6 +55,7 @@ const Dashboard: React.FC = () => {
     loadAssets();
     loadLiabilities();
     loadInsurance();
+    loadGoals(); // retirement progress and goal cards; otherwise only the cached copy was shown
   }, []);
 
   const sipAssets = assets.filter(a => a.isSIP && (a.category === 'mutual_funds' || a.category === 'epf'));
