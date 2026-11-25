@@ -96,7 +96,8 @@ async function applySummaryDeltas(userId: string, deltas: Map<string, SummaryDel
  * months, categories and types are all handled by one code path.
  */
 export const onTransactionWritten = onDocumentWritten(
-  "transactions/{transactionId}",
+  // Firestore triggers must run in the database's region.
+  { document: "transactions/{transactionId}", region: "asia-south1" },
   async (event) => {
     const before = event.data?.before.exists ? event.data.before.data() : undefined;
     const after = event.data?.after.exists ? event.data.after.data() : undefined;
