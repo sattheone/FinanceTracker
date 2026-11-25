@@ -21,7 +21,7 @@ export default function ReloadPrompt() {
         <div className="ReloadPrompt-container">
             {needRefresh && (
                 <div
-                    className="fixed bottom-0 right-0 m-6 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 flex flex-col gap-2 max-w-sm"
+                    className="fixed right-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] lg:bottom-0 m-4 lg:m-6 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 flex flex-col gap-2 max-w-sm"
                     role="alert"
                 >
                     <div className="text-gray-900 dark:text-white font-medium">

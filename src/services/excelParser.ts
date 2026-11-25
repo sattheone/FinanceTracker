@@ -13,6 +13,8 @@ export interface ParsedTransaction {
   accountName?: string;
   tags?: string[];
   notes?: string;
+  // Set when a PDF statement covers several accounts: which account section the row came from
+  statementSectionId?: string;
 }
 
 // Configuration for Fuzzy Matching

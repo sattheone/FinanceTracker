@@ -1,9 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { MonthlyBudget } from '../../types';
-import { Category } from '../../constants/categories';
+import { Category, getCategoryTransactionType } from '../../constants/categories';
 import { formatCurrency } from '../../utils/formatters';
-import { Settings, EyeOff, ChevronRight } from 'lucide-react';
+import { Settings, EyeOff, ChevronRight, ChevronDown } from 'lucide-react';
 
 interface CategoryListProps {
     categories: Category[];
@@ -12,8 +12,8 @@ interface CategoryListProps {
     spendingByCategory: Record<string, number>;
     investmentSpending?: Record<string, number>;
     incomeSpending?: Record<string, number>;
+    transferSpending?: Record<string, number>;
     monthlyBudget: MonthlyBudget | null;
-    displayMode?: 'flat' | 'grouped';
     viewMode?: 'month' | 'prevMonth' | 'year' | 'prevYear';
     includeTransfer?: boolean;
     includeInvestments?: boolean;
@@ -27,16 +27,39 @@ const CategoryList: React.FC<CategoryListProps> = ({
     spendingByCategory,
     investmentSpending = {},
     incomeSpending = {},
+    transferSpending = {},
     monthlyBudget,
-    displayMode = 'flat',
     viewMode = 'month',
     includeTransfer = false,
     includeInvestments = false,
     includeIncome = false
 }) => {
     const theme = useThemeClasses();
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-    // Group categories by type (expenses/investments/system/hidden)
+    const toggleGroup = useCallback((parentId: string) => {
+        setExpandedGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(parentId)) next.delete(parentId);
+            else next.add(parentId);
+            return next;
+        });
+    }, []);
+
+    // Pre-compute total spending per category across all transaction types
+    const totalSpendingByCat = useMemo(() => {
+        const map: Record<string, number> = {};
+        categories.forEach(cat => {
+            map[cat.id] =
+                (spendingByCategory[cat.id] || 0) +
+                (investmentSpending[cat.id] || 0) +
+                (incomeSpending[cat.id] || 0) +
+                (transferSpending[cat.id] || 0);
+        });
+        return map;
+    }, [categories, spendingByCategory, investmentSpending, incomeSpending, transferSpending]);
+
+    // Group categories by their mapped transactionType
     const groupedCategories = useMemo(() => {
         const active: Category[] = [];
         const investments: Category[] = [];
@@ -45,122 +68,86 @@ const CategoryList: React.FC<CategoryListProps> = ({
         const system: Category[] = [];
 
         categories.forEach(cat => {
-            const hasExpense = (spendingByCategory[cat.id] || 0) > 0;
-            const hasInvestment = (investmentSpending[cat.id] || 0) > 0;
-            const hasIncome = (incomeSpending[cat.id] || 0) > 0;
+            const hasAnySpending = (totalSpendingByCat[cat.id] || 0) > 0;
             const isSystem = cat.isSystem || cat.id === 'transfer' || cat.id === 'adjustment';
 
             if (isSystem) {
-                if (!includeTransfer && cat.id === 'transfer') {
-                    return; // skip transfer when not included
-                }
+                if (!includeTransfer && cat.id === 'transfer') return;
                 system.push(cat);
-                // System categories can still appear in income/investment sections
-                if (hasIncome) {
-                    incomeList.push(cat);
-                }
-                if (hasInvestment) {
-                    investments.push(cat);
-                }
+                return;
+            }
+
+            const catType = getCategoryTransactionType(cat.id, categories);
+
+            if (catType === 'income') {
+                if (hasAnySpending) incomeList.push(cat);
+            } else if (catType === 'investment') {
+                if (hasAnySpending) investments.push(cat);
             } else {
-                // A category can appear in multiple sections
-                if (hasExpense) {
-                    active.push(cat);
-                }
-                if (hasInvestment) {
-                    investments.push(cat);
-                }
-                if (hasIncome) {
-                    incomeList.push(cat);
-                }
-                // If nothing at all, still show in active (for categories with 0 spend)
-                if (!hasExpense && !hasInvestment && !hasIncome) {
-                    active.push(cat);
-                }
+                active.push(cat);
             }
         });
 
-        // Sort active categories by spend (high to low)
-        active.sort((a, b) => {
-            const spendA = spendingByCategory[a.id] || 0;
-            const spendB = spendingByCategory[b.id] || 0;
-            return spendB - spendA;
-        });
-
-        // Sort investments by amount
-        investments.sort((a, b) => {
-            const valA = investmentSpending[a.id] || 0;
-            const valB = investmentSpending[b.id] || 0;
-            return valB - valA;
-        });
-
-        // Sort income by amount
-        incomeList.sort((a, b) => {
-            const valA = incomeSpending[a.id] || 0;
-            const valB = incomeSpending[b.id] || 0;
-            return valB - valA;
-        });
+        const sortBySpend = (a: Category, b: Category) =>
+            (totalSpendingByCat[b.id] || 0) - (totalSpendingByCat[a.id] || 0);
+        active.sort(sortBySpend);
+        investments.sort(sortBySpend);
+        incomeList.sort(sortBySpend);
 
         return { active, investments, income: incomeList, hidden, system };
-    }, [categories, spendingByCategory, investmentSpending, incomeSpending, includeTransfer]);
+    }, [categories, totalSpendingByCat, includeTransfer]);
 
-    // Build parent-group structures for expenses when in grouped mode
-    const expenseGroups = useMemo(() => {
-        if (displayMode !== 'grouped') return [] as Array<{ parent: Category; children: Category[]; total: number }>;
+    // Build collapsible group entries for expenses
+    type ExpenseEntry =
+        | { type: 'group'; parent: Category; children: Category[]; total: number }
+        | { type: 'standalone'; category: Category; total: number };
+
+    const expenseEntries = useMemo((): ExpenseEntry[] => {
         const parents = categories.filter(c => !c.parentId && !c.isSystem && c.id !== 'transfer' && c.id !== 'adjustment');
-
-        // Build groups ensuring each parent appears exactly once
         const activeIds = new Set(groupedCategories.active.map(c => c.id));
-        const groups = parents.map(parent => {
-            const children = groupedCategories.active.filter(c => c.parentId === parent.id);
-            const total = children.length > 0
-                ? children.reduce((sum, c) => sum + (spendingByCategory[c.id] || 0), 0)
-                : (spendingByCategory[parent.id] || 0);
-            return { parent, children, total };
-        })
-            // Include parents that either have children or are standalone roots present in active
-            .filter(g => g.children.length > 0 || activeIds.has(g.parent.id));
+        const entries: ExpenseEntry[] = [];
+        const accountedChildIds = new Set<string>();
 
-        // Sort groups by total spend desc
-        groups.sort((a, b) => b.total - a.total);
-        return groups;
-    }, [displayMode, categories, groupedCategories.active, spendingByCategory]);
+        parents.forEach(parent => {
+            const children = groupedCategories.active.filter(c => c.parentId === parent.id);
+            children.forEach(c => accountedChildIds.add(c.id));
+
+            if (children.length > 0) {
+                const parentSpend = totalSpendingByCat[parent.id] || 0;
+                const childrenSpend = children.reduce((sum, c) => sum + (totalSpendingByCat[c.id] || 0), 0);
+                const total = parentSpend + childrenSpend;
+                children.sort((a, b) => (totalSpendingByCat[b.id] || 0) - (totalSpendingByCat[a.id] || 0));
+                entries.push({ type: 'group', parent, children, total });
+            } else if (activeIds.has(parent.id)) {
+                entries.push({ type: 'standalone', category: parent, total: totalSpendingByCat[parent.id] || 0 });
+            }
+        });
+
+        // Add orphan children not accounted for by any parent
+        groupedCategories.active.forEach(c => {
+            if (c.parentId && !accountedChildIds.has(c.id)) {
+                entries.push({ type: 'standalone', category: c, total: totalSpendingByCat[c.id] || 0 });
+            }
+        });
+
+        entries.sort((a, b) => {
+            const ta = a.type === 'group' ? a.total : a.total;
+            const tb = b.type === 'group' ? b.total : b.total;
+            return tb - ta;
+        });
+
+        return entries;
+    }, [categories, groupedCategories.active, totalSpendingByCat]);
 
     // Helper to get total spending for a section
-    const getSectionTotal = (list: Category[], type: 'expense' | 'investment' | 'income') => {
-        return list.reduce((sum, c) => {
-            if (type === 'investment') return sum + (investmentSpending[c.id] || 0);
-            if (type === 'income') return sum + (incomeSpending[c.id] || 0);
-            return sum + (spendingByCategory[c.id] || 0);
-        }, 0);
+    const getSectionTotal = (list: Category[]) => {
+        return list.reduce((sum, c) => sum + (totalSpendingByCat[c.id] || 0), 0);
     };
 
-    // In flat view, show active categories along with system categories inline
-    const flatCategories = useMemo(() => {
-        // Identify all categories that act as parents
-        const parentIds = new Set(categories.map(c => c.parentId).filter(Boolean));
-
-        const combined = [...groupedCategories.active, ...groupedCategories.system]
-            // Filter out categories that are parents (groups) unless they are system categories or strictly have no children in the context
-            // Actually, simply: if it is a parent to someone, hide it in flat view.
-            .filter(c => !parentIds.has(c.id));
-
-        combined.sort((a, b) => {
-            const spendA = spendingByCategory[a.id] || 0;
-            const spendB = spendingByCategory[b.id] || 0;
-            return spendB - spendA;
-        });
-        return combined;
-    }, [groupedCategories.active, groupedCategories.system, spendingByCategory, categories]);
-
     // Render a single category item
-    const renderCategoryItem = (category: Category, isInvestment = false, isIncome = false) => {
+    const renderCategoryItem = (category: Category, isInvestment = false, isIncome = false, indent = false) => {
         const section: 'expense' | 'investment' | 'income' = isIncome ? 'income' : isInvestment ? 'investment' : 'expense';
-        const spent = isIncome
-            ? (incomeSpending[category.id] || 0)
-            : isInvestment
-                ? (investmentSpending[category.id] || 0)
-                : (spendingByCategory[category.id] || 0);
+        const spent = totalSpendingByCat[category.id] || 0;
 
         const baseMonthlyBudget = !isInvestment
             ? (category.budget !== undefined
@@ -183,6 +170,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
                 onClick={() => onSelectCategory(category.id, section)}
                 className={cn(
                     'w-full text-left px-3 py-2 rounded-lg mb-1 transition-colors flex items-center justify-between group',
+                    indent && 'pl-8',
                     isSelected
                         ? 'bg-blue-50 dark:bg-blue-900/30 ring-1 ring-blue-200 dark:ring-blue-800'
                         : 'hover:bg-gray-50 dark:hover:bg-gray-800'
@@ -235,6 +223,71 @@ const CategoryList: React.FC<CategoryListProps> = ({
         );
     };
 
+    // Render a collapsible group header
+    const renderGroup = (parent: Category, children: Category[], total: number, section: 'expense' | 'investment' | 'income' = 'expense') => {
+        const isExpanded = expandedGroups.has(parent.id);
+        const isSelected = selectedCategoryId === parent.id;
+
+        return (
+            <div key={parent.id} className="mb-2">
+                <div
+                    onClick={() => onSelectCategory(parent.id, section)}
+                    className={cn(
+                        'w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all duration-200 cursor-pointer select-none active:scale-[0.99] group/header',
+                        isSelected
+                            ? 'bg-[color:var(--color-accent-light)] border-[color:var(--color-accent-primary)]/40 shadow-sm'
+                            : 'bg-slate-50 dark:bg-slate-900/60 border-slate-100 dark:border-slate-800/80 hover:bg-slate-100/75 dark:hover:bg-slate-800/65 hover:border-[color:var(--color-accent-primary)]/30 hover:ring-1 hover:ring-[color:var(--color-accent-primary)]/5'
+                    )}
+                >
+                    <div className="flex items-center min-w-0 flex-1">
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggleGroup(parent.id); }}
+                            className="p-1 mr-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 flex-shrink-0 transition-colors"
+                        >
+                            {isExpanded ? (
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-500 transition-transform duration-200 group-hover/header:scale-110" />
+                            ) : (
+                                <ChevronRight className="w-3.5 h-3.5 text-slate-500 transition-transform duration-200 group-hover/header:scale-110" />
+                            )}
+                        </button>
+                        <span className="text-lg mr-2.5 flex-shrink-0 filter drop-shadow-sm transition-transform duration-200 group-hover/header:scale-110">{parent.icon}</span>
+                        <p className={cn(
+                            'text-xs font-bold uppercase tracking-widest truncate',
+                            isSelected ? 'text-[color:var(--color-accent-primary)]' : 'text-slate-700 dark:text-slate-350'
+                        )}>
+                            {parent.name}
+                        </p>
+                        <span className="ml-2 text-[9px] bg-slate-200/50 dark:bg-slate-800 text-slate-550 dark:text-slate-400 px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 leading-none">
+                            {children.length}
+                        </span>
+                    </div>
+                    <span className={cn(
+                        'text-xs font-bold ml-2 tracking-tight',
+                        isSelected ? 'text-[color:var(--color-accent-primary)]' : 'text-slate-800 dark:text-slate-200'
+                    )}>
+                        {formatCurrency(total)}
+                    </span>
+                </div>
+                {isExpanded && (
+                    <div className="mt-1 pl-1 space-y-1">
+                        {(totalSpendingByCat[parent.id] || 0) > 0 && (
+                            renderCategoryItem(
+                                { ...parent, name: `${parent.name} (Direct)` },
+                                section === 'investment',
+                                section === 'income',
+                                true
+                            )
+                        )}
+                        {children.map(child =>
+                            renderCategoryItem(child, section === 'investment', section === 'income', true)
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     // Main render
     return (
         <div className={cn('p-2', theme.bgPrimary)}>
@@ -246,7 +299,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
                                 Investments
                             </h3>
                             <span className="text-xs font-medium text-purple-600 dark:text-purple-400">
-                                {formatCurrency(getSectionTotal(groupedCategories.investments, 'investment'))}
+                                {formatCurrency(getSectionTotal(groupedCategories.investments))}
                             </span>
                         </div>
                         {groupedCategories.investments.map(c => renderCategoryItem(c, true))}
@@ -260,68 +313,49 @@ const CategoryList: React.FC<CategoryListProps> = ({
                                 Income
                             </h3>
                             <span className="text-xs font-medium text-green-600 dark:text-green-400">
-                                {formatCurrency(getSectionTotal(groupedCategories.income, 'income'))}
+                                {formatCurrency(getSectionTotal(groupedCategories.income))}
                             </span>
                         </div>
                         {groupedCategories.income.map(c => renderCategoryItem(c, false, true))}
                     </section>
                 )}
 
-                {/* Active Categories (Expenses) */}
+                {/* Expenses with Collapsible Groups */}
                 <section>
                     <div className="flex items-center justify-between mb-2 px-2">
                         <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Expenses
                         </h3>
                         <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                            Total: {formatCurrency(getSectionTotal(groupedCategories.active, 'expense'))}
+                            Total: {formatCurrency(getSectionTotal(groupedCategories.active))}
                         </span>
                     </div>
-                    {displayMode === 'grouped' ? (
-                        <div className="space-y-2">
-                            {expenseGroups.map(({ parent, children, total }) => (
-                                <div key={parent.id}>
-                                    {/* Parent header (non-selectable) */}
-                                    <div className="flex items-center justify-between px-3 py-1.5 rounded-md bg-gray-100 dark:bg-gray-700/50">
-                                        <div className="flex items-center min-w-0 flex-1">
-                                            <span className="text-xl mr-2 flex-shrink-0">{parent.icon}</span>
-                                            <p className={cn('text-xs font-bold uppercase tracking-wider truncate', theme.textMuted)}>{parent.name}</p>
-                                            <ChevronRight className="w-3 h-3 ml-2 flex-shrink-0" style={{ color: parent.color || '#3B82F6' }} />
-                                        </div>
-                                        <span className={cn('text-xs font-medium', theme.textMuted)}>{formatCurrency(total)}</span>
-                                    </div>
-                                    {/* Children items */}
-                                    {children.length > 0 ? (
-                                        children.map(child => renderCategoryItem(child, false))
-                                    ) : (
-                                        <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 italic">
-                                            No categories in this group
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        flatCategories.map(c => renderCategoryItem(c, false))
-                    )}
+                    <div className="space-y-1">
+                        {expenseEntries.map(entry => {
+                            if (entry.type === 'group') {
+                                return renderGroup(entry.parent, entry.children, entry.total);
+                            }
+                            return renderCategoryItem(entry.category, false);
+                        })}
+                    </div>
                 </section>
 
-                {/* System Categories (grouped mode only) */}
-                {displayMode === 'grouped' && groupedCategories.system.length > 0 && (
+                {/* System Categories */}
+                {groupedCategories.system.length > 0 && (
                     <section>
                         <div className="flex items-center justify-between mb-2 px-2">
                             <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1">
                                 <Settings className="w-3 h-3" /> System
                             </h3>
                             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                {formatCurrency(getSectionTotal(groupedCategories.system, 'expense'))}
+                                {formatCurrency(getSectionTotal(groupedCategories.system))}
                             </span>
                         </div>
                         {groupedCategories.system.map(c => renderCategoryItem(c, false))}
                     </section>
                 )}
 
-                {/* Hidden Categories (if any) */}
+                {/* Hidden Categories */}
                 {groupedCategories.hidden.length > 0 && (
                     <section>
                         <div className="flex items-center justify-between mb-2 px-2">
@@ -329,7 +363,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
                                 <EyeOff className="w-3 h-3" /> Hidden
                             </h3>
                             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                {formatCurrency(getSectionTotal(groupedCategories.hidden, 'expense'))}
+                                {formatCurrency(getSectionTotal(groupedCategories.hidden))}
                             </span>
                         </div>
                         {groupedCategories.hidden.map(c => renderCategoryItem(c, false))}

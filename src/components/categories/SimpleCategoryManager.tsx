@@ -302,7 +302,7 @@ const SimpleCategoryManager: React.FC = () => {
               try {
                 const children = categories.filter(c => c.parentId === parentId);
                 if (children.length === 0) return;
-                await Promise.all(children.map(child => updateCategory(child.id, { parentId: undefined })));
+                await Promise.all(children.map(child => updateCategory(child.id, { parentId: '' })));
                 alert('All subcategories have been ungrouped.');
               } catch (e) {
                 console.error('Failed to ungroup categories', e);
@@ -346,8 +346,8 @@ const SimpleCategoryManager: React.FC = () => {
                 className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden"
               >
                 {/* Parent Category Row */}
-                <div className="p-4 bg-white dark:bg-gray-800 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
-                  <div className="flex items-center space-x-3 flex-1">
+                <div className="p-3 sm:p-4 bg-white dark:bg-gray-800 flex flex-wrap sm:flex-nowrap items-center justify-between gap-y-2 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                  <div className="flex items-center space-x-3 flex-1 min-w-0 basis-full sm:basis-0">
                     <button
                       onClick={() => toggleExpand(category.id)}
                       className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
@@ -363,8 +363,8 @@ const SimpleCategoryManager: React.FC = () => {
                     >
                       {category.icon}
                     </div>
-                    <div>
-                      <h4 className={cn(theme.textPrimary, 'font-medium')}>{category.name}</h4>
+                    <div className="min-w-0">
+                      <h4 className={cn(theme.textPrimary, 'font-medium break-words')}>{category.name}</h4>
                       <p className={cn(theme.textMuted, 'text-sm')}>
                         {subcategories.length > 0 && (
                           <>
@@ -376,9 +376,9 @@ const SimpleCategoryManager: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2 sm:space-x-4 ml-auto">
                     {spending && (
-                      <div className="text-right mr-4">
+                      <div className="text-right sm:mr-4">
                         <p className={cn(theme.textPrimary, 'font-medium')}>{formatCurrency(spending.amount)}</p>
                         <p className={cn(theme.textMuted, 'text-xs')}>{spending.count} txns</p>
                       </div>
@@ -431,20 +431,20 @@ const SimpleCategoryManager: React.FC = () => {
                     {subcategories.map((sub, subIndex) => {
                       const subSpending = monthlySpending.find(s => s.category === sub.id);
                       return (
-                        <div key={sub.id} className="flex items-center justify-between p-3 pl-16 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-100 dark:hover:bg-gray-800/50">
-                          <div className="flex items-center space-x-3">
+                        <div key={sub.id} className="flex items-center justify-between gap-2 p-3 pl-6 sm:pl-16 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-100 dark:hover:bg-gray-800/50">
+                          <div className="flex items-center space-x-3 min-w-0">
                             <div
-                              className="w-8 h-8 rounded-lg flex items-center justify-center text-sm"
+                              className="w-8 h-8 flex-shrink-0 rounded-lg flex items-center justify-center text-sm"
                               style={{ backgroundColor: sub.color + '20' }}
                             >
                               {sub.icon}
                             </div>
-                            <span className={theme.textPrimary}>{sub.name}</span>
+                            <span className={cn(theme.textPrimary, 'truncate')}>{sub.name}</span>
                           </div>
 
-                          <div className="flex items-center space-x-4">
+                          <div className="flex items-center flex-shrink-0 space-x-2 sm:space-x-4">
                             {subSpending && (
-                              <div className="text-right mr-4">
+                              <div className="text-right sm:mr-4">
                                 <p className={cn(theme.textPrimary, 'text-sm font-medium')}>{formatCurrency(subSpending.amount)}</p>
                               </div>
                             )}

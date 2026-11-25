@@ -2,9 +2,10 @@ import React, { useState, useEffect, forwardRef, useImperativeHandle, useRef } f
 import { Transaction } from '../../types';
 import { useData } from '../../contexts/DataContext';
 import AutoCategorizationService from '../../services/autoCategorization';
+import { getCategoryTransactionType } from '../../constants/categories';
 import InlineCategoryEditor from '../transactions/InlineCategoryEditor';
 import InlineAccountPicker from '../transactions/InlineAccountPicker';
-import { ChevronDown, Calendar, FileText, Tag as TagIcon, Plus, X } from 'lucide-react';
+import { Calendar, FileText, Tag as TagIcon, Plus, X } from 'lucide-react';
 import TagPopover from '../transactions/TagPopover';
 import TagCreationModal from '../transactions/TagCreationModal';
 
@@ -163,6 +164,13 @@ const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTran
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
+
+    // Auto-derive transaction type when category changes
+    if (field === 'category' && value) {
+      const derivedType = getCategoryTransactionType(value, categories);
+      setFormData(prev => ({ ...prev, [field]: value, type: derivedType }));
+    }
+
     // ... rest of handleChange logic logic for category suggestion
     if (field === 'description' && value.length > 3) {
       const result = AutoCategorizationService.suggestCategoryForTransaction(
@@ -171,7 +179,8 @@ const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTran
         formData.type
       );
       if (!formData.category || formData.category === '') {
-        setFormData(prev => ({ ...prev, category: result.categoryId }));
+        const suggestedType = getCategoryTransactionType(result.categoryId, categories);
+        setFormData(prev => ({ ...prev, category: result.categoryId, type: suggestedType }));
       }
     }
   };
@@ -204,16 +213,9 @@ const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTran
         </div>
 
         <div className="relative group">
-          <select
-            value={formData.type}
-            onChange={(e) => handleChange('type', e.target.value)}
-            className="appearance-none bg-transparent border-none text-right text-sm font-semibold cursor-pointer focus:ring-0 focus:outline-none pr-6 uppercase tracking-wide text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            <option value="income">Income</option>
-            <option value="expense">Expense</option>
-            <option value="investment">Investment</option>
-          </select>
-          <ChevronDown className="w-3 h-3 absolute right-0 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-400" />
+          <span className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            {formData.type}
+          </span>
         </div>
       </div>
 
@@ -343,7 +345,7 @@ const SimpleTransactionForm = forwardRef<SimpleTransactionFormHandle, SimpleTran
                     {transaction && (
                       <button
                         type="button"
-                        className="absolute right-1 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity shadow-sm"
                         aria-label="Remove tag"
                         onClick={(e) => {
                           e.preventDefault();

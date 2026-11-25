@@ -46,7 +46,7 @@ const Assets: React.FC = () => {
   // Calculate portfolio metrics
   const portfolioMetrics = MarketDataService.calculatePortfolioMetrics(assets);
   // Get rebalancing suggestions
-  const userAge = userProfile?.financialInfo.currentAge || 35;
+  const userAge = userProfile?.financialInfo?.currentAge || 35;
   const targetAllocations = PortfolioRebalancingService.getDefaultTargetAllocations(userAge, 'moderate');
   const rebalancingData = PortfolioRebalancingService.generateRebalancingSuggestions(assets, targetAllocations);
   const diversificationScore = PortfolioRebalancingService.calculateDiversificationScore(assets);
@@ -358,13 +358,13 @@ const Assets: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
           <h1 className={theme.heading1}>Investment Portfolio</h1>
           <p className={cn(theme.textSecondary, 'mt-1')}>
             Advanced portfolio tracking with real-time updates and analytics
           </p>
-          <div className="flex items-center space-x-4 mt-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
             {/* Market Status */}
             <div className="flex items-center space-x-2">
               <div className={cn(
@@ -410,7 +410,7 @@ const Assets: React.FC = () => {
 
 
 
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <MarketDataStatus />
           <button
             onClick={refreshAllPrices}
@@ -566,7 +566,7 @@ const Assets: React.FC = () => {
       )}
 
       {/* Navigation Tabs */}
-      <div className="flex space-x-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+      <div className="flex space-x-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg overflow-x-auto scrollbar-hide">
         {[
           { id: 'overview', label: 'Portfolio Overview', icon: PieChart },
           { id: 'performance', label: 'Performance Analytics', icon: BarChart3 },
@@ -577,7 +577,7 @@ const Assets: React.FC = () => {
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
-              'flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+              'flex items-center flex-shrink-0 whitespace-nowrap px-4 py-2 rounded-lg text-sm font-medium transition-colors',
               activeTab === tab.id
                 ? 'bg-[color:var(--color-card-bg)] text-[color:var(--color-text-primary)] shadow-sm'
                 : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
@@ -727,17 +727,17 @@ const Assets: React.FC = () => {
                                 {asset.name}
                               </h3>
                               {/* Subtle Actions (Visible on Hover) */}
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex items-center gap-1 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleEditAsset(asset); }}
-                                  className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
+                                  className="p-2 lg:p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
                                   title="Edit"
                                 >
                                   <Edit3 className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleDeleteAsset(asset.id); }}
-                                  className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
+                                  className="p-2 lg:p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
                                   title="Delete"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />

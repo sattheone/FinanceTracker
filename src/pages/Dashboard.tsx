@@ -6,7 +6,10 @@ import {
   Wallet,
   Calendar,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  ArrowUpRight,
+  ArrowDownRight,
+  PiggyBank
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import MetricCard from '../components/MetricCard';
@@ -16,6 +19,7 @@ import { useThemeClasses, cn } from '../hooks/useThemeClasses';
 import SpendingInsightsWidget from '../components/insights/SpendingInsightsWidget';
 import SmartAlertsWidget from '../components/dashboard/SmartAlertsWidget';
 import UnifiedGoalCard from '../components/goals/UnifiedGoalCard';
+import { isTransferTransaction, resolveTransactionType } from '../constants/categories';
 
 const Dashboard: React.FC = () => {
   const {
@@ -23,6 +27,7 @@ const Dashboard: React.FC = () => {
     goals,
     insurance,
     transactions,
+    hasMoreTransactions,
     bankAccounts,
     liabilities,
     recurringTransactions,
@@ -30,14 +35,24 @@ const Dashboard: React.FC = () => {
     getAccountBalance,
     userProfile,
     dashboardSummary,
-    loadDashboardSummary
+    loadDashboardSummary,
+    loadAssets,
+    loadLiabilities,
+    loadInsurance
   } = useData();
   const navigate = useNavigate();
   const theme = useThemeClasses();
 
-  // Load precomputed dashboard summary (single document read)
+  // Load precomputed dashboard summary (single document read) as a fast first
+  // paint, then hydrate the actual balance-source collections so net worth is
+  // computed from real data instead of the (possibly stale) precomputed summary.
+  // These loaders are idempotent (guarded by lazyLoadedRef), so they no-op if
+  // the data is already present.
   React.useEffect(() => {
     loadDashboardSummary();
+    loadAssets();
+    loadLiabilities();
+    loadInsurance();
   }, []);
 
   const sipAssets = assets.filter(a => a.isSIP && (a.category === 'mutual_funds' || a.category === 'epf'));
@@ -53,22 +68,29 @@ const Dashboard: React.FC = () => {
   const calculatedTotalAssets = assets.reduce((sum, asset) => sum + (Number(asset.currentValue) || 0), 0);
   const calculatedTotalBankBalance = bankAccounts.reduce((sum, account) => sum + getAccountBalance(account.id), 0);
   const calculatedTotalLiabilities = liabilities.reduce((sum, liability) => sum + (Number(liability.currentBalance) || 0), 0);
-  const calculatedNetWorth = calculatedTotalAssets + calculatedTotalBankBalance - calculatedTotalLiabilities;
 
-  const hasBalanceSourceData = assets.length > 0 || bankAccounts.length > 0 || liabilities.length > 0;
+  // Per-source completeness: use live data only when that source is actually
+  // loaded; otherwise fall back to the precomputed summary, which is the
+  // authoritative complete snapshot. A single coarse flag (any collection
+  // present ⇒ trust all live) produced wrong intermediate values — e.g. bank
+  // accounts present but assets not yet loaded, or bank balance summed from an
+  // initialBalance-only / partial transaction set on a cold start.
+  const assetsLoaded = assets.length > 0;
+  const liabilitiesLoaded = liabilities.length > 0;
+  // Bank balance is only trustworthy once the FULL transaction set is loaded;
+  // until then prefer the summary's complete figure over an initialBalance-only sum.
+  const bankBalanceComplete = transactions.length > 0 && !hasMoreTransactions;
 
-  const totalAssets = hasBalanceSourceData
+  const totalAssets = assetsLoaded
     ? calculatedTotalAssets
-    : (dashboardSummary?.totalAssets ?? 0);
-  const totalBankBalance = hasBalanceSourceData
+    : (dashboardSummary?.totalAssets ?? calculatedTotalAssets);
+  const totalBankBalance = bankBalanceComplete
     ? calculatedTotalBankBalance
-    : (dashboardSummary?.totalBankBalance ?? 0);
-  const totalLiabilities = hasBalanceSourceData
+    : (dashboardSummary?.totalBankBalance ?? calculatedTotalBankBalance);
+  const totalLiabilities = liabilitiesLoaded
     ? calculatedTotalLiabilities
-    : (dashboardSummary?.totalLiabilities ?? 0);
-  const netWorth = hasBalanceSourceData
-    ? calculatedNetWorth
-    : (dashboardSummary?.netWorth ?? 0);
+    : (dashboardSummary?.totalLiabilities ?? calculatedTotalLiabilities);
+  const netWorth = totalAssets + totalBankBalance - totalLiabilities;
 
   const retirementGoal = goals.find(g => g.category === 'retirement');
   const calculatedRetirementProgress = retirementGoal ? (retirementGoal.currentAmount / retirementGoal.targetAmount) * 100 : 0;
@@ -95,33 +117,34 @@ const Dashboard: React.FC = () => {
   const periodLabel = defaultTimePeriod === 'previous' ? 'Previous Month' : 'This Month';
   const periodMonthLabel = baseDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-  const currentMonthTransactions = transactions.filter(t => {
-    const transactionDate = new Date(t.date);
-    return transactionDate.getFullYear() === currentYear &&
-      transactionDate.getMonth() === currentMonth &&
-      t.category !== 'transfer';
-  });
-
-
+  // Filter out internal transfers and isolate current month
+  const currentMonthTransactions = React.useMemo(() => {
+    return transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      const isCurrentMonth = transactionDate.getFullYear() === currentYear &&
+        transactionDate.getMonth() === currentMonth;
+      return isCurrentMonth && !isTransferTransaction(t, categories);
+    });
+  }, [transactions, currentYear, currentMonth, categories]);
 
   // Use React.useMemo to ensure calculations update when transactions change
   const calculatedCurrentMonthIncome = React.useMemo(() => {
     return currentMonthTransactions
-      .filter(t => t.type === 'income')
+      .filter(t => resolveTransactionType(t, categories) === 'income')
       .reduce((sum, t) => sum + t.amount, 0);
-  }, [currentMonthTransactions]);
+  }, [currentMonthTransactions, categories]);
 
   const calculatedCurrentMonthExpenses = React.useMemo(() => {
     return currentMonthTransactions
-      .filter(t => t.type === 'expense')
+      .filter(t => resolveTransactionType(t, categories) === 'expense')
       .reduce((sum, t) => sum + t.amount, 0);
-  }, [currentMonthTransactions]);
+  }, [currentMonthTransactions, categories]);
 
   const calculatedCurrentMonthInvestments = React.useMemo(() => {
     return currentMonthTransactions
-      .filter(t => t.type === 'investment')
+      .filter(t => resolveTransactionType(t, categories) === 'investment')
       .reduce((sum, t) => sum + t.amount, 0);
-  }, [currentMonthTransactions]);
+  }, [currentMonthTransactions, categories]);
 
   const currentMonthIncome = transactions.length > 0
     ? calculatedCurrentMonthIncome
@@ -151,7 +174,8 @@ const Dashboard: React.FC = () => {
     const currentMonthStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
 
     return transactions.filter(t => {
-      if (t.type !== 'expense' || t.category === 'transfer') return false;
+      const type = resolveTransactionType(t, categories);
+      if (type !== 'expense') return false;
       const tDate = new Date(t.date);
 
       if (expenseTimeRange === '1M') {
@@ -167,7 +191,7 @@ const Dashboard: React.FC = () => {
         return tDate >= oneYearAgo;
       }
     });
-  }, [transactions, expenseTimeRange, baseDate]);
+  }, [transactions, expenseTimeRange, baseDate, categories]);
 
 
   // Calculate category breakdown for expenses (using filtered timeframe)
@@ -192,8 +216,10 @@ const Dashboard: React.FC = () => {
     .sort(([, a], [, b]) => b - a)
     .slice(0, 5);
 
-  // Calculate total balance across all accounts (user-added values only)
-  const totalAccountBalance = bankAccounts.reduce((sum, account) => sum + getAccountBalance(account.id), 0);
+  // Total balance across all accounts. Reuse the completeness-aware
+  // `totalBankBalance` so the Account Overview matches net worth and doesn't
+  // show an initialBalance-only sum before transactions finish loading.
+  const totalAccountBalance = totalBankBalance;
 
   // Generate upcoming events from actual data
   const upcomingEvents = [
@@ -228,14 +254,13 @@ const Dashboard: React.FC = () => {
       {/* Key Metrics */}
       <section aria-labelledby="key-metrics-heading">
         <h2 id="key-metrics-heading" className="sr-only">Key Financial Metrics</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
             title="Net Worth"
             value={netWorth}
             icon={Wallet}
             color="green"
             format="large"
-            trend={{ value: 8.5, isPositive: true }}
             tooltipContent={
               <div className="text-left font-mono text-xs">
                 {/* Assets breakdown by category */}
@@ -282,10 +307,6 @@ const Dashboard: React.FC = () => {
             value={currentMonthSurplus}
             icon={TrendingUp}
             color="blue"
-            trend={{
-              value: currentMonthSurplus >= 0 ? Math.abs(currentMonthSurplus / 1000) : -Math.abs(currentMonthSurplus / 1000),
-              isPositive: currentMonthSurplus >= 0
-            }}
           />
           <MetricCard
             title="Retirement Progress"
@@ -321,10 +342,10 @@ const Dashboard: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            <div className="flex justify-between items-center p-3 rounded-xl border" style={{ backgroundColor: 'var(--color-info-bg)', borderColor: 'var(--color-info-border)' }}>
+            <div className="flex justify-between items-center p-4 rounded-xl" style={{ backgroundColor: 'var(--color-info-bg)' }}>
               <div>
                 <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Current Balance</span>
-                <p className="text-xl font-bold" style={{ color: 'var(--color-info)' }}>
+                <p className="text-2xl font-bold tracking-tight" style={{ color: 'var(--color-info)' }}>
                   {formatCurrency(totalAccountBalance)}
                 </p>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
@@ -335,7 +356,7 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div className="p-3 rounded-xl border" style={{ backgroundColor: 'var(--color-success-bg)', borderColor: 'var(--color-success-border)' }}>
+              <div className="p-3 rounded-xl" style={{ backgroundColor: 'var(--color-success-bg)' }}>
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{periodLabel} Income</span>
@@ -343,11 +364,11 @@ const Dashboard: React.FC = () => {
                       +{formatCurrency(currentMonthIncome)}
                     </p>
                   </div>
-                  <TrendingUp className="h-6 w-6 flex-shrink-0" style={{ color: 'var(--color-success)' }} aria-hidden="true" />
+                  <ArrowUpRight className="h-6 w-6 flex-shrink-0" style={{ color: 'var(--color-success)' }} aria-hidden="true" />
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl border" style={{ backgroundColor: 'var(--color-error-bg)', borderColor: 'var(--color-error-border)' }}>
+              <div className="p-3 rounded-xl" style={{ backgroundColor: 'var(--color-error-bg)' }}>
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{periodLabel} Expenses</span>
@@ -355,11 +376,11 @@ const Dashboard: React.FC = () => {
                       -{formatCurrency(currentMonthExpenses)}
                     </p>
                   </div>
-                  <TrendingUp className="h-6 w-6 flex-shrink-0 rotate-180" style={{ color: 'var(--color-error)' }} aria-hidden="true" />
+                  <ArrowDownRight className="h-6 w-6 flex-shrink-0" style={{ color: 'var(--color-error)' }} aria-hidden="true" />
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl border" style={{ backgroundColor: 'var(--color-info-bg)', borderColor: 'var(--color-info-border)' }}>
+              <div className="p-3 rounded-xl" style={{ backgroundColor: 'var(--color-info-bg)' }}>
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>{periodLabel} Investments</span>
@@ -367,21 +388,21 @@ const Dashboard: React.FC = () => {
                       -{formatCurrency(currentMonthInvestments)}
                     </p>
                   </div>
-                  <TrendingUp className="h-6 w-6 flex-shrink-0 rotate-180" style={{ color: 'var(--color-info)' }} aria-hidden="true" />
+                  <PiggyBank className="h-6 w-6 flex-shrink-0" style={{ color: 'var(--color-info)' }} aria-hidden="true" />
                 </div>
               </div>
             </div>
 
-            <div className="p-3 rounded-xl border" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-primary)' }}>
-              <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center pt-3 border-t" style={{ borderColor: 'var(--color-border-primary)' }}>
+              <div>
                 <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Net Cash Flow {periodLabel}</span>
-                <span className="text-lg font-bold" style={{ color: currentMonthSurplus >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
-                  {currentMonthSurplus >= 0 ? '+' : ''}{formatCurrency(currentMonthSurplus)}
-                </span>
+                <div className="mt-0.5 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                  {currentMonthTransactions.length} transactions in {periodMonthLabel}
+                </div>
               </div>
-              <div className="mt-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-                {currentMonthTransactions.length} transactions in {periodMonthLabel}
-              </div>
+              <span className="text-lg font-bold" style={{ color: currentMonthSurplus >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
+                {currentMonthSurplus >= 0 ? '+' : ''}{formatCurrency(currentMonthSurplus)}
+              </span>
             </div>
           </div>
         </div>
@@ -693,10 +714,10 @@ const Dashboard: React.FC = () => {
         <div className="space-y-2">
           {upcomingEvents.length > 0 ? (
             upcomingEvents.map((event, index) => (
-              <div key={index} className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                <div className="flex items-center">
+              <div key={index} className="flex items-center justify-between gap-3 p-3 rounded-xl" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                <div className="flex items-center min-w-0">
                   <AlertCircle className="h-4 w-4 mr-3 flex-shrink-0" style={{ color: 'var(--color-highlight)' }} />
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>{event.event}</p>
                     <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
                       {new Date(event.date).toLocaleDateString('en-US', {
@@ -707,7 +728,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
                 {event.amount > 0 && (
-                  <span className="text-sm font-semibold" style={{ color: 'var(--color-success)' }}>
+                  <span className="text-sm font-semibold whitespace-nowrap flex-shrink-0" style={{ color: 'var(--color-success)' }}>
                     +{formatLargeNumber(event.amount)}
                   </span>
                 )}

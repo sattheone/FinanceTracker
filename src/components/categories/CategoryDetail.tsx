@@ -27,16 +27,22 @@ import CategoryForm, { CategoryFormHandle } from './CategoryForm';
 interface CategoryDetailProps {
     category: Category;
     transactions: Transaction[];
+    // All loaded transactions for the category (across periods) used for the history chart.
+    // Falls back to `transactions` when omitted.
+    chartTransactions?: Transaction[];
     monthlyBudget: MonthlyBudget | null;
     currentMonth: Date;
+    viewMode?: 'month' | 'prevMonth' | 'year' | 'prevYear';
     onUpdateTransaction?: (id: string, updates: Partial<Transaction>) => Promise<void> | void;
 }
 
 const CategoryDetail: React.FC<CategoryDetailProps> = ({
     category,
     transactions,
+    chartTransactions,
     monthlyBudget,
     currentMonth,
+    viewMode = 'month',
     onUpdateTransaction
 }) => {
     const { updateTransaction, deleteTransaction, categories, addCategoryRule, updateCategory, ungroupChildren } = useData();
@@ -139,32 +145,35 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
 
     // --- Calculations ---
 
-    // 1. Current Month Stats
+    // 1. Stats calculation (scoped to month or year)
     const currentMonthStats = useMemo(() => {
+        const isYearMode = viewMode === 'year' || viewMode === 'prevYear';
         const stats = {
             spent: 0,
             budget: (category.budget !== undefined
                 ? category.budget
-                : (monthlyBudget?.categoryBudgets?.[category.id] || 0)),
+                : (monthlyBudget?.categoryBudgets?.[category.id] || 0)) * (isYearMode ? 12 : 1),
             count: 0
         };
 
         transactions.forEach(t => {
             const tDate = new Date(t.date);
-            if (isSameMonth(tDate, currentMonth)) {
+            if (isYearMode || isSameMonth(tDate, currentMonth)) {
                 stats.spent += t.amount;
                 stats.count += 1;
             }
         });
         return stats;
-    }, [transactions, monthlyBudget, category.id, currentMonth]);
+    }, [transactions, monthlyBudget, category.id, currentMonth, viewMode]);
 
-    // 2. Chart Data (Full History)
+    // 2. Chart Data (Full History) — uses all loaded transactions for the category,
+    //    not just the currently selected period, so the trend spans multiple months.
+    const historyTransactions = chartTransactions ?? transactions;
     const chartData = useMemo(() => {
-        if (transactions.length === 0) return [];
+        if (historyTransactions.length === 0) return [];
 
         // Find earliest transaction date
-        const dates = transactions.map(t => new Date(t.date));
+        const dates = historyTransactions.map(t => new Date(t.date));
         const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
 
         // Calculate months difference
@@ -179,7 +188,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
             const label = format(date, 'MMM yy'); // Added Year for context in long history
 
             let amount = 0;
-            transactions.forEach(t => {
+            historyTransactions.forEach(t => {
                 const tDate = new Date(t.date);
                 if (isSameMonth(tDate, date)) {
                     amount += t.amount;
@@ -194,7 +203,7 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
             });
         }
         return data;
-    }, [transactions]);
+    }, [historyTransactions]);
 
     const sortedTransactions = useMemo(() =>
         [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
@@ -273,7 +282,15 @@ const CategoryDetail: React.FC<CategoryDetailProps> = ({
                     </div>
 
                     <div className="text-right">
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Spent in {format(currentMonth, 'MMM yyyy')}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                            {category.id === 'salary' || category.parentId === 'income' ? 'Earned' : category.parentId === 'investments' || category.id === 'investments' ? 'Invested' : 'Spent'} in {
+                                viewMode === 'year'
+                                    ? currentMonth.getFullYear()
+                                    : viewMode === 'prevYear'
+                                        ? currentMonth.getFullYear() - 1
+                                        : format(currentMonth, 'MMM yyyy')
+                            }
+                        </p>
                         <p className="text-3xl font-bold dark:text-white">{formatCurrency(currentMonthStats.spent)}</p>
                         {budgetStatus && (
                             <p className="text-sm text-gray-400 mt-1">

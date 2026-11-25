@@ -11,7 +11,8 @@ const ReviewStep: React.FC = () => {
   const totalCoverage = insurance.reduce((sum, policy) => sum + policy.coverAmount, 0);
   const totalPremiums = insurance.reduce((sum, policy) => {
     const multiplier = policy.premiumFrequency === 'monthly' ? 12 :
-      policy.premiumFrequency === 'quarterly' ? 4 : 1;
+      policy.premiumFrequency === 'quarterly' ? 4 :
+      policy.premiumFrequency === 'half-yearly' ? 2 : 1;
     return sum + (policy.premiumAmount * multiplier);
   }, 0);
 

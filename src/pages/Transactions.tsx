@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Plus, Search, Edit3, Trash2, FileSpreadsheet, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown, MoreVertical, Table, Calendar } from 'lucide-react';
+import { Plus, Search, Edit3, Trash2, FileSpreadsheet, CreditCard, TrendingUp, TrendingDown, BarChart3, ChevronDown, MoreVertical, Table, Calendar, Copy, Flag } from 'lucide-react';
 import { Transaction, BankAccount } from '../types';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency } from '../utils/formatters';
@@ -14,6 +14,7 @@ import TagPopover from '../components/transactions/TagPopover';
 import TagSettingsOverlay from '../components/transactions/TagSettingsOverlay';
 import TagCreationModal from '../components/transactions/TagCreationModal';
 import DuplicateConfirmationDialog from '../components/common/DuplicateConfirmationDialog';
+import duplicateDetectionService, { MonthDuplicatePair } from '../services/duplicateDetectionService';
 import Modal from '../components/common/Modal';
 
 import BankAccountForm from '../components/forms/BankAccountForm';
@@ -27,7 +28,8 @@ import InlineCategoryEditor from '../components/transactions/InlineCategoryEdito
 import AutoCategorizationService from '../services/autoCategorization';
 import CategoryMigrationService from '../services/categoryMigration';
 import { ParsedTransaction } from '../services/excelParser';
-// import { useThemeClasses } from '../hooks/useThemeClasses'; // Unused
+import { StatementSectionInfo } from '../services/bankStatementParser';
+import { cn } from '../hooks/useThemeClasses';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { PieChart as PieChartIcon } from 'lucide-react';
 import CategoryBreakdownOverlay from '../components/transactions/CategoryBreakdownOverlay';
@@ -37,6 +39,7 @@ import RuleCreationDialog from '../components/transactions/RuleCreationDialog';
 import TransactionContextMenu from '../components/transactions/TransactionContextMenu';
 import BulkAddTransactionsModal from '../components/transactions/BulkAddTransactionsModal';
 import { RecurringTransaction } from '../types';
+import { getCategoryTransactionType } from '../constants/categories';
 import YearInReviewCard, { YearInReviewStats } from '../components/transactions/YearInReviewCard';
 import YearInReviewSpendingsCard from '../components/transactions/YearInReviewSpendingsCard';
 import YearInReviewOverviewCard, { YearInReviewOverviewData } from '../components/transactions/YearInReviewOverviewCard';
@@ -123,6 +126,18 @@ const Transactions: React.FC = () => {
   const handleMakeRecurring = async (transaction: Transaction) => {
     // Simple prompt for MVP
     if (window.confirm(`Create a monthly recurring transaction for "${transaction.description}"?`)) {
+      // Advance nextDueDate to the next upcoming occurrence (skip past months)
+      const txDate = new Date(transaction.date);
+      const today = new Date();
+      const dayOfMonth = txDate.getDate();
+      // Start from month after transaction, advance until we reach a future date
+      let nextDue = new Date(txDate);
+      nextDue.setDate(dayOfMonth);
+      nextDue.setMonth(nextDue.getMonth() + 1);
+      while (nextDue < today) {
+        nextDue.setMonth(nextDue.getMonth() + 1);
+      }
+
       const recurring: Omit<RecurringTransaction, 'id'> = {
         name: transaction.description,
         description: transaction.description,
@@ -131,7 +146,7 @@ const Transactions: React.FC = () => {
         amount: transaction.amount,
         frequency: 'monthly',
         startDate: transaction.date,
-        nextDueDate: transaction.date, // Should calculate next month? Or just start now? usually next month if this one is done. Let's say same day next month.
+        nextDueDate: nextDue.toISOString().split('T')[0],
         isActive: true,
         bankAccountId: transaction.bankAccountId,
         reminderDays: 3,
@@ -141,12 +156,13 @@ const Transactions: React.FC = () => {
         updatedAt: new Date().toISOString()
       };
 
-      // Calculate next due date (1 month from transaction date)
-      const txDate = new Date(transaction.date);
-      txDate.setMonth(txDate.getMonth() + 1);
-      recurring.nextDueDate = txDate.toISOString().split('T')[0];
+      const recurringId = await addRecurringTransaction(recurring);
 
-      await addRecurringTransaction(recurring);
+      // Link the original transaction so it appears as the first occurrence
+      if (recurringId) {
+        await updateTransaction(transaction.id, { recurringTransactionId: recurringId });
+      }
+
       alert('Recurring transaction created!');
     }
   };
@@ -168,6 +184,8 @@ const Transactions: React.FC = () => {
   const [editingBankAccount, setEditingBankAccount] = useState<BankAccount | null>(null);
   const [showManualAddModal, setShowManualAddModal] = useState(false);
   const [extractedData, setExtractedData] = useState<any[]>([]);
+  // Account sections when an imported PDF covers several accounts
+  const [extractedSections, setExtractedSections] = useState<StatementSectionInfo[] | undefined>(undefined);
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [showBulkActions, setShowBulkActions] = useState(false);
   const [bulkActionType, setBulkActionType] = useState<'category' | 'type' | 'tag' | 'delete' | null>(null);
@@ -177,6 +195,10 @@ const Transactions: React.FC = () => {
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicateSummary, setDuplicateSummary] = useState<any>(null);
   const [pendingImportData, setPendingImportData] = useState<any[]>([]);
+  const [showMonthDuplicatesModal, setShowMonthDuplicatesModal] = useState(false);
+  const [monthDuplicatePairs, setMonthDuplicatePairs] = useState<MonthDuplicatePair[]>([]);
+  const [selectedDupPairs, setSelectedDupPairs] = useState<Set<number>>(new Set());
+  const [dupBatchLoading, setDupBatchLoading] = useState(false);
   const [lastCreatedRule, setLastCreatedRule] = useState<any>(null); // Using any to avoid complex type issues with Omit/full rule
 
   // Delete confirmation modal state
@@ -249,6 +271,10 @@ const Transactions: React.FC = () => {
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
+
+  // Review Later queue states
+  const [showNeedsReviewOnly, setShowNeedsReviewOnly] = useState(false);
+  const needsReviewCount = useMemo(() => transactions.filter(t => t.needsReview).length, [transactions]);
 
   // Tag management states
   const [showTagPopover, setShowTagPopover] = useState(false);
@@ -333,6 +359,12 @@ const Transactions: React.FC = () => {
     return transactions.filter(transaction => {
       // Hide split parent (amount=0 retained only for grouping state)
       if (transaction.isSplitParent) return false;
+
+      // Filter for review queue
+      if (showNeedsReviewOnly && !transaction.needsReview) {
+        return false;
+      }
+
       const matchesSearch = (transaction.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (typeof transaction.category === 'string' ? transaction.category : '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesFilter = filterType === 'all' || transaction.type === filterType;
@@ -347,9 +379,9 @@ const Transactions: React.FC = () => {
       if (activeTab === 'transactions') {
         const matchesAccount = selectedAccount === 'all_accounts' ? true : transaction.bankAccountId === selectedAccount;
 
-        // If searching, ignore month filter AND account filter but apply category/tag/type filters
-        if (searchTerm) {
-          return matchesSearch && matchesFilter && matchesCategory && matchesTag && matchesType && matchesAccountFilter;
+        // If searching or filtering for items needing review, show across months
+        if (searchTerm || showNeedsReviewOnly) {
+          return matchesSearch && matchesFilter && matchesCategory && matchesTag && matchesType && matchesAccountFilter && matchesAccount;
         }
 
         const transactionDate = new Date(transaction.date);
@@ -363,7 +395,7 @@ const Transactions: React.FC = () => {
       const matchesAccount = selectedAccount === 'all_accounts' ? true : transaction.bankAccountId === selectedAccount;
       return matchesSearch && matchesFilter && matchesAccount && matchesCategory && matchesTag && matchesType && matchesAccountFilter;
     });
-  }, [transactions, searchTerm, filterType, activeTab, selectedTransactionMonth, selectedAccount, selectedCategories, selectedTags, selectedTypes, selectedAccounts]);
+  }, [transactions, searchTerm, filterType, activeTab, selectedTransactionMonth, selectedAccount, selectedCategories, selectedTags, selectedTypes, selectedAccounts, showNeedsReviewOnly]);
 
 
   // Use a ref to access the latest category rules inside callbacks without dependency issues
@@ -401,6 +433,7 @@ const Transactions: React.FC = () => {
     });
 
     setExtractedData(categorizedData);
+    setExtractedSections(undefined);
     setShowImageUploader(false);
     setShowConfirmDialog(true);
   };
@@ -424,7 +457,8 @@ const Transactions: React.FC = () => {
         bankAccountId: (item.bankAccountId
           || (targetAccountId && targetAccountId.length > 0 && targetAccountId)
           || (selectedAccount !== 'all_accounts' ? selectedAccount : '')),
-        tags: ['imported'], // Default tag
+        tags: ['imported', ...(item.importTags || [])], // Default tag (+ e.g. own-account-transfer from review)
+        ...(item.importNote ? { notes: item.importNote } : {}),
       };
 
       // Final SIP Check before saving
@@ -489,8 +523,16 @@ const Transactions: React.FC = () => {
     });
 
     setExtractedData(categorizedData);
+    setExtractedSections((transactions as any).statementSections);
     setShowFileUploader(false);
     setShowConfirmDialog(true);
+  };
+
+  const handleFindMonthDuplicates = () => {
+    const pairs = duplicateDetectionService.findDuplicatesInSet(filteredTransactions);
+    setMonthDuplicatePairs(pairs);
+    setSelectedDupPairs(new Set());
+    setShowMonthDuplicatesModal(true);
   };
 
   const handleDuplicateConfirm = async (forceImport: boolean, selectedDuplicates?: Transaction[]) => {
@@ -502,7 +544,7 @@ const Transactions: React.FC = () => {
         date: item.date || new Date().toISOString().split('T')[0],
         category: item.category || 'other',
         type: item.type || 'expense',
-        bankAccountId: bankAccounts[0]?.id || '',
+        bankAccountId: item.bankAccountId || bankAccounts[0]?.id || '',
         tags: [],
         source: 'excel-import-forced',
         createdAt: new Date().toISOString(),
@@ -578,6 +620,40 @@ const Transactions: React.FC = () => {
     setShowTransactionListOverlay(true);
   };
 
+  useEffect(() => {
+    if (!showTransactionListOverlay) return;
+
+    setTransactionListData(prev => {
+      if (prev.length === 0) return prev;
+      const updatedById = new Map(transactions.map(t => [t.id, t]));
+      let next = prev
+        .map(t => updatedById.get(t.id))
+        .filter((t): t is Transaction => Boolean(t));
+
+      if (viewingContextId && breakdownMonthFilter) {
+        next = next.filter(t => {
+          if (t.isSplitParent) return false;
+          const tDate = new Date(t.date);
+          const matchesMonth = tDate.getFullYear() === breakdownMonthFilter.year &&
+            tDate.getMonth() === breakdownMonthFilter.month;
+          const matchesAccount = selectedAccount === 'all_accounts'
+            ? true
+            : t.bankAccountId === selectedAccount;
+          return matchesMonth && matchesAccount && t.category === viewingContextId && t.type === breakdownType;
+        });
+      }
+
+      return next;
+    });
+  }, [
+    transactions,
+    showTransactionListOverlay,
+    viewingContextId,
+    breakdownMonthFilter,
+    breakdownType,
+    selectedAccount
+  ]);
+
   // One-time migration for existing transactions with wrong categories
   useEffect(() => {
     const migrationKey = 'category_migration_completed';
@@ -641,11 +717,48 @@ const Transactions: React.FC = () => {
 
   const handleManualAddSubmit = async (transactionData: Omit<Transaction, 'id'>) => {
     try {
+      // Validate bankAccountId exists
+      if (!transactionData.bankAccountId) {
+        alert('Please select a bank account.');
+        return;
+      }
+
+      const accountExists = bankAccounts.some(acc => acc.id === transactionData.bankAccountId);
+      if (!accountExists) {
+        alert('Selected bank account no longer exists. Please select a valid account.');
+        return;
+      }
+
+      // Validate category exists
+      if (!transactionData.category) {
+        alert('Please select a category.');
+        return;
+      }
+
+      const categoryExists = categories.some(cat => cat.id === transactionData.category);
+      if (!categoryExists) {
+        alert('Selected category no longer exists. Please select a valid category.');
+        return;
+      }
+
       await addTransaction(transactionData);
       setShowManualAddModal(false);
     } catch (error) {
       console.error('Failed to add transaction:', error);
-      alert('Failed to add transaction. Please try again.');
+      
+      // Provide more specific error messages based on error type
+      let errorMessage = 'Failed to add transaction. Please try again.';
+      if (error instanceof Error) {
+        if (error.message.includes('permission denied')) {
+          errorMessage = 'Permission denied. Please check your network connection and try again.';
+        } else if (error.message.includes('network')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else if (error.message.includes('auth')) {
+          errorMessage = 'Authentication error. Please log in again.';
+        }
+      }
+      
+      alert(errorMessage);
     }
   };
 
@@ -854,6 +967,12 @@ const Transactions: React.FC = () => {
     const data = [];
     const currentDate = new Date();
 
+    // Create a fast map lookup for categories to resolved transaction types
+    const categoryTypeMap: Record<string, string> = {};
+    categories.forEach(c => {
+      categoryTypeMap[c.id] = getCategoryTransactionType(c.id, categories);
+    });
+
     for (let i = 5; i >= 0; i--) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
       const year = date.getFullYear();
@@ -867,15 +986,24 @@ const Transactions: React.FC = () => {
       });
 
       const income = monthTransactions
-        .filter(t => t.type === 'income' && t.category !== 'transfer')
+        .filter(t => {
+          const type = categoryTypeMap[t.category || ''] || 'expense';
+          return type === 'income' && t.category !== 'transfer';
+        })
         .reduce((sum, t) => sum + t.amount, 0);
 
       const expenses = monthTransactions
-        .filter(t => t.type === 'expense' && t.category !== 'transfer')
+        .filter(t => {
+          const type = categoryTypeMap[t.category || ''] || 'expense';
+          return type === 'expense' && t.category !== 'transfer';
+        })
         .reduce((sum, t) => sum + t.amount, 0);
 
       const investments = monthTransactions
-        .filter(t => t.type === 'investment' && t.category !== 'transfer')
+        .filter(t => {
+          const type = categoryTypeMap[t.category || ''] || 'expense';
+          return type === 'investment' && t.category !== 'transfer';
+        })
         .reduce((sum, t) => sum + t.amount, 0);
 
       data.push({
@@ -889,7 +1017,7 @@ const Transactions: React.FC = () => {
     }
 
     return data;
-  }, [transactions, selectedAccount]);
+  }, [transactions, selectedAccount, categories]);
 
 
 
@@ -904,7 +1032,15 @@ const Transactions: React.FC = () => {
   });
 
   const currentMonthPieData = useMemo(() => {
-    const targetTransactions = currentMonthTransactions.filter(t => t.type === pieChartType && t.category !== 'transfer');
+    const categoryTypeMap: Record<string, string> = {};
+    categories.forEach(c => {
+      categoryTypeMap[c.id] = getCategoryTransactionType(c.id, categories);
+    });
+
+    const targetTransactions = currentMonthTransactions.filter(t => {
+      const type = categoryTypeMap[t.category || ''] || 'expense';
+      return type === pieChartType && t.category !== 'transfer';
+    });
     const categoryTotals = targetTransactions.reduce((acc, t) => {
       acc[t.category] = (acc[t.category] || 0) + t.amount;
       return acc;
@@ -920,12 +1056,18 @@ const Transactions: React.FC = () => {
   }, [currentMonthTransactions, pieChartType, categories]);
 
   const handleBarClick = (monthData: any, type: 'income' | 'expense' | 'investment') => {
+    const categoryTypeMap: Record<string, string> = {};
+    categories.forEach(c => {
+      categoryTypeMap[c.id] = getCategoryTransactionType(c.id, categories);
+    });
+
     const targetTransactions = transactions.filter(t => {
       const tDate = new Date(t.date);
+      const resolvedType = categoryTypeMap[t.category || ''] || 'expense';
       return tDate.getFullYear() === monthData.fullDate.getFullYear() &&
         tDate.getMonth() === monthData.fullDate.getMonth() &&
         (selectedAccount === 'all_accounts' ? true : t.bankAccountId === selectedAccount) &&
-        t.type === type &&
+        resolvedType === type &&
         t.category !== 'transfer';
     });
 
@@ -965,8 +1107,7 @@ const Transactions: React.FC = () => {
         tDate.getFullYear() === breakdownMonthFilter.year &&
         tDate.getMonth() === breakdownMonthFilter.month &&
         (selectedAccount === 'all_accounts' ? true : t.bankAccountId === selectedAccount) &&
-        t.category === category.id &&
-        t.type === breakdownType
+        t.category === category.id
       );
     });
 
@@ -978,21 +1119,39 @@ const Transactions: React.FC = () => {
     setShowTransactionListOverlay(true);
   };
 
+  // Create a fast map lookup for categories to resolved transaction types for counts and stats
+  const currentMonthCategoryTypeMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    categories.forEach(c => {
+      map[c.id] = getCategoryTransactionType(c.id, categories);
+    });
+    return map;
+  }, [categories]);
+
   const monthlyIncome = currentMonthTransactions
-    .filter(t => t.type === 'income' && t.category !== 'transfer')
+    .filter(t => {
+      const type = currentMonthCategoryTypeMap[t.category || ''] || 'expense';
+      return type === 'income' && t.category !== 'transfer';
+    })
     .reduce((sum, t) => sum + t.amount, 0);
 
   const monthlyExpenses = currentMonthTransactions
-    .filter(t => t.type === 'expense' && t.category !== 'transfer')
+    .filter(t => {
+      const type = currentMonthCategoryTypeMap[t.category || ''] || 'expense';
+      return type === 'expense' && t.category !== 'transfer';
+    })
     .reduce((sum, t) => sum + t.amount, 0);
 
   const monthlyInvestments = currentMonthTransactions
-    .filter(t => t.type === 'investment' && t.category !== 'transfer')
+    .filter(t => {
+      const type = currentMonthCategoryTypeMap[t.category || ''] || 'expense';
+      return type === 'investment' && t.category !== 'transfer';
+    })
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const incomeCount = currentMonthTransactions.filter(t => t.type === 'income').length;
-  const expenseCount = currentMonthTransactions.filter(t => t.type === 'expense').length;
-  const investmentCount = currentMonthTransactions.filter(t => t.type === 'investment').length;
+  const incomeCount = currentMonthTransactions.filter(t => (currentMonthCategoryTypeMap[t.category || ''] || 'expense') === 'income').length;
+  const expenseCount = currentMonthTransactions.filter(t => (currentMonthCategoryTypeMap[t.category || ''] || 'expense') === 'expense').length;
+  const investmentCount = currentMonthTransactions.filter(t => (currentMonthCategoryTypeMap[t.category || ''] || 'expense') === 'investment').length;
 
   // Calculation for Account Overview
   const accountTransactions = useMemo(() => {
@@ -1002,17 +1161,72 @@ const Transactions: React.FC = () => {
     return transactions.filter(t => t.bankAccountId === selectedAccount && !t.isSplitParent);
   }, [transactions, selectedAccount]);
 
-  const totalIncome = useMemo(() =>
-    accountTransactions
-      .filter(t => t.type === 'income' && t.category !== 'transfer')
-      .reduce((sum, t) => sum + t.amount, 0),
-    [accountTransactions]);
+  const totalIncome = useMemo(() => {
+    const categoryTypeMap: Record<string, string> = {};
+    categories.forEach(c => {
+      categoryTypeMap[c.id] = getCategoryTransactionType(c.id, categories);
+    });
 
-  const totalExpenses = useMemo(() =>
-    accountTransactions
-      .filter(t => t.type === 'expense' && t.category !== 'transfer')
-      .reduce((sum, t) => sum + t.amount, 0),
-    [accountTransactions]);
+    return accountTransactions
+      .filter(t => {
+        const type = categoryTypeMap[t.category || ''] || 'expense';
+        return type === 'income' && t.category !== 'transfer';
+      })
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [accountTransactions, categories]);
+
+  const totalExpenses = useMemo(() => {
+    const categoryTypeMap: Record<string, string> = {};
+    categories.forEach(c => {
+      categoryTypeMap[c.id] = getCategoryTransactionType(c.id, categories);
+    });
+
+    return accountTransactions
+      .filter(t => {
+        const type = categoryTypeMap[t.category || ''] || 'expense';
+        return type === 'expense' && t.category !== 'transfer';
+      })
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [accountTransactions, categories]);
+
+  // State for more menu
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close more menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // State for account dropdown
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+  const accountDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close account dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (accountDropdownRef.current && !accountDropdownRef.current.contains(event.target as Node)) {
+        setShowAccountDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Get selected account display text
+  const getSelectedAccountText = () => {
+    if (selectedAccount === 'all_accounts') {
+      return 'All Accounts';
+    }
+    const account = bankAccounts.find(a => a.id === selectedAccount);
+    return account ? `${account.bank} (...${account.number.slice(-4)})` : 'Select Account';
+  };
 
   // Show loading state while data is being loaded
   if (!isDataLoaded) {
@@ -1095,45 +1309,6 @@ const Transactions: React.FC = () => {
 
 
 
-
-  // State for more menu
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
-
-  // Close more menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
-        setShowMoreMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // State for account dropdown
-  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
-  const accountDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close account dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (accountDropdownRef.current && !accountDropdownRef.current.contains(event.target as Node)) {
-        setShowAccountDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Get selected account display text
-  const getSelectedAccountText = () => {
-    if (selectedAccount === 'all_accounts') {
-      return 'All Accounts';
-    }
-    const account = bankAccounts.find(a => a.id === selectedAccount);
-    return account ? `${account.bank} (...${account.number.slice(-4)})` : 'Select Account';
-  };
 
   return (
     <div className="h-full theme-bg-primary flex flex-col overflow-hidden">
@@ -1290,6 +1465,18 @@ const Transactions: React.FC = () => {
                     <Table className="h-4 w-4 mr-2.5 flex-shrink-0" style={{ color: 'var(--color-success)' }} />
                     <span className="whitespace-nowrap">Bulk Add Transactions</span>
                   </button>
+                  {activeTab === 'transactions' && (
+                    <button
+                      onClick={() => {
+                        handleFindMonthDuplicates();
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full flex items-center px-3 py-1.5 text-sm transition-colors hover:[background-color:var(--color-bg-secondary)] [color:var(--color-text-primary)]"
+                    >
+                      <Copy className="h-4 w-4 mr-2.5 flex-shrink-0" style={{ color: 'var(--color-text-tertiary)' }} />
+                      <span className="whitespace-nowrap">Find Duplicates</span>
+                    </button>
+                  )}
                   {currentAccount && selectedAccount !== 'all_accounts' && (
                     <>
                       <button
@@ -1831,6 +2018,32 @@ const Transactions: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    {/* Needs Review Filter Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setShowNeedsReviewOnly(prev => !prev)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium rounded-lg border transition-all shrink-0",
+                        showNeedsReviewOnly
+                          ? "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-700 shadow-sm ring-1 ring-amber-400/50"
+                          : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      )}
+                      title={showNeedsReviewOnly ? "Show all transactions" : "Filter to transactions flagged for review"}
+                    >
+                      <Flag className={cn("h-3.5 w-3.5", showNeedsReviewOnly ? "fill-amber-500 text-amber-500" : "text-gray-400")} />
+                      <span className="hidden xs:inline">Needs Review</span>
+                      <span className={cn(
+                        "px-1.5 py-0.5 rounded-full text-xs font-semibold leading-none",
+                        showNeedsReviewOnly
+                          ? "bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100"
+                          : needsReviewCount > 0
+                            ? "bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300"
+                            : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                      )}>
+                        {needsReviewCount}
+                      </span>
+                    </button>
+
                     <TransactionFilters
                       selectedCategories={selectedCategories}
                       selectedTags={selectedTags}
@@ -1878,6 +2091,24 @@ const Transactions: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Needs Review Active Filter Banner */}
+                {showNeedsReviewOnly && (
+                  <div className="p-3 bg-amber-50/90 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center justify-between gap-3 text-xs sm:text-sm text-amber-800 dark:text-amber-200 shrink-0 shadow-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Flag className="w-4 h-4 text-amber-600 dark:text-amber-400 fill-amber-500 shrink-0" />
+                      <span className="truncate">
+                        Showing <strong>{filteredTransactions.length}</strong> transactions needing review across all months. Click the flag or a row to resolve.
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setShowNeedsReviewOnly(false)}
+                      className="text-xs font-semibold text-amber-900 dark:text-amber-300 underline hover:no-underline shrink-0"
+                    >
+                      Show all
+                    </button>
+                  </div>
+                )}
 
                 {/* Transaction Count */}
                 <div className="flex items-center justify-between min-w-0 shrink-0">
@@ -1966,6 +2197,9 @@ const Transactions: React.FC = () => {
                           setShowDetailModal(true);
                         }}
                         onDeleteTransaction={handleDeleteTransaction}
+                        onToggleReview={(t) => {
+                          updateTransaction(t.id, { needsReview: !t.needsReview });
+                        }}
                         onUpdateTransaction={(id, updates) => {
                           const transaction = transactions.find(t => t.id === id);
                           if (!transaction) return;
@@ -2039,7 +2273,14 @@ const Transactions: React.FC = () => {
                       className="fixed inset-0 bg-black/50"
                       onClick={() => setShowYearReview(false)}
                     />
-                    <div className="relative z-10">
+                    {/* Cards are a fixed 600x700 (for image export); scale them down to fit phones */}
+                    <div
+                      className="relative z-10 flex-shrink-0"
+                      style={{
+                        transform: `scale(${Math.min(1, (window.innerWidth - 32) / 600, (window.innerHeight - 120) / 700)})`,
+                        transformOrigin: 'center',
+                      }}
+                    >
                       {yearReviewCardIndex === 0 ? (
                         <YearInReviewCard
                           stats={yearReviewStats}
@@ -2249,6 +2490,7 @@ const Transactions: React.FC = () => {
         onClose={() => setShowConfirmDialog(false)}
         onConfirm={handleConfirmData}
         data={extractedData}
+        sections={extractedSections}
         type="transactions"
         title="Confirm Extracted Transactions"
         categories={categories}
@@ -2282,6 +2524,164 @@ const Transactions: React.FC = () => {
       />
 
 
+
+      {/* Month Duplicates Modal */}
+      {showMonthDuplicatesModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-xl flex flex-col max-h-[85vh] sm:max-h-[80vh] shadow-xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Find Duplicates</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {monthOptions.find(m => m.value === selectedTransactionMonth)?.label}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowMonthDuplicatesModal(false)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {monthDuplicatePairs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Copy className="h-10 w-10 text-gray-300 dark:text-gray-600 mb-3" />
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">No duplicates found</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">All transactions in this month look unique.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Select-all row */}
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300 dark:border-gray-600 accent-blue-600"
+                        checked={selectedDupPairs.size === monthDuplicatePairs.length}
+                        onChange={() => {
+                          if (selectedDupPairs.size === monthDuplicatePairs.length) {
+                            setSelectedDupPairs(new Set());
+                          } else {
+                            setSelectedDupPairs(new Set(monthDuplicatePairs.map((_, i) => i)));
+                          }
+                        }}
+                      />
+                      <span className="text-xs text-gray-600 dark:text-gray-300">
+                        {selectedDupPairs.size > 0
+                          ? `${selectedDupPairs.size} of ${monthDuplicatePairs.length} selected`
+                          : `${monthDuplicatePairs.length} possible duplicate ${monthDuplicatePairs.length === 1 ? 'pair' : 'pairs'} found`}
+                      </span>
+                    </label>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      🗑 Delete one to resolve
+                    </span>
+                  </div>
+
+                  {monthDuplicatePairs.map((pair, idx) => (
+                    <div
+                      key={idx}
+                      className={`border rounded-xl overflow-hidden transition-colors ${
+                        selectedDupPairs.has(idx)
+                          ? 'border-blue-400 dark:border-blue-600'
+                          : 'border-orange-200 dark:border-orange-800'
+                      }`}
+                    >
+                      {/* Pair header */}
+                      <div className={`px-3 py-1.5 flex items-center gap-2 ${
+                        selectedDupPairs.has(idx)
+                          ? 'bg-blue-50 dark:bg-blue-900/20'
+                          : 'bg-orange-50 dark:bg-orange-900/20'
+                      }`}>
+                        <label className="flex items-center gap-2 cursor-pointer select-none flex-1">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 dark:border-gray-600 accent-blue-600"
+                            checked={selectedDupPairs.has(idx)}
+                            onChange={() => {
+                              const next = new Set(selectedDupPairs);
+                              next.has(idx) ? next.delete(idx) : next.add(idx);
+                              setSelectedDupPairs(next);
+                            }}
+                          />
+                          <Copy className={`h-3.5 w-3.5 ${selectedDupPairs.has(idx) ? 'text-blue-500' : 'text-orange-500'}`} />
+                          <span className={`text-xs font-medium ${selectedDupPairs.has(idx) ? 'text-blue-700 dark:text-blue-300' : 'text-orange-700 dark:text-orange-300'}`}>
+                            {pair.confidence}% match
+                          </span>
+                        </label>
+                      </div>
+
+                      {/* Transaction rows */}
+                      {([pair.transaction1, pair.transaction2] as const).map((tx, txIdx) => {
+                        const isLast = txIdx === 1;
+                        return (
+                          <div key={tx.id} className={`flex items-center gap-2 px-3 py-2.5 ${!isLast ? 'border-b border-gray-100 dark:border-gray-700' : ''}`}>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{tx.description}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{tx.date}{tx.bankAccountId ? ` · ${bankAccounts.find(a => a.id === tx.bankAccountId)?.bank || ''}` : ''}</p>
+                            </div>
+                            <span className={`text-sm font-semibold whitespace-nowrap ${tx.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                              {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
+                            </span>
+                            <button
+                              onClick={async () => {
+                                await deleteTransaction(tx.id);
+                                setMonthDuplicatePairs(prev => prev.filter((_, i) => i !== idx));
+                                setSelectedDupPairs(prev => {
+                                  const next = new Set<number>();
+                                  prev.forEach(i => { if (i !== idx) next.add(i > idx ? i - 1 : i); });
+                                  return next;
+                                });
+                              }}
+                              className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex-shrink-0"
+                              title="Delete this transaction"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+
+            {/* Batch action footer — only shown when pairs are selected */}
+            {selectedDupPairs.size > 0 && (
+              <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-2 bg-white dark:bg-gray-800">
+                <span className="text-xs text-gray-500 dark:text-gray-400 flex-1">
+                  {selectedDupPairs.size} pair{selectedDupPairs.size > 1 ? 's' : ''} selected
+                </span>
+                {/* Delete second of each selected pair */}
+                <button
+                  disabled={dupBatchLoading}
+                  onClick={async () => {
+                    setDupBatchLoading(true);
+                    try {
+                      const indices = Array.from(selectedDupPairs).sort((a, b) => b - a);
+                      for (const idx of indices) {
+                        await deleteTransaction(monthDuplicatePairs[idx].transaction2.id);
+                      }
+                      setMonthDuplicatePairs(prev => prev.filter((_, i) => !selectedDupPairs.has(i)));
+                      setSelectedDupPairs(new Set());
+                    } finally {
+                      setDupBatchLoading(false);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete {selectedDupPairs.size > 1 ? `${selectedDupPairs.size} duplicates` : 'duplicate'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Duplicate Confirmation Dialog */}
       {
@@ -2451,6 +2851,9 @@ const Transactions: React.FC = () => {
             onMakeRecurring={handleMakeRecurring}
             onChangeCategory={(t) => handleOpenSingleBulkAction(t, 'category')}
             onChangeType={(t) => handleOpenSingleBulkAction(t, 'type')}
+            onToggleReview={(t) => {
+              updateTransaction(t.id, { needsReview: !t.needsReview });
+            }}
           />
         )
       }

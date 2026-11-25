@@ -44,36 +44,67 @@ const OnboardingWizard: React.FC = () => {
   const CurrentStepComponent = steps[currentStep].component;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-700">
+    <div className="min-h-screen theme-bg-primary">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome to FinanceTracker</h1>
-              <p className="text-gray-600 dark:text-gray-300 mt-1">Let's set up your financial profile</p>
+      <div style={{ backgroundColor: 'var(--color-bg-elevated)', borderBottom: '1px solid var(--color-border-primary)', boxShadow: 'var(--shadow-sm)' }}>
+        <div className="max-w-4xl mx-auto px-4 py-4 sm:py-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold theme-text-primary">Welcome to FinanceTracker</h1>
+              <p className="theme-text-secondary mt-1">Let's set up your financial profile</p>
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
+            <div className="text-sm theme-text-muted whitespace-nowrap flex-shrink-0">
               Step {currentStep + 1} of {steps.length}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Progress Bar */}
-      <div className="bg-white dark:bg-gray-800 border-b">
+      {/* Progress stepper */}
+      <div style={{ backgroundColor: 'var(--color-bg-elevated)', borderBottom: '1px solid var(--color-border-primary)' }}>
         <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center">
+          {/* Mobile: dot indicators + current step label */}
+          <div className="flex flex-col items-center gap-2 md:hidden">
+            <div className="flex items-center gap-2">
+              {steps.map((step, index) => (
+                <div
+                  key={step.id}
+                  className="rounded-full transition-all flex-shrink-0 flex items-center justify-center"
+                  style={
+                    index < currentStep
+                      ? { width: '1.75rem', height: '1.75rem', backgroundColor: 'var(--color-success)', color: '#fff' }
+                      : index === currentStep
+                      ? { width: '1.75rem', height: '1.75rem', backgroundColor: 'var(--color-accent-primary)', color: 'var(--color-text-inverse)' }
+                      : { width: '0.5rem', height: '0.5rem', backgroundColor: 'var(--color-border-primary)' }
+                  }
+                >
+                  {index < currentStep ? (
+                    <Check className="w-3 h-3" />
+                  ) : index === currentStep ? (
+                    <span className="text-xs font-semibold">{index + 1}</span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <span className="text-sm font-medium" style={{ color: 'var(--color-accent-primary)' }}>
+              {steps[currentStep].title}
+            </span>
+          </div>
+
+          {/* Desktop: full stepper */}
+          <div className="hidden md:flex items-center">
             {steps.map((step, index) => (
               <React.Fragment key={step.id}>
                 <div className="flex items-center">
                   <div
-                    className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all ${index < currentStep
-                        ? 'bg-green-500 border-green-500 text-white'
+                    className="flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all flex-shrink-0"
+                    style={
+                      index < currentStep
+                        ? { backgroundColor: 'var(--color-success)', borderColor: 'var(--color-success)', color: '#fff' }
                         : index === currentStep
-                          ? 'bg-blue-600 dark:bg-blue-500 border-blue-600 dark:border-blue-500 text-white shadow-lg shadow-blue-500/50'
-                          : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-500 text-gray-400 dark:text-gray-500'
-                      }`}
+                        ? { backgroundColor: 'var(--color-accent-primary)', borderColor: 'var(--color-accent-primary)', color: 'var(--color-text-inverse)' }
+                        : { backgroundColor: 'var(--color-bg-tertiary)', borderColor: 'var(--color-border-primary)', color: 'var(--color-text-muted)' }
+                    }
                   >
                     {index < currentStep ? (
                       <Check className="w-4 h-4" />
@@ -82,20 +113,20 @@ const OnboardingWizard: React.FC = () => {
                     )}
                   </div>
                   <span
-                    className={`ml-2 text-sm font-medium transition-colors ${index < currentStep
-                        ? 'text-gray-700 dark:text-gray-300'
-                        : index === currentStep
-                          ? 'text-blue-600 dark:text-blue-400'
-                          : 'text-gray-400 dark:text-gray-500'
-                      }`}
+                    className="ml-2 text-sm font-medium transition-colors"
+                    style={
+                      index === currentStep
+                        ? { color: 'var(--color-accent-primary)' }
+                        : { color: 'var(--color-text-muted)' }
+                    }
                   >
                     {step.title}
                   </span>
                 </div>
                 {index < steps.length - 1 && (
                   <div
-                    className={`flex-1 h-0.5 mx-4 transition-colors ${index < currentStep ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-600'
-                      }`}
+                    className="flex-1 h-0.5 mx-3 transition-colors"
+                    style={{ backgroundColor: index < currentStep ? 'var(--color-success)' : 'var(--color-border-primary)' }}
                   />
                 )}
               </React.Fragment>
@@ -105,39 +136,33 @@ const OnboardingWizard: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8">
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        <div className="card !rounded-2xl !p-4 sm:!p-8">
           <CurrentStepComponent />
         </div>
 
         {/* Navigation */}
-        <div className="flex justify-between items-center mt-8">
+        <div className="flex justify-between items-center mt-6">
           <button
             onClick={handlePrevious}
             disabled={currentStep === 0}
-            className="flex items-center px-4 py-2 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="btn-secondary flex items-center"
           >
-            <ChevronLeft className="w-4 h-4 mr-2" />
+            <ChevronLeft className="w-4 h-4 mr-1.5" />
             Previous
           </button>
 
-          <div></div>
+          <div />
 
           {currentStep === steps.length - 1 ? (
-            <button
-              onClick={handleComplete}
-              className="flex items-center px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
-            >
+            <button onClick={handleComplete} className="btn-primary flex items-center">
               Complete Setup
-              <Check className="w-4 h-4 ml-2" />
+              <Check className="w-4 h-4 ml-1.5" />
             </button>
           ) : (
-            <button
-              onClick={handleNext}
-              className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-            >
+            <button onClick={handleNext} className="btn-primary flex items-center">
               Next
-              <ChevronRight className="w-4 h-4 ml-2" />
+              <ChevronRight className="w-4 h-4 ml-1.5" />
             </button>
           )}
         </div>

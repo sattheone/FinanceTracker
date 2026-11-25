@@ -6,6 +6,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite",
+    "dev:emulators": "VITE_USE_EMULATORS=true vite",
+    "emulators": "firebase emulators:start --only auth,firestore",
+    "seed:emulator": "node scripts/seedEmulator.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"

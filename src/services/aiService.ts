@@ -27,7 +27,7 @@ export interface ExtractedInsuranceData {
   type: 'term' | 'endowment' | 'health' | 'other';
   coverAmount: number;
   premiumAmount: number;
-  premiumFrequency: 'monthly' | 'quarterly' | 'yearly';
+  premiumFrequency: 'monthly' | 'quarterly' | 'half-yearly' | 'yearly';
   maturityDate?: string;
   confidence: number;
 }

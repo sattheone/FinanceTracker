@@ -260,10 +260,11 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
           {/* Flyout Panels - positioned on the left */}
           {activeFilterSection === 'account' && (
             <div 
-              className="absolute right-full w-80 popup-surface rounded-xl max-h-96 overflow-auto py-1"
+              className="relative sm:absolute sm:right-full sm:top-[var(--flyout-top)] sm:mr-2 w-full border-t sm:border-t-0 sm:w-80 popup-surface rounded-xl max-h-72 sm:max-h-96 overflow-auto py-1"
               style={{ 
-                top: `${flyoutPosition.top}px`,
-                marginRight: '8px',
+                // Desktop: flyout opens to the left at the hovered row. Phones: it stacks
+                // inside the menu instead (opening left would push it off-screen).
+                ['--flyout-top' as string]: `${flyoutPosition.top}px`,
                 backgroundColor: 'var(--color-card-bg)',
                 borderColor: 'var(--color-border-primary)'
               }}
@@ -315,10 +316,11 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
 
           {activeFilterSection === 'category' && (
             <div 
-              className="absolute right-full w-80 popup-surface rounded-xl max-h-96 overflow-auto py-1"
+              className="relative sm:absolute sm:right-full sm:top-[var(--flyout-top)] sm:mr-2 w-full border-t sm:border-t-0 sm:w-80 popup-surface rounded-xl max-h-72 sm:max-h-96 overflow-auto py-1"
               style={{ 
-                top: `${flyoutPosition.top}px`,
-                marginRight: '8px',
+                // Desktop: flyout opens to the left at the hovered row. Phones: it stacks
+                // inside the menu instead (opening left would push it off-screen).
+                ['--flyout-top' as string]: `${flyoutPosition.top}px`,
                 backgroundColor: 'var(--color-card-bg)',
                 borderColor: 'var(--color-border-primary)'
               }}
@@ -368,10 +370,11 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
 
           {activeFilterSection === 'tag' && (
             <div 
-              className="absolute right-full w-80 popup-surface rounded-xl max-h-96 overflow-auto py-1"
+              className="relative sm:absolute sm:right-full sm:top-[var(--flyout-top)] sm:mr-2 w-full border-t sm:border-t-0 sm:w-80 popup-surface rounded-xl max-h-72 sm:max-h-96 overflow-auto py-1"
               style={{ 
-                top: `${flyoutPosition.top}px`,
-                marginRight: '8px',
+                // Desktop: flyout opens to the left at the hovered row. Phones: it stacks
+                // inside the menu instead (opening left would push it off-screen).
+                ['--flyout-top' as string]: `${flyoutPosition.top}px`,
                 backgroundColor: 'var(--color-card-bg)',
                 borderColor: 'var(--color-border-primary)'
               }}
@@ -430,10 +433,11 @@ const TransactionFilters: React.FC<TransactionFiltersProps> = ({
 
           {activeFilterSection === 'type' && (
             <div 
-              className="absolute right-full w-60 popup-surface rounded-xl py-1"
+              className="relative sm:absolute sm:right-full sm:top-[var(--flyout-top)] sm:mr-2 w-full border-t sm:border-t-0 sm:w-60 popup-surface rounded-xl py-1"
               style={{ 
-                top: `${flyoutPosition.top}px`,
-                marginRight: '8px',
+                // Desktop: flyout opens to the left at the hovered row. Phones: it stacks
+                // inside the menu instead (opening left would push it off-screen).
+                ['--flyout-top' as string]: `${flyoutPosition.top}px`,
                 backgroundColor: 'var(--color-card-bg)',
                 borderColor: 'var(--color-border-primary)'
               }}

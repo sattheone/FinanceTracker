@@ -200,7 +200,7 @@ const NavSheet: React.FC<NavSheetProps> = ({ open, onClose, user, onLogout, aler
           </div>
           <button
             onClick={() => { onLogout(); onClose(); }}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium min-h-[44px] transition-colors hover:[background-color:var(--color-error-bg)]"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium min-h-[44px] whitespace-nowrap flex-shrink-0 transition-colors hover:[background-color:var(--color-error-bg)]"
             style={{ color: 'var(--color-error)' }}
           >
             <LogOut className="h-4 w-4" />

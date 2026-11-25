@@ -1,4 +1,4 @@
-import bankStatementParser from './bankStatementParser';
+import bankStatementParser, { StatementSectionInfo } from './bankStatementParser';
 
 /**
  * Gmail statement import (browser-only).
@@ -19,6 +19,23 @@ const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 const GIS_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 const MAX_MESSAGES_PER_BANK = 50;
 const DEFAULT_LOOKBACK_DAYS = 90;
+
+// Default sender domains per bank. Indian banks are moving mail to RBI's .bank.in
+// domains, so the new domain is searched alongside the old one.
+export const DEFAULT_BANK_SENDERS: Record<string, string> = {
+  hdfc: 'hdfcbank.net, hdfcbank.bank.in, hdfc.bank.in, hdfcbank.com',
+  icici: 'icicibank.com, icici.bank.in, icicibank.bank.in',
+  sbi: 'sbi.co.in, sbi.bank.in',
+  axis: 'axisbank.com, axis.bank.in, axisbank.bank.in'
+};
+
+// Earlier defaults; a saved sender still equal to one of these was never customised
+const LEGACY_BANK_SENDERS: Record<string, string> = {
+  hdfc: 'hdfcbank.net',
+  icici: 'icicibank.com',
+  sbi: 'sbi.co.in',
+  axis: 'axisbank.com'
+};
 
 export interface BankFilterConfig {
   enabled: boolean;
@@ -76,6 +93,7 @@ export interface StatementTransaction {
   category: string;
   confidence: number;
   bankAccountId: string;
+  statementSectionId?: string; // Account section, when the PDF covers several accounts
 }
 
 // One PDF attachment found in Gmail, plus its processing state
@@ -95,6 +113,7 @@ export interface FoundStatement {
   transactions: StatementTransaction[];
   detectedBank?: string;
   statementPeriod?: { from: string; to: string };
+  sections?: StatementSectionInfo[]; // Only when one PDF covers several accounts
   error?: string;
   importedCount?: number;
 }
@@ -124,7 +143,7 @@ class GmailCrawlerService {
       hdfc: {
         enabled: true,
         bankName: 'HDFC Bank',
-        senderEmail: 'hdfcbank.net',
+        senderEmail: DEFAULT_BANK_SENDERS.hdfc,
         subjectKeywords: ['statement', 'account statement', 'monthly statement', 'e-statement'],
         attachmentKeywords: [],
         statementPassword: '',
@@ -133,7 +152,7 @@ class GmailCrawlerService {
       icici: {
         enabled: false,
         bankName: 'ICICI Bank',
-        senderEmail: 'icicibank.com',
+        senderEmail: DEFAULT_BANK_SENDERS.icici,
         subjectKeywords: ['statement', 'account statement', 'e-statement'],
         attachmentKeywords: [],
         statementPassword: '',
@@ -142,7 +161,7 @@ class GmailCrawlerService {
       sbi: {
         enabled: false,
         bankName: 'State Bank of India',
-        senderEmail: 'sbi.co.in',
+        senderEmail: DEFAULT_BANK_SENDERS.sbi,
         subjectKeywords: ['statement', 'account statement', 'e-statement'],
         attachmentKeywords: [],
         statementPassword: '',
@@ -151,7 +170,7 @@ class GmailCrawlerService {
       axis: {
         enabled: false,
         bankName: 'Axis Bank',
-        senderEmail: 'axisbank.com',
+        senderEmail: DEFAULT_BANK_SENDERS.axis,
         subjectKeywords: ['statement', 'account statement', 'e-statement'],
         attachmentKeywords: [],
         statementPassword: '',
@@ -199,12 +218,21 @@ class GmailCrawlerService {
           ...parsed
         } = JSON.parse(saved);
 
+        const savedFilters: GmailConfig['bankFilters'] = { ...(parsed.bankFilters || {}) };
+        // Move untouched old defaults to the current default senders; customised senders are kept
+        for (const [bankKey, legacySender] of Object.entries(LEGACY_BANK_SENDERS)) {
+          const saved = savedFilters[bankKey];
+          if (saved && saved.senderEmail?.trim().toLowerCase() === legacySender) {
+            savedFilters[bankKey] = { ...saved, senderEmail: DEFAULT_BANK_SENDERS[bankKey] };
+          }
+        }
+
         const config: GmailConfig = {
           ...defaults,
           ...parsed,
           bankFilters: {
             ...defaultFilters,
-            ...(parsed.bankFilters || {})
+            ...savedFilters
           }
         };
         localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
@@ -670,7 +698,8 @@ class GmailCrawlerService {
           type: t.type,
           category: '',
           confidence: t.confidence ?? 0.8,
-          bankAccountId
+          bankAccountId,
+          ...(t.statementSectionId ? { statementSectionId: t.statementSectionId } : {})
         }));
 
       return {
@@ -679,6 +708,7 @@ class GmailCrawlerService {
         transactions,
         detectedBank: statementData.bankName,
         statementPeriod: statementData.statementPeriod,
+        sections: bankStatementParser.toSectionInfos(statementData.sections),
         error: undefined
       };
     } catch (err: any) {

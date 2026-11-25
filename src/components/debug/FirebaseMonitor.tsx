@@ -433,7 +433,7 @@
  * REQUIREMENTS: React 16.8+, Tailwind CSS, Firebase/Firestore SDK v9+
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 
 // ═══════════════════════════════════════════════════════════════════
 // SECTION 1 — TYPES & CONFIGURATION
@@ -1060,6 +1060,73 @@ export const FirebaseMonitor: React.FC = () => {
         return () => { UsageTracker.off('update', handle); clearInterval(iv); };
     }, []);
 
+    // ─── Dragging ───────────────────────────────────────────
+    // Free-drag the widget anywhere. `pos` holds the top-left corner in px;
+    // when null we fall back to the default bottom-left CSS placement.
+    const rootRef = useRef<HTMLDivElement>(null);
+    const [pos, setPos] = useState<{ x: number; y: number } | null>(() => {
+        try { const s = localStorage.getItem('fbMonitorPos'); return s ? JSON.parse(s) : null; }
+        catch { return null; }
+    });
+    const dragRef = useRef<{ px: number; py: number; ox: number; oy: number; moved: boolean } | null>(null);
+
+    const clampToViewport = useCallback((x: number, y: number) => {
+        const el = rootRef.current;
+        const w = el?.offsetWidth ?? 0;
+        const h = el?.offsetHeight ?? 0;
+        const maxX = Math.max(4, window.innerWidth - w - 4);
+        const maxY = Math.max(4, window.innerHeight - h - 4);
+        return { x: Math.min(Math.max(4, x), maxX), y: Math.min(Math.max(4, y), maxY) };
+    }, []);
+
+    // Persist position; re-clamp on expand/collapse (size changes) and on resize.
+    useEffect(() => {
+        if (pos) { try { localStorage.setItem('fbMonitorPos', JSON.stringify(pos)); } catch { /* ignore */ } }
+    }, [pos]);
+    useEffect(() => {
+        if (pos) setPos(p => (p ? clampToViewport(p.x, p.y) : p));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isExpanded]);
+    useEffect(() => {
+        const onResize = () => setPos(p => (p ? clampToViewport(p.x, p.y) : p));
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, [clampToViewport]);
+
+    const onDragPointerDown = useCallback((e: React.PointerEvent) => {
+        // Never start a drag from an interactive control (buttons, tabs, links).
+        if ((e.target as HTMLElement).closest('button, a, input, textarea, select')) return;
+        const el = rootRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        dragRef.current = { px: e.clientX, py: e.clientY, ox: rect.left, oy: rect.top, moved: false };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    }, []);
+
+    const onDragPointerMove = useCallback((e: React.PointerEvent) => {
+        const d = dragRef.current;
+        if (!d) return;
+        const dx = e.clientX - d.px;
+        const dy = e.clientY - d.py;
+        // Movement threshold so a click isn't misread as a drag (and vice-versa).
+        if (!d.moved && Math.hypot(dx, dy) < 4) return;
+        d.moved = true;
+        setPos(clampToViewport(d.ox + dx, d.oy + dy));
+    }, [clampToViewport]);
+
+    // Returns true if this pointer sequence was an actual drag (not a click).
+    const endDrag = useCallback((e: React.PointerEvent) => {
+        const d = dragRef.current;
+        dragRef.current = null;
+        try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+        return d?.moved ?? false;
+    }, []);
+
+    // Style: once dragged, pin by top-left and neutralize the default bottom/left.
+    const posStyle: React.CSSProperties | undefined = pos
+        ? { top: pos.y, left: pos.x, right: 'auto', bottom: 'auto' }
+        : undefined;
+
     const health = stats.health;
     const alertCount = stats.alerts.length;
     const critCount = stats.alerts.filter(a => a.severity === 'critical').length;
@@ -1074,7 +1141,14 @@ export const FirebaseMonitor: React.FC = () => {
     // ─── Collapsed Pill ─────────────────────────────────────
     if (!isExpanded) {
         return (
-            <div className={`fixed bottom-4 left-4 z-[9999] backdrop-blur-md text-white text-xs p-2 rounded-full cursor-pointer shadow-lg hover:scale-105 transition-all border flex items-center gap-2 ${H_PILL_BG[health]}`} onClick={() => setIsExpanded(true)}>
+            <div
+                ref={rootRef}
+                style={posStyle}
+                className={`fixed bottom-4 left-4 z-[9999] backdrop-blur-md text-white text-xs p-2 rounded-full cursor-grab active:cursor-grabbing touch-none select-none shadow-lg hover:scale-105 transition-transform border flex items-center gap-2 ${H_PILL_BG[health]}`}
+                onPointerDown={onDragPointerDown}
+                onPointerMove={onDragPointerMove}
+                onPointerUp={(e) => { if (!endDrag(e)) setIsExpanded(true); }}
+            >
                 <span className={`w-2 h-2 rounded-full animate-pulse ${H_DOT[health]}`} />
                 <span className={`font-mono font-bold ${mc(UsageTracker.getMetricHealth('reads'), 'text-white')}`}>{stats.reads}R</span>
                 <span className="text-white/30">|</span>
@@ -1095,9 +1169,14 @@ export const FirebaseMonitor: React.FC = () => {
     const maxCollOps = collEntries.length ? Math.max(1, collEntries[0][1].reads + collEntries[0][1].writes) : 1;
 
     return (
-        <div className={`fixed bottom-4 left-4 z-[9999] backdrop-blur-md text-slate-200 text-xs p-4 rounded-xl shadow-2xl border w-[380px] max-h-[75vh] flex flex-col transition-all duration-200 ${H_PANEL_BG[health]}`}>
-            {/* Header */}
-            <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/10">
+        <div ref={rootRef} style={posStyle} className={`fixed bottom-4 left-4 z-[9999] backdrop-blur-md text-slate-200 text-xs p-4 rounded-xl shadow-2xl border w-[380px] max-h-[75vh] flex flex-col transition-[width,height] duration-200 ${H_PANEL_BG[health]}`}>
+            {/* Header (drag handle) */}
+            <div
+                className="flex justify-between items-center mb-3 pb-2 border-b border-white/10 cursor-grab active:cursor-grabbing touch-none select-none"
+                onPointerDown={onDragPointerDown}
+                onPointerMove={onDragPointerMove}
+                onPointerUp={endDrag}
+            >
                 <div className="flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full animate-pulse ${H_DOT[health]}`} />
                     <span className="font-bold text-white text-[11px]">Firebase Monitor</span>

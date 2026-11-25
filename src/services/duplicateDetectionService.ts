@@ -15,6 +15,13 @@ export interface DuplicatePair {
   confidence: number;                 // Match confidence (0-100)
 }
 
+// Duplicate pair found within an existing set of transactions (e.g. current month)
+export interface MonthDuplicatePair {
+  transaction1: Transaction;
+  transaction2: Transaction;
+  confidence: number;
+}
+
 // Internal duplicate within the same import file
 export interface InternalDuplicate {
   transaction: Transaction;          // The duplicate transaction
@@ -387,6 +394,23 @@ class DuplicateDetectionService {
    */
   public clearImportHistory(): void {
     localStorage.removeItem('importHistory');
+  }
+
+  /**
+   * Find all duplicate pairs within an existing set of transactions (e.g. current month view).
+   * Returns each unique high-confidence pair once.
+   */
+  public findDuplicatesInSet(transactions: Transaction[]): MonthDuplicatePair[] {
+    const pairs: MonthDuplicatePair[] = [];
+    for (let i = 0; i < transactions.length; i++) {
+      for (let j = i + 1; j < transactions.length; j++) {
+        const confidence = this.calculateSimilarity(transactions[i], transactions[j]);
+        if (confidence >= this.HIGH_CONFIDENCE_THRESHOLD) {
+          pairs.push({ transaction1: transactions[i], transaction2: transactions[j], confidence });
+        }
+      }
+    }
+    return pairs;
   }
 
   /**

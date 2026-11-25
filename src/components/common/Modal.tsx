@@ -26,7 +26,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
   };
 
   return createPortal(
-    <div className={cn(theme.overlay, 'flex items-center justify-center z-[1200] p-4')}>
+    <div className={cn(theme.overlay, 'flex items-center justify-center z-[1200] p-3 sm:p-4')}>
       <div
         className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
         onClick={(e) => {
@@ -38,14 +38,14 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
         className={cn(
           theme.bgElevated,
           theme.border,
-          'relative z-10 rounded-2xl w-full max-h-[90vh] overflow-hidden border shadow-xl flex flex-col',
+          'relative z-10 rounded-2xl w-full max-h-[90vh] supports-[max-height:90dvh]:max-h-[90dvh] overflow-hidden border shadow-xl flex flex-col',
           sizeClasses[size]
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className={cn(theme.border, 'p-6 border-b shrink-0')}>
-          <div className="flex items-center justify-between">
-            <h2 className={cn(theme.textPrimary, 'text-xl font-semibold')}>{title}</h2>
+        <div className={cn(theme.border, 'p-4 sm:p-6 border-b shrink-0')}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className={cn(theme.textPrimary, 'text-xl font-semibold min-w-0 break-words')}>{title}</h2>
             <button
               onClick={onClose}
               className={cn(
@@ -58,7 +58,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
             </button>
           </div>
         </div>
-        <div className={cn(theme.bgElevated, 'p-6 flex-1', bodyScroll ? 'overflow-y-auto' : 'overflow-visible')}>
+        <div className={cn(theme.bgElevated, 'p-4 sm:p-6 flex-1', bodyScroll ? 'overflow-y-auto' : 'overflow-visible')}>
           {children}
         </div>
         {footer && (

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Loader2, Check, Scissors, Repeat, Folder, Tag, TrendingUp, MoreHorizontal } from 'lucide-react';
+import { Loader2, Check, Scissors, Repeat, Folder, Tag, MoreHorizontal, Flag, Clock, StickyNote, CheckCircle2, Building } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -10,12 +10,12 @@ import { extractMerchant, getMerchantKeyFromDescription, normalizeMerchant } fro
 import SidePanel from '../common/SidePanel';
 import SimpleTransactionForm, { SimpleTransactionFormHandle } from '../forms/SimpleTransactionForm';
 import InlineCategoryEditor from './InlineCategoryEditor';
-import InlineTypeEditor from './InlineTypeEditor';
 import TagPopover from './TagPopover';
 import CategoryPopover from './CategoryPopover';
 import TagSettingsOverlay from './TagSettingsOverlay';
 import SplitTransactionModal from './SplitTransactionModal';
 import RecurringSetupModal from './RecurringSetupModal';
+import TransferPairCard from './TransferPairCard';
 
 interface SimpleTransactionModalProps {
   transaction: Transaction;
@@ -31,7 +31,7 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
   onTransactionClick
 }) => {
   const { user } = useAuth();
-  const { transactions: allTransactions, updateTransaction, deleteTransaction, categories: contextCategories, assets, loadAssets } = useData();
+  const { transactions: allTransactions, updateTransaction, deleteTransaction, categories: contextCategories, assets, loadAssets, addRecurringTransaction, updateRecurringTransaction, deleteRecurringTransaction, recurringTransactions, loadRecurringTransactions, bankAccounts } = useData();
   const theme = useThemeClasses();
   const formRef = useRef<SimpleTransactionFormHandle>(null);
   const [showSplitModal, setShowSplitModal] = useState(false);
@@ -54,11 +54,28 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
   const moreContainerRef = useRef<HTMLDivElement | null>(null);
   const linkedAsset = assets.find(a => a.id === transaction.linkedAssetId);
 
+  const account = useMemo(() => {
+    return bankAccounts?.find(a => a.id === transaction.bankAccountId);
+  }, [bankAccounts, transaction.bankAccountId]);
+
+  const sameDayTransactions = useMemo(() => {
+    if (!transaction?.date) return [];
+    const targetDate = transaction.date.split('T')[0];
+    return allTransactions.filter(t =>
+      t.id !== transaction.id &&
+      !t.isSplitParent &&
+      (t.date || '').split('T')[0] === targetDate
+    );
+  }, [allTransactions, transaction?.date, transaction?.id]);
+
   useEffect(() => {
     if (isOpen && assets.length === 0) {
       loadAssets();
     }
-  }, [isOpen, assets.length, loadAssets]);
+    if (isOpen && recurringTransactions.length === 0) {
+      loadRecurringTransactions();
+    }
+  }, [isOpen, assets.length, loadAssets, recurringTransactions.length, loadRecurringTransactions]);
 
   // Clear selection when opening a new transaction
   useEffect(() => {
@@ -131,8 +148,10 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
         byId.set(t.id, t);
       }
     });
+    // The open transaction is already shown above; don't list it as "similar" to itself.
+    byId.delete(transaction.id);
     return Array.from(byId.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [matchedTransactions, historicalMatches]);
+  }, [matchedTransactions, historicalMatches, transaction.id]);
 
   // Lazy loading state
   const [visibleCount, setVisibleCount] = useState(20);
@@ -151,12 +170,6 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
     if (selectedTxns.length === 0) return [] as string[];
     const initial = (selectedTxns[0].tags || []).slice();
     return selectedTxns.reduce((acc, t) => acc.filter(id => (t.tags || []).includes(id)), initial);
-  }, [selectedTxns]);
-
-  const bulkCommonType = useMemo(() => {
-    if (selectedTxns.length === 0) return 'expense';
-    const first = selectedTxns[0].type;
-    return selectedTxns.every(t => t.type === first) ? first : 'expense';
   }, [selectedTxns]);
 
   useEffect(() => {
@@ -368,11 +381,33 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
             })()}
             <button
               onClick={() => setShowRecurringModal(true)}
-              className="px-2 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 flex items-center gap-1"
-              title="Recurring"
+              className={cn(
+                'px-2 py-1.5 rounded-lg flex items-center gap-1',
+                transaction.recurringTransactionId
+                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60'
+                  : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200'
+              )}
+              title={transaction.recurringTransactionId ? 'Edit recurring rule' : 'Make recurring'}
             >
               <Repeat className="w-4 h-4" />
-              <span className="text-xs font-medium">Recurring</span>
+              <span className="text-xs font-medium">{transaction.recurringTransactionId ? 'Recurring ✓' : 'Recurring'}</span>
+            </button>
+
+            {/* Review Flag Toggle */}
+            <button
+              onClick={() => {
+                updateTransaction(transaction.id, { needsReview: !transaction.needsReview });
+              }}
+              className={cn(
+                'px-2 py-1.5 rounded-lg flex items-center gap-1 transition-colors',
+                transaction.needsReview
+                  ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60'
+                  : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200'
+              )}
+              title={transaction.needsReview ? 'Mark as Reviewed' : 'Flag for Review'}
+            >
+              <Flag className={cn("w-4 h-4", transaction.needsReview && "fill-amber-500 text-amber-600 dark:text-amber-400")} />
+              <span className="text-xs font-medium">{transaction.needsReview ? 'Needs Review' : 'Flag'}</span>
             </button>
 
             <div className="relative" ref={headerMoreRef}>
@@ -399,7 +434,7 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
                   {transaction.linkedAssetId && (
                     <button
                       onClick={async () => {
-                        await updateTransaction(transaction.id, { linkedAssetId: undefined });
+                        await updateTransaction(transaction.id, { linkedAssetId: '' });
                         setHeaderMoreOpen(false);
                       }}
                       className="w-full text-left px-3 py-2 text-sm text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20"
@@ -425,7 +460,72 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
         </div>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-5">
+        {/* Memory Trigger: Day of week & Account context */}
+        <div className="flex items-center justify-between text-xs px-1 text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-1.5 font-medium text-gray-700 dark:text-gray-300">
+            <Clock className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+            <span>
+              {new Date(transaction.date).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+          </div>
+          {account && (
+            <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
+              <Building className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <span>{account.bank}</span>
+              {account.number && (
+                <span className="text-[11px] text-gray-400">
+                  (•••• {account.number.slice(-4)})
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Flagged for Review Banner */}
+        {transaction.needsReview && (
+          <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Flag className="w-4 h-4 text-amber-600 dark:text-amber-400 fill-amber-500 shrink-0" />
+              <div>
+                <span className="text-xs font-semibold text-amber-900 dark:text-amber-200 block">
+                  Flagged for Review
+                </span>
+                <span className="text-[11px] text-amber-700 dark:text-amber-300">
+                  Review this transaction later or check reminder notes.
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => updateTransaction(transaction.id, { needsReview: false })}
+              className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-amber-600 hover:bg-amber-700 text-white flex items-center gap-1.5 shrink-0 shadow-sm transition-colors"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Mark as Reviewed
+            </button>
+          </div>
+        )}
+
+        {/* Review Reminder Note */}
+        {(transaction.needsReview || transaction.reviewNote) && (
+          <div className="p-3 bg-gray-50/80 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 rounded-xl space-y-1.5">
+            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+              <span className="flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-400">
+                <StickyNote className="w-3.5 h-3.5" />
+                Review Reminder Note
+              </span>
+            </div>
+            <textarea
+              rows={2}
+              value={transaction.reviewNote || ''}
+              onChange={(e) => updateTransaction(transaction.id, { reviewNote: e.target.value })}
+              placeholder="e.g. Check with partner, verify Amazon order #, check receipt..."
+              className="w-full text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-2 focus:ring-1 focus:ring-amber-500 focus:outline-none text-gray-900 dark:text-white"
+            />
+          </div>
+        )}
+
         {/* Reuse the inline-edit form */}
         <SimpleTransactionForm
           ref={formRef}
@@ -442,6 +542,69 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
             <span className="inline-flex items-center gap-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-3 py-1.5 text-xs font-medium">
               Linked Asset: {linkedAsset.name}
             </span>
+          </div>
+        )}
+
+        {transaction.recurringTransactionId && (() => {
+          const rt = recurringTransactions.find(r => r.id === transaction.recurringTransactionId);
+          return (
+            <div className="px-1">
+              <span className="inline-flex items-center gap-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-3 py-1.5 text-xs font-medium">
+                <Repeat className="w-3 h-3" />
+                {rt ? `Recurring · ${rt.interval && rt.interval > 1 ? `Every ${rt.interval} ${rt.frequency === 'monthly' ? 'months' : rt.frequency === 'weekly' ? 'weeks' : 'years'}` : rt.frequency.charAt(0).toUpperCase() + rt.frequency.slice(1)}` : 'Recurring'}
+              </span>
+            </div>
+          );
+        })()}
+
+        <TransferPairCard transaction={transaction} onTransactionClick={onTransactionClick} />
+
+        {/* Step 2 Memory Trigger: Same-Day Activity Section */}
+        {sameDayTransactions.length > 0 && (
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/40 p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-indigo-500" />
+                <h3 className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+                  Other Transactions on this Day ({sameDayTransactions.length})
+                </h3>
+              </div>
+              <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">Memory Trigger</span>
+            </div>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+              Other purchases on this date to help recall where you were:
+            </p>
+            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              {sameDayTransactions.map((other) => {
+                const cat = contextCategories?.find(c => c.id === other.category);
+                return (
+                  <div
+                    key={other.id}
+                    onClick={() => onTransactionClick?.(other)}
+                    className={cn(
+                      "flex items-center justify-between p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 transition-all",
+                      onTransactionClick ? "hover:border-indigo-400 dark:hover:border-indigo-500 cursor-pointer shadow-xs" : ""
+                    )}
+                    title="Click to view transaction"
+                  >
+                    <div className="min-w-0 pr-2">
+                      <p className="text-xs font-medium text-gray-900 dark:text-white truncate">
+                        {other.description}
+                      </p>
+                      <p className="text-[10px] text-gray-400">
+                        {cat?.icon} {cat?.name || other.category}
+                      </p>
+                    </div>
+                    <span className={cn(
+                      "text-xs font-semibold shrink-0",
+                      other.type === 'income' ? "text-green-600 dark:text-green-400" : "text-gray-900 dark:text-white"
+                    )}>
+                      {other.type === 'income' ? '+' : '-'}{formatCurrency(other.amount)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -486,7 +649,6 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
 
           <div className="space-y-1">
             {visibleTransactions.map(t => {
-              const isCurrent = t.id === transaction.id;
               const isSelected = selectedIds.has(t.id);
               const tCategory = contextCategories?.find(c => c.id === t.category) || { icon: '📋', name: 'Other' };
 
@@ -495,7 +657,7 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
                   key={t.id}
                   className={cn(
                     "flex items-center p-3 rounded-lg transition-colors group relative",
-                    (isCurrent || isSelected)
+                    isSelected
                       ? "bg-blue-50 dark:bg-blue-900/30 ring-1 ring-blue-500/50"
                       : "hover:bg-gray-50 dark:hover:bg-gray-800"
                   )}
@@ -516,7 +678,7 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
                   {/* Existing Row Content (Clickable) */}
                   <div
                     className="flex-1 flex items-center min-w-0 cursor-pointer"
-                    onClick={() => !isCurrent && onTransactionClick && onTransactionClick(t)}
+                    onClick={() => onTransactionClick && onTransactionClick(t)}
                   >
                     <div className="w-24 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
                       {formatDate(t.date)}
@@ -526,7 +688,7 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
                         <span className="text-sm">{tCategory.icon}</span>
                         <span className={cn(
                           "text-sm font-medium truncate",
-                          isCurrent ? "text-blue-700 dark:text-blue-300" : theme.textPrimary
+                          theme.textPrimary
                         )}>
                           {t.description}
                         </span>
@@ -542,6 +704,10 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
                 </div>
               );
             })}
+
+            {allSimilarTransactions.length === 0 && !hasMoreHistory && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 py-2">No other transactions from this merchant.</p>
+            )}
 
             {(visibleCount < allSimilarTransactions.length || hasMoreHistory) && (
               <div className="pt-2">
@@ -585,21 +751,6 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
             <Tag className="w-4 h-4" />
             Tag
           </button>
-          <InlineTypeEditor
-            currentType={bulkCommonType}
-            allowUnchanged={false}
-            onSave={(newType) => {
-              if (newType === 'unchanged') return;
-              selectedTxns.forEach(t => updateTransaction(t.id, { type: newType }));
-            }}
-            triggerClassName="inline-flex items-center gap-2 h-9 px-3 text-sm bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
-            triggerContent={(
-              <>
-                <TrendingUp className="w-4 h-4" />
-                <span>Type</span>
-              </>
-            )}
-          />
           <div className="relative" ref={moreContainerRef}>
             <button
               className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
@@ -703,7 +854,47 @@ const SimpleTransactionModal: React.FC<SimpleTransactionModalProps> = ({
         isOpen={showRecurringModal}
         onClose={() => setShowRecurringModal(false)}
         transaction={transaction}
-        onSave={() => setShowRecurringModal(false)}
+        recurringTransaction={recurringTransactions.find(r => r.id === transaction.recurringTransactionId)}
+        onSave={async (settings) => {
+          setShowRecurringModal(false);
+          const existingRt = recurringTransactions.find(r => r.id === transaction.recurringTransactionId);
+          if (existingRt) {
+            await updateRecurringTransaction(existingRt.id, {
+              frequency: settings.frequency as 'weekly' | 'monthly' | 'yearly',
+              interval: settings.interval,
+              startDate: settings.startDate,
+              nextDueDate: settings.nextDueDate || settings.startDate,
+            });
+          } else {
+            const recurring = {
+              name: transaction.description,
+              description: transaction.description,
+              category: transaction.category,
+              type: transaction.type,
+              amount: transaction.amount,
+              frequency: settings.frequency as 'weekly' | 'monthly' | 'yearly',
+              interval: settings.interval,
+              startDate: settings.startDate,
+              nextDueDate: settings.nextDueDate || settings.startDate,
+              isActive: true,
+              bankAccountId: transaction.bankAccountId || '',
+              reminderDays: 3,
+              autoCreate: true,
+              tags: transaction.tags || [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            const recurringId = await addRecurringTransaction(recurring);
+            if (recurringId) {
+              await updateTransaction(transaction.id, { recurringTransactionId: recurringId });
+            }
+          }
+        }}
+        onDelete={transaction.recurringTransactionId ? async () => {
+          await deleteRecurringTransaction(transaction.recurringTransactionId!);
+          await updateTransaction(transaction.id, { recurringTransactionId: '' });
+          setShowRecurringModal(false);
+        } : undefined}
       />
     )}
 

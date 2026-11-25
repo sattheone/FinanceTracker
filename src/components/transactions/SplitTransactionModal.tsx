@@ -214,7 +214,7 @@ const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({ isOpen, o
         // Restore parent to original value
         await updateTransaction(parent.id, {
           isSplitParent: false,
-          splitGroupId: undefined,
+          splitGroupId: '',
           amount: originalAmount,
           originalAmount
         } as any);
@@ -268,11 +268,11 @@ const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({ isOpen, o
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* Centered Modal */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-[720px] bg-white dark:bg-gray-900 rounded-3xl shadow-2xl">
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100vw-1.5rem)] sm:w-[90vw] max-w-[720px] max-h-[90vh] supports-[max-height:90dvh]:max-h-[90dvh] overflow-y-auto bg-white dark:bg-gray-900 rounded-3xl shadow-2xl">
         {/* Header */}
-        <div className="px-6 pt-6">
+        <div className="px-4 sm:px-6 pt-6">
           <p className="text-center text-xs font-semibold tracking-widest text-gray-400">SPLIT TRANSACTION</p>
-          <h2 className="mt-2 text-center text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">{transaction.description}</h2>
+          <h2 className="mt-2 text-center text-2xl sm:text-4xl font-bold text-gray-900 dark:text-white [overflow-wrap:anywhere]">{transaction.description}</h2>
           <p className="mt-1 text-center text-lg font-semibold text-gray-700 dark:text-gray-300">{formatCurrency(baseAmount)}</p>
           {error && (
             <div className="mt-4 mx-auto max-w-md text-center text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
@@ -282,11 +282,11 @@ const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({ isOpen, o
         </div>
 
         {/* Rows */}
-        <div className="mt-6 px-6 pb-6 space-y-2">
+        <div className="mt-6 px-4 sm:px-6 pb-6 space-y-2">
           {rows.filter(r => !(isEditMode && r.id === 'row-1' && Number(r.amount) === 0)).map((row) => (
             <div
               key={row.id}
-              className={`flex items-center justify-between py-3 border-b last:border-b-0 border-gray-100 dark:border-gray-700`}
+              className={`flex items-center justify-between gap-2 py-3 border-b last:border-b-0 border-gray-100 dark:border-gray-700`}
             >
               {/* Amount */}
               <div className="flex items-center">
@@ -299,7 +299,7 @@ const SplitTransactionModal: React.FC<SplitTransactionModalProps> = ({ isOpen, o
                   placeholder={row.id === 'row-1' ? undefined : 'Enter amount'}
                   onChange={(e) => updateRowAmount(row.id, e.target.value)}
                   readOnly={row.id === 'row-1'}
-                  className="no-spin w-28 text-xl font-bold bg-transparent border-none outline-none focus:ring-0 text-gray-900 dark:text-white"
+                  className="no-spin w-24 sm:w-28 text-xl font-bold bg-transparent border-none outline-none focus:ring-0 text-gray-900 dark:text-white"
                 />
               </div>
               {/* Category chip */}

@@ -64,7 +64,7 @@ export const MarketDataStatus = () => {
                 {isOpen && (
                     <>
                         <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}></div>
-                        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 p-4 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="fixed inset-x-4 top-28 max-h-[70dvh] overflow-y-auto sm:max-h-none sm:overflow-visible sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 mt-2 sm:w-80 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 p-4 animate-in fade-in zoom-in-95 duration-200">
                             <div className="flex justify-between items-center mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">
                                 <h3 className="font-semibold text-gray-900 dark:text-gray-100">Market Data Cache</h3>
                                 <button
@@ -177,7 +177,7 @@ const MarketDataListModal: React.FC<ModalProps> = ({ title, data, type, isLoadin
                 </div>
 
                 {/* List Content */}
-                <div className="flex-1 overflow-y-auto p-0">
+                <div className="flex-1 overflow-auto p-0">
                     {isLoading ? (
                         <div className="flex items-center justify-center h-48">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

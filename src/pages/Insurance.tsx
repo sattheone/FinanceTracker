@@ -40,6 +40,8 @@ const Insurance: React.FC = () => {
       annualPremium = policy.premiumAmount * 12;
     } else if (policy.premiumFrequency === 'quarterly') {
       annualPremium = policy.premiumAmount * 4;
+    } else if (policy.premiumFrequency === 'half-yearly') {
+      annualPremium = policy.premiumAmount * 2;
     }
     // If yearly, use as-is
     return sum + annualPremium;

@@ -60,9 +60,9 @@ const LiabilitiesStep: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <CreditCard className="h-12 w-12 text-red-600 dark:text-red-400 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Your Liabilities</h2>
-        <p className="text-gray-600 dark:text-gray-300">
+        <CreditCard className="h-12 w-12 mx-auto mb-4" style={{ color: 'var(--color-error)' }} />
+        <h2 className="text-2xl font-bold theme-text-primary mb-2">Your Liabilities</h2>
+        <p className="theme-text-secondary">
           Add your loans, EMIs, and debt obligations to get a complete picture of your financial health.
         </p>
       </div>
@@ -70,27 +70,23 @@ const LiabilitiesStep: React.FC = () => {
       {/* Summary Cards */}
       {liabilities.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-700">
+          <div className="metric-card">
             <div className="flex items-center">
-              <CreditCard className="h-8 w-8 text-red-600 dark:text-red-400 mr-3" />
+              <CreditCard className="h-8 w-8 mr-3" style={{ color: 'var(--color-error)' }} />
               <div>
-                <p className="text-sm font-medium text-red-800 dark:text-red-200">Total Outstanding</p>
-                <p className="text-xl font-bold text-red-600 dark:text-red-400">
-                  {formatLargeNumber(totalOutstanding)}
-                </p>
+                <p className="text-sm font-medium theme-text-secondary">Total Outstanding</p>
+                <p className="text-xl font-bold" style={{ color: 'var(--color-error)' }}>{formatLargeNumber(totalOutstanding)}</p>
               </div>
             </div>
           </div>
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
+          <div className="metric-card">
             <div className="flex items-center">
-              <div className="h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center mr-3">
-                <span className="text-white text-sm font-bold">₹</span>
+              <div className="h-8 w-8 rounded-full flex items-center justify-center mr-3" style={{ backgroundColor: 'var(--color-accent-primary)' }}>
+                <span style={{ color: 'var(--color-text-inverse)' }} className="text-sm font-bold">₹</span>
               </div>
               <div>
-                <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Monthly EMI</p>
-                <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                  {formatCurrency(totalEMI)}
-                </p>
+                <p className="text-sm font-medium theme-text-secondary">Monthly EMI</p>
+                <p className="text-xl font-bold theme-text-primary">{formatCurrency(totalEMI)}</p>
               </div>
             </div>
           </div>
@@ -99,10 +95,7 @@ const LiabilitiesStep: React.FC = () => {
 
       {/* Add Liability Button */}
       <div className="text-center">
-        <button
-          onClick={handleAddLiability}
-          className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-        >
+        <button onClick={handleAddLiability} className="btn-primary flex items-center mx-auto">
           <Plus className="w-4 h-4 mr-2" />
           Add Liability
         </button>
@@ -111,7 +104,7 @@ const LiabilitiesStep: React.FC = () => {
       {/* Liabilities List */}
       {liabilities.length > 0 && (
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Liabilities</h3>
+          <h3 className="text-lg font-semibold theme-text-primary">Your Liabilities</h3>
           <div className="space-y-3">
             {liabilities.map((liability) => {
               const progress = liability.principalAmount > 0 
@@ -119,13 +112,13 @@ const LiabilitiesStep: React.FC = () => {
                 : 0;
               
               return (
-                <div key={liability.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+                <div key={liability.id} className="card !p-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center flex-1">
+                    <div className="flex items-center flex-1 min-w-0">
                       <span className="text-2xl mr-3">{getLiabilityIcon(liability.type)}</span>
-                      <div className="flex-1">
-                        <h4 className="font-medium text-gray-900 dark:text-white">{liability.name}</h4>
-                        <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-300">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium theme-text-primary break-words">{liability.name}</h4>
+                        <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-4 text-sm theme-text-secondary">
                           <span className="capitalize">{liability.type.replace('_', ' ')}</span>
                           <span>•</span>
                           <span>{liability.bankName}</span>
@@ -133,34 +126,28 @@ const LiabilitiesStep: React.FC = () => {
                           <span>{liability.interestRate}% interest</span>
                         </div>
                         
-                        <div className="mt-2 grid grid-cols-3 gap-4 text-sm">
+                        <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4 text-sm">
                           <div>
-                            <span className="text-gray-500 dark:text-gray-400">Outstanding:</span>
-                            <p className="font-medium text-red-600 dark:text-red-400">
-                              {formatLargeNumber(liability.currentBalance)}
-                            </p>
+                            <span className="theme-text-muted">Outstanding:</span>
+                            <p className="font-medium" style={{ color: 'var(--color-error)' }}>{formatLargeNumber(liability.currentBalance)}</p>
                           </div>
                           <div>
-                            <span className="text-gray-500 dark:text-gray-400">Monthly EMI:</span>
-                            <p className="font-medium text-blue-600 dark:text-blue-400">
-                              {formatCurrency(liability.emiAmount)}
-                            </p>
+                            <span className="theme-text-muted">Monthly EMI:</span>
+                            <p className="font-medium theme-text-primary">{formatCurrency(liability.emiAmount)}</p>
                           </div>
                           <div>
-                            <span className="text-gray-500 dark:text-gray-400">Progress:</span>
-                            <p className="font-medium text-green-600 dark:text-green-400">
-                              {progress.toFixed(1)}%
-                            </p>
+                            <span className="theme-text-muted">Progress:</span>
+                            <p className="font-medium text-green-600">{progress.toFixed(1)}%</p>
                           </div>
                         </div>
                         
                         {/* Progress Bar */}
                         <div className="mt-2">
-                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                          <div className="progress-bar">
                             <div
-                              className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-300"
-                              style={{ width: `${progress}%` }}
-                            ></div>
+                              className="progress-fill transition-all duration-300"
+                              style={{ width: `${progress}%`, backgroundColor: 'var(--color-success)' }}
+                            />
                           </div>
                         </div>
                       </div>
@@ -169,14 +156,14 @@ const LiabilitiesStep: React.FC = () => {
                     <div className="flex gap-2 ml-4">
                       <button
                         onClick={() => handleEditLiability(liability)}
-                        className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:bg-blue-900/20 rounded-lg transition-colors"
+                        className="p-2 rounded-lg transition-colors text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                         title="Edit Liability"
                       >
                         <Edit3 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteLiability(liability.id)}
-                        className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 rounded-lg transition-colors"
+                        className="p-2 rounded-lg transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                         title="Delete Liability"
                       >
                         <Trash2 className="w-4 h-4" />

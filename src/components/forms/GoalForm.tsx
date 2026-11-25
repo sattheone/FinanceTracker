@@ -220,9 +220,9 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
                 >
                   <div className="flex items-center space-x-3">
                     {formData.linkedSIPAssets.includes(asset.id) ? (
-                      <CheckCircle className="w-5 h-5 text-blue-600" />
+                      <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0" />
                     ) : (
-                      <Circle className="w-5 h-5 text-gray-400" />
+                      <Circle className="w-5 h-5 text-gray-400 flex-shrink-0" />
                     )}
                     <div>
                       <p className="font-medium text-gray-900 dark:text-white">{asset.name}</p>
@@ -231,11 +231,11 @@ const GoalForm: React.FC<GoalFormProps> = ({ goal, onSubmit, onCancel }) => {
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-gray-900 dark:text-white">
+                  <div className="text-right flex-shrink-0 pl-2">
+                    <p className="font-semibold text-gray-900 dark:text-white whitespace-nowrap">
                       {formatCurrency(asset.sipAmount || 0)}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">per month</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">per month</p>
                   </div>
                 </div>
               ))}

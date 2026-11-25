@@ -1,5 +1,5 @@
 import { db } from '../config/firebase';
-import { collection, doc, setDoc, getDoc, getDocs, query, where, updateDoc, increment, writeBatch, deleteDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocs, query, where, increment, writeBatch } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Transaction } from '../types';
 
@@ -23,11 +23,15 @@ const getSummaryId = (year: number, month: number, categoryId: string): string =
 
 /**
  * Update category summary when a transaction is added
+ * Uses setDoc with merge to avoid a read — works whether doc exists or not.
  */
 export const incrementCategorySummary = async (
   userId: string,
   transaction: Transaction
 ): Promise<void> => {
+  // Transfers are net-neutral and do not count toward category spending totals
+  if (transaction.type === 'transfer' || transaction.category === 'transfer') return;
+
   const date = new Date(transaction.date);
   const year = date.getFullYear();
   const month = date.getMonth() + 1; // 1-based month
@@ -37,40 +41,32 @@ export const incrementCategorySummary = async (
   const summaryRef = doc(db, `users/${userId}/categorySummaries`, summaryId);
   
   try {
-    const summaryDoc = await getDoc(summaryRef);
-    
-    if (summaryDoc.exists()) {
-      // Update existing summary
-      await updateDoc(summaryRef, {
-        totalSpent: increment(transaction.amount),
-        transactionCount: increment(1),
-        lastUpdated: new Date(),
-      });
-    } else {
-      // Create new summary
-      await setDoc(summaryRef, {
-        userId,
-        year,
-        month,
-        categoryId,
-        totalSpent: transaction.amount,
-        transactionCount: 1,
-        lastUpdated: new Date(),
-      });
-    }
+    // setDoc with merge: creates if missing, updates if existing — 1 write, 0 reads
+    await setDoc(summaryRef, {
+      userId,
+      year,
+      month,
+      categoryId,
+      totalSpent: increment(transaction.amount),
+      transactionCount: increment(1),
+      lastUpdated: new Date(),
+    }, { merge: true });
   } catch (error) {
     console.error('Error updating category summary:', error);
-    // Don't throw - allow transaction to succeed even if summary fails
   }
 };
 
 /**
  * Update category summary when a transaction is deleted
+ * Uses increment(-amount) to avoid a read — single write operation.
  */
 export const decrementCategorySummary = async (
   userId: string,
   transaction: Transaction
 ): Promise<void> => {
+  // Transfers are net-neutral
+  if (transaction.type === 'transfer' || transaction.category === 'transfer') return;
+
   const date = new Date(transaction.date);
   const year = date.getFullYear();
   const month = date.getMonth() + 1;
@@ -80,49 +76,25 @@ export const decrementCategorySummary = async (
   const summaryRef = doc(db, `users/${userId}/categorySummaries`, summaryId);
   
   try {
-    const summaryDoc = await getDoc(summaryRef);
-    
-    if (summaryDoc.exists()) {
-      const currentData = summaryDoc.data();
-      const newCount = Math.max(0, (currentData.transactionCount || 1) - 1);
-      const newTotal = Math.max(0, (currentData.totalSpent || transaction.amount) - transaction.amount);
-      
-      if (newCount <= 0 || newTotal <= 0.01) {
-        // Remove summary if no transactions left
-        try {
-          await deleteDoc(summaryRef);
-        } catch (deleteError) {
-          // Document may have already been deleted, ignore
-          console.debug('Category summary already deleted or not found:', summaryId);
-        }
-      } else {
-        try {
-          await updateDoc(summaryRef, {
-            totalSpent: increment(-transaction.amount),
-            transactionCount: increment(-1),
-            lastUpdated: new Date(),
-          });
-        } catch (updateError: any) {
-          // If document doesn't exist, it's already been cleaned up - that's fine
-          if (updateError?.code === 'not-found' || updateError?.message?.includes('No document to update')) {
-            console.debug('Category summary not found for update, already cleaned up:', summaryId);
-          } else {
-            throw updateError;
-          }
-        }
-      }
-    } else {
-      // Document doesn't exist - nothing to decrement, this is fine
-      console.debug('Category summary does not exist, nothing to decrement:', summaryId);
-    }
+    // Use setDoc with merge + increment to avoid reading first.
+    // If tranCount goes to 0, a cleanup pass on next sync can remove empty docs.
+    await setDoc(summaryRef, {
+      userId,
+      year,
+      month,
+      categoryId,
+      totalSpent: increment(-transaction.amount),
+      transactionCount: increment(-1),
+      lastUpdated: new Date(),
+    }, { merge: true });
   } catch (error) {
-    // Don't log as error if it's a "document not found" issue - that's expected in some cases
     console.debug('Decrement category summary skipped:', summaryId, error);
   }
 };
 
 /**
  * Update category summary when a transaction is modified
+ * Uses setDoc with merge + increment for zero-read updates.
  */
 export const updateCategorySummary = async (
   userId: string,
@@ -153,10 +125,14 @@ export const updateCategorySummary = async (
       const summaryRef = doc(db, `users/${userId}/categorySummaries`, summaryId);
       
       try {
-        await updateDoc(summaryRef, {
+        await setDoc(summaryRef, {
+          userId,
+          year: newYear,
+          month: newMonth,
+          categoryId: newCategory,
           totalSpent: increment(amountDiff),
           lastUpdated: new Date(),
-        });
+        }, { merge: true });
       } catch (error) {
         console.error('Error updating category summary amount:', error);
       }
@@ -300,6 +276,9 @@ export interface MonthlySummary {
   month: number; // 1-12
   categoryTotals: Record<string, number>; // { categoryId: totalSpent }
   totalSpent: number; // Sum of all categories
+  expense: number; // Total expense amount
+  income: number; // Total income amount
+  investment: number; // Total investment amount
   lastUpdated: Date;
 }
 
@@ -322,6 +301,12 @@ const yearlySummaryInFlight = new Map<string, Promise<YearlySummary | null>>();
 let allMonthlySummariesCache = new Map<string, MonthlySummary[]>();
 let allMonthlySummariesInFlight = new Map<string, Promise<MonthlySummary[]>>();
 
+// Track current userId so clearCategorySummaryCache can evict the right LS key
+let _currentUserId: string | null = null;
+export const setCurrentUserId = (userId: string | null) => { _currentUserId = userId; };
+
+const MONTHLY_SUMMARIES_LS_KEY = (userId: string) => `allMonthlySummaries:v1:${userId}`;
+
 /**
  * Clear the category summary cache (call after transactions are added/updated/deleted)
  */
@@ -332,91 +317,12 @@ export const clearCategorySummaryCache = () => {
   yearlySummaryInFlight.clear();
   allMonthlySummariesCache.clear();
   allMonthlySummariesInFlight.clear();
-};
-
-const getYearlySummary = async (userId: string, year: number): Promise<YearlySummary | null> => {
-  const summaryId = String(year);
-  const cacheKey = `${userId}:${summaryId}`;
-
-  if (yearlySummaryCache.has(cacheKey)) {
-    return yearlySummaryCache.get(cacheKey)!;
-  }
-
-  const inFlight = yearlySummaryInFlight.get(cacheKey);
-  if (inFlight) {
-    return inFlight;
-  }
-
-  const request = (async () => {
-    try {
-      const summaryRef = doc(db, `users/${userId}/yearlySummaries`, summaryId);
-      const summaryDoc = await getDoc(summaryRef);
-
-      if (summaryDoc.exists()) {
-        const data = summaryDoc.data();
-        const result: YearlySummary = {
-          id: summaryId,
-          userId: data.userId,
-          year: data.year,
-          categoryTotals: data.categoryTotals || {},
-          totalSpent: data.totalSpent || 0,
-          lastUpdated: data.lastUpdated?.toDate?.() || new Date()
-        };
-        yearlySummaryCache.set(cacheKey, result);
-        return result;
-      }
-
-      yearlySummaryCache.set(cacheKey, null);
-      return null;
-    } catch (error) {
-      console.error('Error fetching yearly summary:', error);
-      return null;
-    }
-  })();
-
-  yearlySummaryInFlight.set(cacheKey, request);
-
-  try {
-    return await request;
-  } finally {
-    yearlySummaryInFlight.delete(cacheKey);
+  if (_currentUserId) {
+    try { localStorage.removeItem(MONTHLY_SUMMARIES_LS_KEY(_currentUserId)); } catch { /* ignore */ }
   }
 };
 
-const saveYearlySummary = async (
-  userId: string,
-  year: number,
-  categoryTotals: Map<string, number>
-): Promise<void> => {
-  const summaryId = String(year);
-  const cacheKey = `${userId}:${summaryId}`;
-  const categoryTotalsObject = Object.fromEntries(categoryTotals.entries());
-  const totalSpent = Array.from(categoryTotals.values()).reduce((sum, amount) => sum + amount, 0);
 
-  const payload = {
-    userId,
-    year,
-    categoryTotals: categoryTotalsObject,
-    totalSpent,
-    lastUpdated: new Date(),
-  };
-
-  try {
-    const summaryRef = doc(db, `users/${userId}/yearlySummaries`, summaryId);
-    await setDoc(summaryRef, payload, { merge: true });
-  } catch (error) {
-    console.warn('Failed to persist yearly summary cache:', error);
-  }
-
-  yearlySummaryCache.set(cacheKey, {
-    id: summaryId,
-    userId,
-    year,
-    categoryTotals: categoryTotalsObject,
-    totalSpent,
-    lastUpdated: new Date(),
-  });
-};
 
 /**
  * Get optimized monthly summary for a specific month (1 read, cached)
@@ -453,6 +359,9 @@ export const getOptimizedMonthlySummary = async (
           month: data.month,
           categoryTotals: data.categoryTotals || {},
           totalSpent: data.totalSpent || 0,
+          expense: data.expense || 0,
+          income: data.income || 0,
+          investment: data.investment || 0,
           lastUpdated: data.lastUpdated?.toDate?.() || new Date()
         };
         monthlySummaryCache.set(cacheKey, result);
@@ -506,10 +415,21 @@ export const getOptimizedMonthlySummaries = async (
 export const getAllOptimizedMonthlySummaries = async (
   userId: string
 ): Promise<MonthlySummary[]> => {
-  // Return from cache if available (survives component remounts)
+  // Return from memory cache if available (survives component remounts)
   if (allMonthlySummariesCache.has(userId)) {
     return allMonthlySummariesCache.get(userId)!;
   }
+
+  // Check localStorage cache (survives page refresh — offline-first)
+  try {
+    const ls = localStorage.getItem(MONTHLY_SUMMARIES_LS_KEY(userId));
+    if (ls) {
+      const parsed: MonthlySummary[] = JSON.parse(ls);
+      const withDates = parsed.map(s => ({ ...s, lastUpdated: new Date(s.lastUpdated) }));
+      allMonthlySummariesCache.set(userId, withDates);
+      return withDates;
+    }
+  } catch { /* ignore parse errors */ }
 
   // Deduplicate concurrent requests
   const inFlight = allMonthlySummariesInFlight.get(userId);
@@ -532,6 +452,9 @@ export const getAllOptimizedMonthlySummaries = async (
           month: data.month,
           categoryTotals: data.categoryTotals || {},
           totalSpent: data.totalSpent || 0,
+          expense: data.expense || 0,
+          income: data.income || 0,
+          investment: data.investment || 0,
           lastUpdated: data.lastUpdated?.toDate?.() || new Date()
         };
 
@@ -545,6 +468,7 @@ export const getAllOptimizedMonthlySummaries = async (
       });
 
       allMonthlySummariesCache.set(userId, sorted);
+      try { localStorage.setItem(MONTHLY_SUMMARIES_LS_KEY(userId), JSON.stringify(sorted)); } catch { /* quota exceeded — ignore */ }
       return sorted;
     } catch (error) {
       console.error('Error fetching all optimized monthly summaries:', error);
@@ -569,50 +493,55 @@ export const getOptimizedCategorySummariesByMonth = async (
   year: number,
   month: number
 ): Promise<Map<string, number>> => {
-  console.log(`[CategorySummary] Loading optimized summary for ${year}-${month} (1 read)`);
-  const summary = await getOptimizedMonthlySummary(userId, year, month);
+  console.log(`[CategorySummary] Loading live category summary for ${year}-${month}`);
+  const categoryTotals = new Map<string, number>();
   
-  if (summary?.categoryTotals) {
-    return new Map(Object.entries(summary.categoryTotals));
+  try {
+    const summariesRef = collection(db, `users/${userId}/categorySummaries`);
+    const q = query(
+      summariesRef,
+      where('year', '==', year),
+      where('month', '==', month)
+    );
+    const querySnapshot = await getDocs(q);
+    
+    querySnapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      const categoryId = data.categoryId || 'uncategorized';
+      const amount = data.totalSpent || 0;
+      categoryTotals.set(categoryId, (categoryTotals.get(categoryId) || 0) + amount);
+    });
+  } catch (error) {
+    console.error('Error fetching monthly category summaries from collection:', error);
   }
   
-  return new Map();
+  return categoryTotals;
 };
 
 /**
- * Get category totals for a year using optimized structure (12 reads max)
+ * Get category totals for a year using optimized structure
  */
 export const getOptimizedCategorySummariesByYear = async (
   userId: string,
   year: number
 ): Promise<Map<string, number>> => {
-  console.log(`[CategorySummary] Loading optimized summaries for year ${year}`);
-
-  const yearlySummary = await getYearlySummary(userId, year);
-  if (yearlySummary?.categoryTotals) {
-    return new Map(Object.entries(yearlySummary.categoryTotals));
-  }
+  console.log(`[CategorySummary] Loading live category summaries for year ${year}`);
 
   const categoryTotals = new Map<string, number>();
-  const promises: Promise<MonthlySummary | null>[] = [];
   
-  // Fetch all 12 months
-  for (let month = 1; month <= 12; month++) {
-    promises.push(getOptimizedMonthlySummary(userId, year, month));
-  }
-  
-  const results = await Promise.all(promises);
-  
-  results.forEach(summary => {
-    if (summary?.categoryTotals) {
-      Object.entries(summary.categoryTotals).forEach(([categoryId, amount]) => {
-        categoryTotals.set(categoryId, (categoryTotals.get(categoryId) || 0) + amount);
-      });
-    }
-  });
-
-  if (categoryTotals.size > 0) {
-    void saveYearlySummary(userId, year, categoryTotals);
+  try {
+    const summariesRef = collection(db, `users/${userId}/categorySummaries`);
+    const q = query(summariesRef, where('year', '==', year));
+    const querySnapshot = await getDocs(q);
+    
+    querySnapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      const categoryId = data.categoryId || 'uncategorized';
+      const amount = data.totalSpent || 0;
+      categoryTotals.set(categoryId, (categoryTotals.get(categoryId) || 0) + amount);
+    });
+  } catch (error) {
+    console.error('Error fetching yearly category summaries from collection:', error);
   }
   
   return categoryTotals;
@@ -631,6 +560,9 @@ export const rebuildOptimizedMonthlySummaries = async (
     month: number;
     categoryTotals: Record<string, number>;
     totalSpent: number;
+    expense: number;
+    income: number;
+    investment: number;
   }>();
   
   transactions.forEach((txn) => {
@@ -645,13 +577,30 @@ export const rebuildOptimizedMonthlySummaries = async (
         year,
         month,
         categoryTotals: {},
-        totalSpent: 0
+        totalSpent: 0,
+        expense: 0,
+        income: 0,
+        investment: 0
       });
     }
     
+    const isTransfer = txn.type === 'transfer' || categoryId === 'transfer';
+    if (isTransfer) {
+      // Transfers are net-neutral and do not count toward cash-flow income, expense, or totalSpent
+      return;
+    }
+
     const summary = monthlyData.get(monthKey)!;
     summary.categoryTotals[categoryId] = (summary.categoryTotals[categoryId] || 0) + txn.amount;
-    summary.totalSpent += txn.amount;
+    if (txn.type === 'income') {
+      summary.income += txn.amount;
+    } else if (txn.type === 'investment') {
+      summary.investment += txn.amount;
+      summary.totalSpent += txn.amount;
+    } else {
+      summary.expense += txn.amount;
+      summary.totalSpent += txn.amount;
+    }
   });
   
   // Write all summaries
@@ -692,6 +641,8 @@ export const rebuildCategorySummaries = async (
   
   // Aggregate all transactions
   transactions.forEach((txn) => {
+    if (txn.type === 'transfer' || txn.category === 'transfer') return;
+
     const date = new Date(txn.date);
     const year = date.getFullYear();
     const month = date.getMonth() + 1;

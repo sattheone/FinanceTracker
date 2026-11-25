@@ -52,7 +52,7 @@ const TransactionSelectorModal: React.FC<TransactionSelectorModalProps> = ({
                 </div>
 
                 {/* List */}
-                <div className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                <div className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden overflow-x-auto">
                     {filteredTransactions.length === 0 ? (
                         <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                             No transactions found matching "{searchTerm}"
@@ -90,7 +90,7 @@ const TransactionSelectorModal: React.FC<TransactionSelectorModalProps> = ({
                                             {formatCurrency(t.amount)}
                                         </td>
                                         <td className="px-2 py-1 text-center">
-                                            <button className="text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-blue-50 dark:bg-blue-900/20 rounded-full">
+                                            <button className="text-blue-600 dark:text-blue-400 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity p-1 bg-blue-50 dark:bg-blue-900/20 rounded-full">
                                                 <ArrowRight className="w-3 h-3" />
                                             </button>
                                         </td>

@@ -60,14 +60,14 @@ const CategoryRules: React.FC = () => {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                     <h2 className={cn(theme.heading2, 'mb-2')}>Category Rules</h2>
                     <p className={theme.textSecondary}>
                         Manage auto-categorization rules for transactions
                     </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                     <button
                         onClick={() => setShowSuggestedModal(true)}
                         className="flex items-center space-x-2 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg transition-colors shadow-sm border border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800"

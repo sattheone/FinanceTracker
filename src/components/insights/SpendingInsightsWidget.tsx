@@ -139,8 +139,8 @@ const SpendingInsightsWidget: React.FC = () => {
 
   return (
     <div className={theme.card}>
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div className="min-w-0">
           <h3 className={cn(theme.heading3, 'flex items-center')}>
             <Lightbulb className="w-5 h-5 mr-2 text-yellow-600" />
             Spending Insights
@@ -149,9 +149,9 @@ const SpendingInsightsWidget: React.FC = () => {
         </div>
 
         {/* Filter Buttons */}
-        <div className="flex items-center space-x-2">
-          <Filter className="w-4 h-4 text-gray-500" />
-          <div className="flex space-x-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+        <div className="flex items-center space-x-2 min-w-0">
+          <Filter className="w-4 h-4 text-gray-500 flex-shrink-0" />
+          <div className="flex space-x-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg overflow-x-auto scrollbar-hide">
             {[
               { id: 'all', label: 'All', count: insights.length },
               { id: 'trend', label: 'Trends', count: insights.filter(i => i.type === 'trend').length },
@@ -162,7 +162,7 @@ const SpendingInsightsWidget: React.FC = () => {
                 key={filter.id}
                 onClick={() => setSelectedFilter(filter.id as any)}
                 className={cn(
-                  'px-3 py-1 text-sm rounded-md transition-colors',
+                  'px-3 py-1 text-sm rounded-md transition-colors flex-shrink-0 whitespace-nowrap',
                   selectedFilter === filter.id
                     ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
                     : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'

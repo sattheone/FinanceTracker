@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Check } from 'lucide-react';
+import { Search, Check, Plus } from 'lucide-react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { useData } from '../../contexts/DataContext';
 
@@ -10,6 +10,8 @@ interface InlineAccountPickerProps {
     onCancel?: () => void;
     triggerClassName?: string;
     renderTrigger?: (onClick: (e: React.MouseEvent) => void) => React.ReactNode;
+    // Shows an "Add new account" action at the bottom of the list
+    onAddNew?: () => void;
 }
 
 const InlineAccountPicker: React.FC<InlineAccountPickerProps> = ({
@@ -17,7 +19,8 @@ const InlineAccountPicker: React.FC<InlineAccountPickerProps> = ({
     onSave,
     onCancel,
     triggerClassName,
-    renderTrigger
+    renderTrigger,
+    onAddNew
 }) => {
     const { bankAccounts } = useData();
     const theme = useThemeClasses();
@@ -44,7 +47,8 @@ const InlineAccountPicker: React.FC<InlineAccountPickerProps> = ({
             setPopoverPosition({
                 top: showAbove ? undefined : rect.bottom + GAP,
                 bottom: showAbove ? (viewportHeight - rect.top + GAP) : undefined,
-                left: rect.left,
+                // Keep the popover on screen on narrow phones
+                left: Math.max(GAP, Math.min(rect.left, window.innerWidth - 256 - GAP)),
                 width: 256,
                 maxHeight: showAbove ? Math.min(POPOVER_HEIGHT, rect.top - GAP * 2) : Math.min(POPOVER_HEIGHT, viewportHeight - rect.bottom - GAP * 2)
             });
@@ -174,6 +178,22 @@ const InlineAccountPicker: React.FC<InlineAccountPickerProps> = ({
                             </div>
                         )}
                     </div>
+                    {onAddNew && (
+                        <div className="p-1 border-t border-gray-100 dark:border-gray-700">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsOpen(false);
+                                    onAddNew();
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-left text-sm font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+                                style={{ color: 'var(--color-accent-primary)' }}
+                            >
+                                <Plus className="w-4 h-4" />
+                                Add new account
+                            </button>
+                        </div>
+                    )}
                 </div>,
                 document.body
             )}

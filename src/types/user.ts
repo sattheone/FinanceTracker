@@ -7,6 +7,11 @@ export interface User {
   onboardingCompleted: boolean;
 }
 
+export interface SyncSettings {
+  mode: 'auto' | 'manual' | 'always';
+  autoIntervalMinutes: 5 | 15 | 30 | 60;
+}
+
 export interface UserProfile {
   personalInfo: {
     name: string;
@@ -23,6 +28,7 @@ export interface UserProfile {
   displayPreferences?: {
     defaultTimePeriod: 'current' | 'previous';
   };
+  syncSettings?: SyncSettings;
   onboardingStep: number;
 }
 

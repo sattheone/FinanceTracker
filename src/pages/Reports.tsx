@@ -1,16 +1,41 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { TrendingUp, PieChart as PieChartIcon, BarChart3, Target } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, formatLargeNumber } from '../utils/formatters';
 
 const Reports: React.FC = () => {
-  const { assets, goals, monthlyBudget, licPolicies, loadAssets, loadGoals, loadMonthlyBudget } = useData();
+  const {
+    assets,
+    goals,
+    monthlyBudget,
+    bankAccounts,
+    liabilities,
+    insurance,
+    getAccountBalance,
+    loadAssets,
+    loadGoals,
+    loadMonthlyBudget,
+    loadLiabilities,
+    loadInsurance
+  } = useData();
+
+  // Phones: hide outside pie labels (they clip; the legend below covers them) and shorten axis ticks
+  const [isNarrow, setIsNarrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+  useEffect(() => {
+    const onResize = () => setIsNarrow(window.innerWidth < 640);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const shortTick = (value: string) =>
+    isNarrow && typeof value === 'string' && value.length > 10 ? `${value.slice(0, 9)}…` : value;
 
   useEffect(() => {
     loadAssets();
     loadGoals();
     loadMonthlyBudget();
+    loadLiabilities();
+    loadInsurance();
   }, []);
   
   // Asset allocation data for pie chart
@@ -24,6 +49,10 @@ const Reports: React.FC = () => {
   }, {} as Record<string, number>);
 
   const totalAssets = assets.reduce((sum, a) => sum + a.currentValue, 0);
+  const totalBankBalance = bankAccounts.reduce((sum, a) => sum + getAccountBalance(a.id), 0);
+  const totalLiabilities = liabilities.reduce((sum, l) => sum + (Number(l.currentBalance) || 0), 0);
+  const netWorth = totalAssets + totalBankBalance - totalLiabilities;
+
   const pieData = Object.entries(assetAllocation).map(([name, value]) => ({
     name: name.charAt(0).toUpperCase() + name.slice(1),
     value,
@@ -49,12 +78,19 @@ const Reports: React.FC = () => {
     target: goal.targetAmount
   }));
 
-  // LIC maturity timeline (next 10 years)
+  // LIC maturity timeline from insurance policies (next 10 years)
   const currentYear = new Date().getFullYear();
+  const licPolicies = insurance
+    .filter(p => (p.type === 'endowment' || p.type === 'other') && p.maturityAmount)
+    .map(p => ({
+      ...p,
+      maturityYear: p.maturityDate ? new Date(p.maturityDate).getFullYear() : 0,
+    }));
+
   const licTimelineData = [];
   for (let year = currentYear; year <= currentYear + 10; year++) {
     const yearPolicies = licPolicies.filter(p => p.maturityYear === year);
-    const yearAmount = yearPolicies.reduce((sum, p) => sum + p.maturityAmount, 0);
+    const yearAmount = yearPolicies.reduce((sum, p) => sum + (p.maturityAmount || 0), 0);
     licTimelineData.push({
       year: year.toString(),
       amount: yearAmount,
@@ -77,7 +113,7 @@ const Reports: React.FC = () => {
           <PieChartIcon className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
           <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Net Worth</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">
-            {formatLargeNumber(totalAssets)}
+            {formatLargeNumber(netWorth)}
           </p>
         </div>
         <div className="metric-card text-center">
@@ -117,7 +153,7 @@ const Reports: React.FC = () => {
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, percentage }) => `${name}: ${percentage}%`}
+                label={isNarrow ? false : ({ name, percentage }) => `${name}: ${percentage}%`}
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"
@@ -146,9 +182,9 @@ const Reports: React.FC = () => {
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Monthly Cash Flow</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={cashFlowData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <BarChart data={cashFlowData} margin={isNarrow ? { top: 20, right: 10, left: 0, bottom: 5 } : { top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
+              <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} tickFormatter={shortTick} interval={0} />
               <YAxis tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}K`} />
               <Tooltip formatter={(value) => formatCurrency(Math.abs(value as number))} />
               <Bar dataKey="amount">
@@ -171,9 +207,9 @@ const Reports: React.FC = () => {
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Financial Goals Progress</h3>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={goalsData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+          <BarChart data={goalsData} margin={isNarrow ? { top: 20, right: 10, left: 0, bottom: 5 } : { top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
+            <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} tickFormatter={shortTick} interval={0} />
             <YAxis tickFormatter={(value) => `${value}%`} />
             <Tooltip 
               formatter={(value, name) => [
@@ -190,7 +226,7 @@ const Reports: React.FC = () => {
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">LIC Policies Maturity Timeline (Next 10 Years)</h3>
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={licTimelineData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+          <LineChart data={licTimelineData} margin={isNarrow ? { top: 20, right: 10, left: 0, bottom: 5 } : { top: 20, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="year" />
             <YAxis tickFormatter={(value) => `₹${(value / 100000).toFixed(0)}L`} />

@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, FileSpreadsheet, X, Loader2, AlertCircle, CheckCircle, Lock, Eye, EyeOff, FileText, Image } from 'lucide-react';
 import { excelParser, ParsedTransaction, HeaderDetectionError } from '../../services/excelParser';
-import bankStatementParser from '../../services/bankStatementParser';
+import bankStatementParser, { StatementSectionInfo } from '../../services/bankStatementParser';
 import { backupImporter } from '../../services/backupImporter';
 import { aiService } from '../../services/aiService';
 import ColumnMappingDialog from './ColumnMappingDialog';
@@ -63,6 +63,8 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       }
 
       let transactions: ParsedTransaction[] = [];
+      // Per-account sections when one PDF covers several accounts
+      let statementSections: StatementSectionInfo[] | undefined;
 
       if (importType === 'backup' && file.name.toLowerCase().endsWith('.csv')) {
         transactions = await backupImporter.parseBackupCSV(file);
@@ -97,6 +99,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
           // Convert to ParsedTransaction format
           transactions = statementData.transactions;
+          statementSections = bankStatementParser.toSectionInfos(statementData.sections);
           console.log('Transactions found:', transactions.length);
 
           // If we reached here, password was correct
@@ -184,6 +187,9 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         size: file.size,
         lastModified: file.lastModified
       };
+      if (statementSections) {
+        (transactions as any).statementSections = statementSections;
+      }
 
       setParseResult(transactions);
       onTransactionsParsed(transactions);
@@ -326,162 +332,128 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{title}</h3>
-        <p className="text-sm text-gray-600 dark:text-gray-300">{description}</p>
+        <h3 className="text-base font-semibold theme-text-primary mb-0.5">{title}</h3>
+        <p className="text-sm theme-text-secondary">{description}</p>
       </div>
 
       {!uploadedFile ? (
         <div
           {...getRootProps()}
-          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${isDragActive
-            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-            : 'border-gray-300 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-gray-50 dark:hover:bg-gray-800'
-            }`}
+          className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors"
+          style={{
+            borderColor: isDragActive ? 'var(--color-accent-primary)' : 'var(--color-border-primary)',
+            backgroundColor: isDragActive ? 'var(--color-bg-secondary)' : 'transparent',
+          }}
         >
           <input {...getInputProps()} />
-          <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          {isDragActive ? (
-            <p className="text-primary-600 font-medium">Drop the file here...</p>
-          ) : (
-            <div>
-              <p className="text-gray-600 dark:text-gray-300 font-medium mb-2">
-                Drag & drop a file here, or click to select
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Supports PDF, Excel (.xlsx, .xls), CSV, and images (JPG, PNG) - max 10MB
-              </p>
-            </div>
-          )}
+          <Upload className="w-8 h-8 mx-auto mb-3" style={{ color: 'var(--color-text-muted)' }} />
+          <p className="text-sm font-medium theme-text-primary mb-1">
+            {isDragActive ? 'Drop the file here…' : 'Drag & drop or click to select'}
+          </p>
+          <p className="text-xs theme-text-muted">PDF, Excel (.xlsx, .xls), CSV, JPG, PNG — max 50MB</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border">
-            <div className="flex items-center">
+        <div className="space-y-3">
+          {/* File pill */}
+          <div className="flex items-center justify-between px-3 py-2.5 rounded-xl" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)' }}>
+            <div className="flex items-center gap-2 min-w-0">
               {getFileIcon(uploadedFile.name)}
-              <div className="ml-3">
-                <p className="font-medium text-gray-900 dark:text-white">{uploadedFile.name}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  {(uploadedFile.size / 1024).toFixed(1)} KB
-                </p>
+              <div className="min-w-0">
+                <p className="text-sm font-medium theme-text-primary truncate">{uploadedFile.name}</p>
+                <p className="text-xs theme-text-muted">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
               </div>
             </div>
-            <button
-              onClick={clearFile}
-              className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-300"
-            >
-              <X className="w-5 h-5" />
+            <button onClick={clearFile} className="p-1 rounded-lg transition-colors" style={{ color: 'var(--color-text-muted)' }}>
+              <X className="w-4 h-4" />
             </button>
           </div>
 
+          {/* Password prompt */}
           {isPasswordProtected && (
-            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
-              <div className="flex items-start mb-4">
-                <Lock className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mr-3 mt-0.5" />
-                <div>
-                  <p className="text-yellow-800 dark:text-yellow-200 font-medium">Password Protected PDF</p>
-                  <p className="text-yellow-700 dark:text-yellow-300 text-sm">
-                    This file is password protected. Please enter the password to unlock it.
-                  </p>
-                </div>
+            <div className="rounded-xl p-4 space-y-3" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)' }}>
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-accent-primary)' }} />
+                <p className="text-sm font-medium theme-text-primary">Password protected PDF</p>
               </div>
-
               <form onSubmit={handlePasswordSubmit} className="flex gap-2">
                 <div className="relative flex-1">
                   <input
-                    type={showPassword ? "text" : "password"}
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter PDF password"
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-white pr-10"
+                    className="input-field theme-input w-full pr-9"
                     autoFocus
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2"
+                    style={{ color: 'var(--color-text-muted)' }}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <button
-                  type="submit"
-                  disabled={!password || isParsing}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isParsing ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Unlock'}
+                <button type="submit" disabled={!password || isParsing} className="btn-primary flex items-center gap-1.5">
+                  {isParsing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Unlock'}
                 </button>
               </form>
-              {passwordError && (
-                <p className="mt-2 text-sm text-red-600 dark:text-red-400">{passwordError}</p>
-              )}
+              {passwordError && <p className="text-xs" style={{ color: 'var(--color-error)' }}>{passwordError}</p>}
             </div>
           )}
 
+          {/* Parsing indicator */}
           {isParsing && !isPasswordProtected && (
-            <div className="flex items-center justify-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin mr-3" />
-              <span className="text-blue-700 dark:text-blue-300">
-                {isAIParsing ? 'Using AI to extract transactions from image...' : 'Parsing bank statement...'}
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-primary)' }}>
+              <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: 'var(--color-accent-primary)' }} />
+              <span className="text-sm theme-text-secondary">
+                {isAIParsing ? 'Extracting transactions with AI…' : 'Parsing bank statement…'}
               </span>
             </div>
           )}
 
+          {/* Error */}
           {error && !isPasswordProtected && (
-            <div className="flex items-start p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mr-3 mt-0.5" />
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-error)' }}>
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-error)' }} />
               <div>
-                <p className="text-red-700 dark:text-red-300 font-medium">Parsing Failed</p>
-                <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+                <p className="text-sm font-medium" style={{ color: 'var(--color-error)' }}>Parsing failed</p>
+                <p className="text-xs theme-text-secondary mt-0.5">{error}</p>
               </div>
             </div>
           )}
 
+          {/* Success */}
           {parseResult && (
-            <div className="flex items-start p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
-              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mr-3 mt-0.5" />
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-success)' }}>
+              <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-success)' }} />
               <div>
-                <p className="text-green-700 dark:text-green-300 font-medium">Successfully Parsed!</p>
-                <p className="text-green-600 dark:text-green-400 text-sm">
-                  Found {parseResult.length} transactions. Review and confirm to add them.
-                </p>
+                <p className="text-sm font-medium" style={{ color: 'var(--color-success)' }}>Parsed successfully</p>
+                <p className="text-xs theme-text-secondary mt-0.5">{parseResult.length} transactions found — review and confirm to save.</p>
               </div>
             </div>
           )}
         </div>
       )}
 
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-        <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">📄 Supported Formats:</h4>
-        <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-          <li>• <strong>PDF:</strong> Bank statements (password protected supported)</li>
-          <li>• <strong>Excel/CSV:</strong> Standard bank statement formats</li>
-          <li>• <strong>Images:</strong> Screenshots of transactions (AI-powered extraction)</li>
-        </ul>
-      </div>
-
-      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
-        <h4 className="font-medium text-yellow-900 dark:text-yellow-100 mb-2">💡 Tips for better parsing:</h4>
-        <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
-          <li>• Ensure the file contains standard bank statement columns</li>
-          <li>• Remove any summary rows or extra headers before uploading</li>
-          <li>• The parser will automatically categorize transactions</li>
-          <li>• You can edit any transaction details before saving</li>
-        </ul>
-      </div>
+      {/* Compact format hint */}
+      <p className="text-xs theme-text-muted">
+        Supports PDF (password-protected OK), Excel/CSV, and image screenshots (AI extraction).
+      </p>
 
       <ColumnMappingDialog
         isOpen={showMappingDialog}
         onClose={() => {
           setShowMappingDialog(false);
-          setUploadedFile(null); // Cancel upload if they cancel mapping
+          setUploadedFile(null);
         }}
         onConfirm={handleMappingConfirm}
         rawData={mappingRawData}
         fileName={mappingFileName}
       />
-    </div >
+    </div>
   );
 };
 

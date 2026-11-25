@@ -71,7 +71,7 @@ const CategoryMappingModal: React.FC<CategoryMappingModalProps> = ({
                             </button>
                         </div>
 
-                        <div className="max-h-[60vh] overflow-y-auto px-1">
+                        <div className="max-h-[60vh] overflow-auto px-1">
                             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                 <thead className="bg-gray-50 dark:bg-gray-700">
                                     <tr>

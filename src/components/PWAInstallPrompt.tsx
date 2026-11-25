@@ -70,7 +70,7 @@ const PWAInstallPrompt: React.FC = () => {
     if (!showPrompt) return null;
 
     return (
-        <div className="fixed bottom-4 left-4 right-4 z-50 animate-in slide-in-from-bottom-5 duration-500">
+        <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:bottom-4 left-4 right-4 z-50 animate-in slide-in-from-bottom-5 duration-500">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 p-4 relative max-w-md mx-auto">
                 <button
                     onClick={handleDismiss}

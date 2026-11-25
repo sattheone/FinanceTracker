@@ -1,52 +1,56 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useData } from '../contexts/DataContext';
-import { useAuth } from '../contexts/AuthContext';
 import CategoryList from '../components/categories/CategoryList';
 import CategoryDetail from '../components/categories/CategoryDetail';
 import CategoryOverview from '../components/categories/CategoryOverview';
 import { useThemeClasses, cn } from '../hooks/useThemeClasses';
-import { X, ChevronDown, Filter, Building2, TrendingUp, Plus, List, Layers, Wallet } from 'lucide-react';
+import { X, ChevronDown, Filter, Building2, TrendingUp, Plus, List, Wallet } from 'lucide-react';
 import SidePanel from '../components/common/SidePanel';
 import CategoryForm, { CategoryFormHandle } from '../components/categories/CategoryForm';
-import {
-    getOptimizedCategorySummariesByMonth,
-    getOptimizedCategorySummariesByYear,
-    getCategorySummariesByMonth,
-    getCategorySummariesByYear
-} from '../services/categorySummaryService';
-import { FirebaseService } from '../services/firebaseService';
 import { Transaction } from '../types';
+import { resolveTransactionType } from '../constants/categories';
 
 // Module-level cache: survives component unmount/remount across navigations
 const yearCategoryCache = new Map<string, Transaction[]>();
 
 const Categories: React.FC = () => {
     const { categories, transactions, monthlyBudget, bankAccounts, addCategory, loadTransactionsForPeriod, userProfile, updateTransaction, categorySummaryVersion } = useData();
-    const { user } = useAuth();
     const theme = useThemeClasses();
     const [searchParams] = useSearchParams();
 
 
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-    const [selectedSection, setSelectedSection] = useState<'expense' | 'investment' | 'income'>('expense');
     const defaultViewMode: 'month' | 'prevMonth' =
         userProfile?.displayPreferences?.defaultTimePeriod === 'previous' ? 'prevMonth' : 'month';
     const [viewMode, setViewMode] = useState<'month' | 'prevMonth' | 'year' | 'prevYear'>(defaultViewMode);
-    const [includeInvestments, setIncludeInvestments] = useState(false);
-    const [includeIncome, setIncludeIncome] = useState(false);
-    const [includeTransfer, setIncludeTransfer] = useState(false);
-    const [categoryDisplayMode, setCategoryDisplayMode] = useState<'flat' | 'grouped'>('flat');
-    const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
+    const [includeInvestments, setIncludeInvestments] = useState(() => {
+        try { return localStorage.getItem('categoryFilter:includeInvestments') === 'true'; } catch { return false; }
+    });
+    const [includeIncome, setIncludeIncome] = useState(() => {
+        try { return localStorage.getItem('categoryFilter:includeIncome') === 'true'; } catch { return false; }
+    });
+    const [includeTransfer, setIncludeTransfer] = useState(() => {
+        try { return localStorage.getItem('categoryFilter:includeTransfer') === 'true'; } catch { return false; }
+    });
+    const [selectedAccountId, setSelectedAccountId] = useState<string>(() => {
+        try { return localStorage.getItem('categoryFilter:accountId') || 'all'; } catch { return 'all'; }
+    });
     const [showFilters, setShowFilters] = useState(false);
     const [showAddPanel, setShowAddPanel] = useState(false);
     const filterRef = useRef<HTMLDivElement>(null);
     const formRef = useRef<CategoryFormHandle | null>(null);
+
+    // Persist filter changes to localStorage
+    useEffect(() => {
+        try {
+            localStorage.setItem('categoryFilter:includeInvestments', String(includeInvestments));
+            localStorage.setItem('categoryFilter:includeIncome', String(includeIncome));
+            localStorage.setItem('categoryFilter:includeTransfer', String(includeTransfer));
+            localStorage.setItem('categoryFilter:accountId', selectedAccountId);
+        } catch { /* quota exceeded — ignore */ }
+    }, [includeInvestments, includeIncome, includeTransfer, selectedAccountId]);
     
-    // Category summaries state for sidebar
-    const [categorySummaries, setCategorySummaries] = useState<Map<string, number>>(new Map());
-    const [_isSummariesLoading, setIsSummariesLoading] = useState(true);
-    const summaryRequestSeq = useRef(0);
 
     // Close popover when clicking outside
     useEffect(() => {
@@ -65,6 +69,10 @@ const Categories: React.FC = () => {
     // For 'month' and 'prevMonth': load just that single month
     // For 'year' and 'prevYear': load all months of the target year
     //   (each month is individually cached in localStorage, so only the first visit costs reads)
+    // Load transactions for the currently viewed period.
+    // For 'month' and 'prevMonth': load just that single month.
+    // For 'year' and 'prevYear': load all 12 months of the target year in parallel.
+    //   (each month is individually cached in localStorage, so cached months cost 0 reads and load instantly).
     useEffect(() => {
         const now = new Date();
         const currentYear = now.getFullYear();
@@ -80,18 +88,34 @@ const Categories: React.FC = () => {
             const startDate = new Date(prevYear, prevMonth, 1);
             const endDate = new Date(prevYear, prevMonth + 1, 0, 23, 59, 59);
             loadTransactionsForPeriod(startDate.toISOString(), endDate.toISOString());
-        } else if (viewMode === 'year' || viewMode === 'prevYear') {
-            // Load all months for the target year
-            // loadTransactionsForPeriod checks localStorage cache per month, so repeated visits are free
-            const targetYear = viewMode === 'prevYear' ? currentYear - 1 : currentYear;
-            const maxMonth = targetYear === currentYear ? currentMonth : 11; // don't load future months
-            for (let m = 0; m <= maxMonth; m++) {
-                const startDate = new Date(targetYear, m, 1);
-                const endDate = new Date(targetYear, m + 1, 0, 23, 59, 59);
+        } else if (viewMode === 'year') {
+            for (let m = 0; m < 12; m++) {
+                const startDate = new Date(currentYear, m, 1);
+                const endDate = new Date(currentYear, m + 1, 0, 23, 59, 59);
+                loadTransactionsForPeriod(startDate.toISOString(), endDate.toISOString());
+            }
+        } else if (viewMode === 'prevYear') {
+            const prevYear = currentYear - 1;
+            for (let m = 0; m < 12; m++) {
+                const startDate = new Date(prevYear, m, 1);
+                const endDate = new Date(prevYear, m + 1, 0, 23, 59, 59);
                 loadTransactionsForPeriod(startDate.toISOString(), endDate.toISOString());
             }
         }
-    }, [viewMode]);
+    }, [viewMode, loadTransactionsForPeriod]);
+
+    // When a category is selected, load a trailing history window so the
+    // detail chart shows a multi-month trend rather than just the current period.
+    useEffect(() => {
+        if (!selectedCategoryId) return;
+        const now = new Date();
+        for (let i = 1; i <= 6; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const startDate = new Date(d.getFullYear(), d.getMonth(), 1);
+            const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+            loadTransactionsForPeriod(startDate.toISOString(), endDate.toISOString());
+        }
+    }, [selectedCategoryId, loadTransactionsForPeriod]);
 
     // Read view mode from URL
     useEffect(() => {
@@ -113,62 +137,7 @@ const Categories: React.FC = () => {
         yearCategoryCache.clear();
     }, [categorySummaryVersion]);
 
-    // Load category summaries for sidebar based on view mode.
-    // On mutation-triggered refreshes, read from `categorySummaries` collection for immediate consistency.
-    const summaryRefreshTrigger = categorySummaryVersion;
 
-    useEffect(() => {
-        if (!user?.id) return;
-
-        const requestSeq = ++summaryRequestSeq.current;
-        let isActive = true;
-        
-        setIsSummariesLoading(true);
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth() + 1; // 1-based for summaries
-        
-        let loadPromise: Promise<Map<string, number>>;
-        
-        const useImmediateSource = summaryRefreshTrigger > 0;
-
-        if (viewMode === 'month') {
-            loadPromise = useImmediateSource
-                ? getCategorySummariesByMonth(user.id, year, month)
-                : getOptimizedCategorySummariesByMonth(user.id, year, month);
-        } else if (viewMode === 'prevMonth') {
-            // 1 read only - previous month
-            const prevMonth = month === 1 ? 12 : month - 1;
-            const prevYear = month === 1 ? year - 1 : year;
-            loadPromise = useImmediateSource
-                ? getCategorySummariesByMonth(user.id, prevYear, prevMonth)
-                : getOptimizedCategorySummariesByMonth(user.id, prevYear, prevMonth);
-        } else if (viewMode === 'year') {
-            loadPromise = useImmediateSource
-                ? getCategorySummariesByYear(user.id, year)
-                : getOptimizedCategorySummariesByYear(user.id, year);
-        } else { // prevYear
-            loadPromise = useImmediateSource
-                ? getCategorySummariesByYear(user.id, year - 1)
-                : getOptimizedCategorySummariesByYear(user.id, year - 1);
-        }
-        
-        loadPromise
-            .then(summaries => {
-                if (!isActive || summaryRequestSeq.current !== requestSeq) return;
-                setCategorySummaries(summaries);
-                setIsSummariesLoading(false);
-            })
-            .catch(err => {
-                if (!isActive || summaryRequestSeq.current !== requestSeq) return;
-                console.error('Failed to load category summaries:', err);
-                setIsSummariesLoading(false);
-            });
-
-        return () => {
-            isActive = false;
-        };
-    }, [user?.id, viewMode, summaryRefreshTrigger]);
 
     // Filter transactions by account first (only used when category is selected)
     const filteredTransactions = useMemo(() => {
@@ -177,17 +146,25 @@ const Categories: React.FC = () => {
     }, [transactions, selectedAccountId]);
 
     // --- 1. Convert summaries to spending records for CategoryList ---
-    const currentMonth = useMemo(() => new Date(), []);
+    const currentMonth = useMemo(() => {
+        const now = new Date();
+        if (viewMode === 'prevMonth') {
+            return new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        } else if (viewMode === 'prevYear') {
+            return new Date(now.getFullYear() - 1, now.getMonth(), 1);
+        }
+        return now;
+    }, [viewMode]);
 
-    const { expenseSpending, investmentSpending, incomeSpending } = useMemo(() => {
+    const { expenseSpending, investmentSpending, incomeSpending, transferSpending } = useMemo(() => {
         const expenses: Record<string, number> = {};
         const investments: Record<string, number> = {};
         const income: Record<string, number> = {};
+        const transfers: Record<string, number> = {};
         
         const now = new Date();
         const currentYear = now.getFullYear();
         const currentMonthNum = now.getMonth() + 1; // 1-based
-        const isYearView = viewMode === 'year' || viewMode === 'prevYear';
         
         // Filter transactions based on viewMode
         const relevantTransactions = filteredTransactions.filter(t => {
@@ -212,239 +189,80 @@ const Categories: React.FC = () => {
         relevantTransactions.forEach(t => {
             const categoryId = t.category || 'uncategorized';
             const amount = t.amount || 0;
+            const resolvedType = resolveTransactionType(t, categories);
             
-            if (t.type === 'investment') {
+            if (resolvedType === 'transfer') {
+                transfers[categoryId] = (transfers[categoryId] || 0) + amount;
+            } else if (resolvedType === 'investment') {
                 investments[categoryId] = (investments[categoryId] || 0) + amount;
-            } else if (t.type === 'income') {
+            } else if (resolvedType === 'income') {
                 income[categoryId] = (income[categoryId] || 0) + amount;
-            } else if (t.type === 'expense' || t.type === 'transfer') {
+            } else {
                 expenses[categoryId] = (expenses[categoryId] || 0) + amount;
             }
         });
         
-        // For year views, use categorySummaries (from optimized service) as the
-        // authoritative source when transactions may not be fully loaded yet.
-        // Determine the type bucket from whatever transactions are in memory,
-        // then apply the summary total so the sidebar shows accurate amounts.
-        if (isYearView && categorySummaries.size > 0) {
-            // Build sets of known category types from in-memory transactions
-            const investmentCategoryIds = new Set<string>();
-            const expenseCategoryIds = new Set<string>();
-            
-            relevantTransactions.forEach(t => {
-                const categoryId = t.category || 'uncategorized';
-                if (t.type === 'investment') {
-                    investmentCategoryIds.add(categoryId);
-                } else if (t.type === 'expense' || t.type === 'transfer') {
-                    expenseCategoryIds.add(categoryId);
-                }
-            });
-            
-            // Augment with categorySummaries: if summary total is higher than
-            // what we computed from transactions, use the summary total instead.
-            categorySummaries.forEach((summaryAmount, categoryId) => {
-                if (summaryAmount <= 0) return;
-                
-                const txExpense = expenses[categoryId] || 0;
-                const txInvestment = investments[categoryId] || 0;
-                const txTotal = txExpense + txInvestment;
-                
-                if (summaryAmount > txTotal * 1.01) {
-                    // Summary has more data than in-memory transactions
-                    const isKnownInvestment = investmentCategoryIds.has(categoryId);
-                    const isKnownExpense = expenseCategoryIds.has(categoryId);
-                    
-                    if (isKnownInvestment && isKnownExpense && txTotal > 0) {
-                        // Mixed type: preserve ratio from in-memory transactions
-                        const investRatio = txInvestment / txTotal;
-                        investments[categoryId] = Math.round(summaryAmount * investRatio * 100) / 100;
-                        expenses[categoryId] = summaryAmount - investments[categoryId];
-                    } else if (isKnownInvestment) {
-                        investments[categoryId] = summaryAmount;
-                        delete expenses[categoryId];
-                    } else if (isKnownExpense) {
-                        expenses[categoryId] = summaryAmount;
-                        delete investments[categoryId];
-                    } else {
-                        // Unknown type: default to expense
-                        expenses[categoryId] = summaryAmount;
-                    }
-                }
-            });
-        }
-        
-        return { expenseSpending: expenses, investmentSpending: investments, incomeSpending: income };
-    }, [filteredTransactions, viewMode, categorySummaries]);
+        return {
+            expenseSpending: expenses,
+            investmentSpending: investments,
+            incomeSpending: income,
+            transferSpending: transfers
+        };
+    }, [filteredTransactions, viewMode, categories]);
 
     // --- 2. Selection Handling ---
 
-    const handleCategorySelect = (id: string, section: 'expense' | 'investment' | 'income' = 'expense') => {
+    const handleCategorySelect = (id: string) => {
         setSelectedCategoryId(id);
-        setSelectedSection(section);
     };
-
-    // On-demand: fetch only the selected category's transactions for year/prevYear view
-    // Uses a category-specific Firestore query (reads only matching docs, not all transactions)
-    const [_isLoadingCategoryTransactions, setIsLoadingCategoryTransactions] = useState(false);
-    const [yearCategoryTransactions, setYearCategoryTransactions] = useState<Transaction[]>([]);
-    
-    useEffect(() => {
-        if (!selectedCategoryId || !user?.id) {
-            setYearCategoryTransactions([]);
-            return;
-        }
-        if (viewMode !== 'year' && viewMode !== 'prevYear') {
-            setYearCategoryTransactions([]);
-            return;
-        }
-        
-        const now = new Date();
-        const targetYear = viewMode === 'prevYear' ? now.getFullYear() - 1 : now.getFullYear();
-        const cacheKey = `${viewMode}:${selectedCategoryId}`;
-        
-        // Check module-level cache first (persists across navigations)
-        if (yearCategoryCache.has(cacheKey)) {
-            setYearCategoryTransactions(yearCategoryCache.get(cacheKey)!);
-            return;
-        }
-        
-        const startDate = new Date(targetYear, 0, 1);
-        const endDate = new Date(targetYear, 11, 31, 23, 59, 59);
-        
-        setIsLoadingCategoryTransactions(true);
-        FirebaseService.getTransactionsByCategoryAndDateRange(
-            user.id,
-            selectedCategoryId,
-            startDate.toISOString(),
-            endDate.toISOString()
-        )
-            .then(txns => {
-                yearCategoryCache.set(cacheKey, txns);
-                setYearCategoryTransactions(txns);
-            })
-            .catch(err => {
-                console.warn('Category query failed (index may be building), falling back to in-memory filter:', err);
-                // Fallback: filter from whatever transactions are already in memory
-                const fallback = transactions.filter(t => {
-                    if (t.category !== selectedCategoryId) return false;
-                    const txDate = new Date(t.date);
-                    return txDate.getFullYear() === targetYear;
-                });
-                setYearCategoryTransactions(fallback);
-            })
-            .finally(() => setIsLoadingCategoryTransactions(false));
-    }, [selectedCategoryId, viewMode, user?.id, categorySummaryVersion]);
 
     const selectedCategory = useMemo(() =>
         categories.find(c => c.id === selectedCategoryId),
         [categories, selectedCategoryId]);
 
-    // For month/prevMonth: filter from in-memory transactions (scoped to the viewed month)
-    // For year/prevYear: use directly fetched category transactions
-    // Also filter by transaction type based on which section was clicked
+    // Set of category IDs to match (includes children if a group is selected)
+    const selectedCategoryIds = useMemo(() => {
+        if (!selectedCategoryId) return new Set<string>();
+        const childIds = categories.filter(c => c.parentId === selectedCategoryId).map(c => c.id);
+        return childIds.length > 0
+            ? new Set([selectedCategoryId, ...childIds])
+            : new Set([selectedCategoryId]);
+    }, [selectedCategoryId, categories]);
+
+    // Period-scoped transactions for the stats + list in the detail view
     const categoryTransactions = useMemo(() => {
-        let txns: Transaction[];
-        if ((viewMode === 'year' || viewMode === 'prevYear') && yearCategoryTransactions.length > 0) {
-            txns = selectedAccountId === 'all'
-                ? yearCategoryTransactions
-                : yearCategoryTransactions.filter(t => t.bankAccountId === selectedAccountId);
-        } else {
-            const now = new Date();
-            const currentYear = now.getFullYear();
-            const currentMonthNum = now.getMonth() + 1;
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonthNum = now.getMonth() + 1;
 
-            txns = filteredTransactions.filter(t => {
-                if (t.category !== selectedCategoryId) return false;
-                const txDate = new Date(t.date);
-                const txYear = txDate.getFullYear();
-                const txMonth = txDate.getMonth() + 1;
+        return filteredTransactions.filter(t => {
+            if (!selectedCategoryIds.has(t.category || '')) return false;
+            const txDate = new Date(t.date);
+            const txYear = txDate.getFullYear();
+            const txMonth = txDate.getMonth() + 1;
 
-                if (viewMode === 'month') {
-                    return txYear === currentYear && txMonth === currentMonthNum;
-                } else if (viewMode === 'prevMonth') {
-                    const prevMonth = currentMonthNum === 1 ? 12 : currentMonthNum - 1;
-                    const prevMonthYear = currentMonthNum === 1 ? currentYear - 1 : currentYear;
-                    return txYear === prevMonthYear && txMonth === prevMonth;
-                }
-                return true;
-            });
-        }
-
-        // Filter by section type so Income section only shows income transactions, etc.
-        if (selectedSection === 'income') {
-            txns = txns.filter(t => t.type === 'income');
-        } else if (selectedSection === 'investment') {
-            txns = txns.filter(t => t.type === 'investment');
-        }
-        // 'expense' section shows all non-income/non-investment (default behavior)
-
-        return txns;
-    }, [filteredTransactions, selectedCategoryId, viewMode, yearCategoryTransactions, selectedAccountId, selectedSection]);
-
-    const applySummaryDelta = (oldTx: Transaction, newTx: Transaction) => {
-        setCategorySummaries(prev => {
-            if (prev.size === 0) return prev;
-
-            const next = new Map(prev);
-            const oldCategoryId = oldTx.category || 'uncategorized';
-            const newCategoryId = newTx.category || oldCategoryId;
-            const oldAmount = Number(oldTx.amount || 0);
-            const newAmount = Number(newTx.amount ?? oldAmount);
-
-            if (oldCategoryId !== newCategoryId) {
-                next.set(oldCategoryId, (next.get(oldCategoryId) || 0) - oldAmount);
-                next.set(newCategoryId, (next.get(newCategoryId) || 0) + newAmount);
-            } else if (oldAmount !== newAmount) {
-                next.set(oldCategoryId, (next.get(oldCategoryId) || 0) + (newAmount - oldAmount));
+            if (viewMode === 'month') {
+                return txYear === currentYear && txMonth === currentMonthNum;
+            } else if (viewMode === 'prevMonth') {
+                const prevMonth = currentMonthNum === 1 ? 12 : currentMonthNum - 1;
+                const prevMonthYear = currentMonthNum === 1 ? currentYear - 1 : currentYear;
+                return txYear === prevMonthYear && txMonth === prevMonth;
+            } else if (viewMode === 'year') {
+                return txYear === currentYear;
+            } else { // prevYear
+                return txYear === currentYear - 1;
             }
-
-            return next;
         });
-    };
+    }, [filteredTransactions, selectedCategoryIds, viewMode]);
+
+    // All loaded transactions for the category (no period filter) — drives the history chart
+    const categoryChartTransactions = useMemo(() => {
+        if (!selectedCategoryId) return [];
+        return filteredTransactions.filter(t => selectedCategoryIds.has(t.category || ''));
+    }, [filteredTransactions, selectedCategoryIds, selectedCategoryId]);
 
     const handleCategoryDetailUpdate = async (transactionId: string, updates: Partial<Transaction>) => {
-        const currentTransaction = categoryTransactions.find(t => t.id === transactionId);
-        if (!currentTransaction) {
-            await updateTransaction(transactionId, updates);
-            return;
-        }
-
-        const isYearView = viewMode === 'year' || viewMode === 'prevYear';
-        const optimisticTransaction: Transaction = { ...currentTransaction, ...updates };
-
-        if (isYearView) {
-            setYearCategoryTransactions(prev => {
-                if (!prev.some(t => t.id === transactionId)) return prev;
-
-                const movedOutOfSelectedCategory =
-                    !!selectedCategoryId && optimisticTransaction.category !== selectedCategoryId;
-
-                if (movedOutOfSelectedCategory) {
-                    return prev.filter(t => t.id !== transactionId);
-                }
-
-                return prev.map(t => (t.id === transactionId ? optimisticTransaction : t));
-            });
-
-            applySummaryDelta(currentTransaction, optimisticTransaction);
-        }
-
-        try {
-            await updateTransaction(transactionId, updates);
-        } catch (error) {
-            if (isYearView) {
-                setYearCategoryTransactions(prev => {
-                    const alreadyPresent = prev.some(t => t.id === transactionId);
-                    if (alreadyPresent) {
-                        return prev.map(t => (t.id === transactionId ? currentTransaction : t));
-                    }
-                    return [currentTransaction, ...prev];
-                });
-
-                applySummaryDelta(optimisticTransaction, currentTransaction);
-            }
-            throw error;
-        }
+        await updateTransaction(transactionId, updates);
     };
 
     // Count active filters
@@ -467,7 +285,7 @@ const Categories: React.FC = () => {
     };
 
     return (
-        <div className="h-[calc(100vh-4rem)] flex theme-bg-primary overflow-hidden min-w-0">
+        <div className="h-full lg:h-[calc(100vh-4rem)] flex theme-bg-primary overflow-hidden min-w-0">
 
             {/* LEFT PANE: Category List */}
             <div className={cn(
@@ -633,23 +451,6 @@ const Categories: React.FC = () => {
                                     </div>
                                 )}
                             </div>
-                            {/* Category Display Mode Toggle */}
-                            <button
-                                onClick={() => setCategoryDisplayMode(categoryDisplayMode === 'flat' ? 'grouped' : 'flat')}
-                                className={cn(
-                                    "relative p-2 rounded-lg transition-all",
-                                    categoryDisplayMode === 'grouped'
-                                        ? "bg-[color:var(--color-bg-tertiary)] text-[color:var(--color-text-primary)]"
-                                        : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
-                                )}
-                                title={categoryDisplayMode === 'grouped' ? 'Grouped View' : 'Individual View'}
-                            >
-                                {categoryDisplayMode === 'grouped' ? (
-                                    <Layers className="w-4 h-4" />
-                                ) : (
-                                    <List className="w-4 h-4" />
-                                )}
-                            </button>
                             <button
                                 onClick={() => setShowAddPanel(true)}
                                 className={cn("p-2 rounded-lg transition-all [background-color:var(--color-accent-primary)] text-[color:var(--color-text-inverse)] hover:[background-color:var(--color-accent-hover)]")}
@@ -772,8 +573,8 @@ const Categories: React.FC = () => {
                         spendingByCategory={expenseSpending}
                         investmentSpending={investmentSpending}
                         incomeSpending={incomeSpending}
+                        transferSpending={transferSpending}
                         monthlyBudget={monthlyBudget}
-                        displayMode={categoryDisplayMode}
                         viewMode={viewMode}
                         includeTransfer={includeTransfer}
                         includeInvestments={includeInvestments}
@@ -844,8 +645,10 @@ const Categories: React.FC = () => {
                             <CategoryDetail
                                 category={selectedCategory}
                                 transactions={categoryTransactions}
+                                chartTransactions={categoryChartTransactions}
                                 monthlyBudget={monthlyBudget}
                                 currentMonth={currentMonth}
+                                viewMode={viewMode}
                                 onUpdateTransaction={handleCategoryDetailUpdate}
                             />
                         </div>

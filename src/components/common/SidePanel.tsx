@@ -78,12 +78,16 @@ const SidePanel: React.FC<SidePanelProps> = ({
                 onClick={(e) => { e.stopPropagation(); }}
             >
                 {/* Header */}
-                <div className="flex-shrink-0 h-14 px-6 flex items-center justify-between border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <div className="flex-shrink-0 h-14 px-4 sm:px-6 gap-2 flex items-center justify-between border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white truncate min-w-0">
                         {title}
                     </h2>
-                    <div className="flex items-center space-x-2">
-                        {headerActions}
+                    <div className="flex items-center gap-2 min-w-0">
+                        {headerActions && (
+                            <div className="flex items-center gap-2 min-w-0 max-w-[60vw] overflow-x-auto scrollbar-none">
+                                {headerActions}
+                            </div>
+                        )}
                         <button
                             onClick={onClose}
                             className="p-2 -mr-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
@@ -94,13 +98,13 @@ const SidePanel: React.FC<SidePanelProps> = ({
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className={cn("flex-1 overflow-y-auto p-4 sm:p-6", !footer && "pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-6")}>
                     {children}
                 </div>
 
                 {/* Footer */}
                 {footer && (
-                    <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                    <div className="flex-shrink-0 px-4 sm:px-6 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                         {footer}
                     </div>
                 )}

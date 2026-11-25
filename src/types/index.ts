@@ -29,6 +29,14 @@ export interface Transaction {
   isSplitParent?: boolean; // Marks the original transaction before splitting
   originalAmount?: number; // Preserves original amount for split edit/restore
   splitOrder?: number; // Order of child within a split group (edit rendering)
+  // Review / Memory Flagging
+  needsReview?: boolean; // Flagged to review later
+  reviewNote?: string; // Note or question regarding what to check
+  // Transfers between the user's own accounts: id of the other side (null once unlinked)
+  transferPairId?: string | null;
+  // Created by the app as the other side of a transfer, to be replaced by the real
+  // record when that account's statement is imported
+  transferAutoCreated?: boolean;
 }
 
 // Tag for transaction categorization
@@ -120,7 +128,7 @@ export interface Insurance {
   policyName: string;
   coverAmount: number;
   premiumAmount: number;
-  premiumFrequency: 'monthly' | 'quarterly' | 'yearly';
+  premiumFrequency: 'monthly' | 'quarterly' | 'half-yearly' | 'yearly';
   premiumPayingTerm?: number; // New field: in years
   policyStartDate?: string; // New field: to calculate payout year
   usePremiumPayingTermForMaturity?: boolean; // New field: toggle for payout logic
@@ -156,6 +164,38 @@ export interface GoalMilestone {
   targetAmount: number;
   isCompleted: boolean;
   completedDate?: string;
+}
+
+export type LifeEventType =
+  | 'expense_once'
+  | 'expense_recurring'
+  | 'income_once'
+  | 'income_recurring'
+  | 'income_pause';
+
+export type LifeEventCategory =
+  | 'education'
+  | 'housing'
+  | 'family'
+  | 'vehicle'
+  | 'travel'
+  | 'career'
+  | 'windfall'
+  | 'health'
+  | 'other';
+
+export interface LifeEvent {
+  id: string;
+  name: string;
+  type: LifeEventType;
+  targetAge: number;
+  durationYears: number;
+  amount: number;
+  isInflationAdjusted: boolean;
+  category: LifeEventCategory;
+  linkedGoalId?: string;
+  isActive: boolean;
+  notes?: string;
 }
 
 export interface Liability {
@@ -208,6 +248,7 @@ export interface BankAccount {
   createdAt?: any;
   updatedAt?: any;
   balance?: number; // Calculated balance (dynamic)
+  statementPassword?: string; // Optional password to unlock statement PDFs from this bank
 }
 
 export interface RecurringTransaction {

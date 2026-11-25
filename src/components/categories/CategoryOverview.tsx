@@ -1,11 +1,9 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 import { useData } from '../../contexts/DataContext';
-import { useAuth } from '../../contexts/AuthContext';
 import { MonthlyBudget, Transaction } from '../../types';
-import { Category } from '../../constants/categories';
+import { Category, getCategoryTransactionType, isTransferTransaction, resolveTransactionType } from '../../constants/categories';
 import { formatCurrency } from '../../utils/formatters';
-import { getAllOptimizedMonthlySummaries } from '../../services/categorySummaryService';
 
 interface CategoryOverviewProps {
     categories: Category[];
@@ -18,8 +16,7 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
     monthlyBudget,
     transactions = []
 }) => {
-    const { userProfile } = useData();
-    const { user } = useAuth();
+    const { userProfile, monthlySummaries: contextSummaries } = useData();
     const theme = useThemeClasses();
     const defaultTimePeriod = userProfile?.displayPreferences?.defaultTimePeriod || 'current';
     const actualDate = useMemo(() => new Date(), []);
@@ -43,33 +40,23 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
     }, [currentYear, currentRealMonthIndex]);
     
     const scrollContainerRef = useRef<HTMLDivElement>(null);
-    const [optimizedSummaries, setOptimizedSummaries] = useState<
-        Array<{ year: number; month: number; totalSpent: number; categoryTotals: Record<string, number> }>
-    >([]);
 
-    useEffect(() => {
-        if (!user?.id) return;
-        let cancelled = false;
-        getAllOptimizedMonthlySummaries(user.id)
-            .then(list => {
-                if (!cancelled) setOptimizedSummaries(list);
-            })
-            .catch(err => {
-                console.warn('Failed to load optimized monthly summaries:', err);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [user?.id]);
+    // Use pre-fetched monthly summaries from DataContext (already cached in localStorage + Firestore)
+    const optimizedSummaries = contextSummaries;
     
     // Calculate monthly summaries from local transactions for real-time accuracy
     // and fill missing months using optimized summaries from Firestore.
     const summaries = useMemo(() => {
-        const summaryMap = new Map<string, { categoryTotals: Record<string, number>; totalSpent: number; year: number; month: number }>();
+        const summaryMap = new Map<string, { categoryTotals: Record<string, number>; totalSpent: number; expense: number; investment: number; income: number; year: number; month: number }>();
         
-        // Filter to expense and investment types only (not income)
+        // Create a fast map lookup for categories to resolved transaction types
+        const categoryTypeMap: Record<string, string> = {};
+        categories.forEach(c => {
+            categoryTypeMap[c.id] = getCategoryTransactionType(c.id, categories);
+        });
+
         transactions
-            .filter(t => t.type === 'expense' || t.type === 'investment' || t.type === 'transfer')
+            .filter(t => !isTransferTransaction(t, categories))
             .forEach(t => {
                 const txDate = new Date(t.date);
                 const year = txDate.getFullYear();
@@ -77,21 +64,54 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                 const key = `${year}-${String(month).padStart(2, '0')}`;
                 
                 if (!summaryMap.has(key)) {
-                    summaryMap.set(key, { categoryTotals: {}, totalSpent: 0, year, month });
+                    summaryMap.set(key, { categoryTotals: {}, totalSpent: 0, expense: 0, investment: 0, income: 0, year, month });
                 }
                 
                 const summary = summaryMap.get(key)!;
                 const categoryId = t.category || 'uncategorized';
                 summary.categoryTotals[categoryId] = (summary.categoryTotals[categoryId] || 0) + t.amount;
-                summary.totalSpent += t.amount;
+                
+                const resolvedType = resolveTransactionType(t, categories);
+                if (resolvedType === 'income') {
+                    summary.income += t.amount;
+                } else if (resolvedType === 'investment') {
+                    summary.investment += t.amount;
+                    summary.totalSpent += t.amount;
+                } else if (resolvedType === 'expense') {
+                    summary.expense += t.amount;
+                    summary.totalSpent += t.amount;
+                }
             });
         
+        // Fill missing months from pre-aggregated summaries (hybrid offline approach)
         optimizedSummaries.forEach(summary => {
             const key = `${summary.year}-${String(summary.month).padStart(2, '0')}`;
             if (!summaryMap.has(key)) {
+                let expense = summary.expense || 0;
+                let income = summary.income || 0;
+                let investment = summary.investment || 0;
+
+                // If type breakdown is missing (legacy data), derive from categoryTotals
+                const hasTypeBreakdown = expense > 0 || income > 0 || investment > 0;
+                if (!hasTypeBreakdown && summary.categoryTotals) {
+                    Object.entries(summary.categoryTotals).forEach(([catId, amount]) => {
+                        const catType = getCategoryTransactionType(catId, categories);
+                        if (catType === 'income') {
+                            income += amount;
+                        } else if (catType === 'investment') {
+                            investment += amount;
+                        } else {
+                            expense += amount;
+                        }
+                    });
+                }
+
                 summaryMap.set(key, {
                     categoryTotals: summary.categoryTotals || {},
                     totalSpent: summary.totalSpent || 0,
+                    expense,
+                    income,
+                    investment,
                     year: summary.year,
                     month: summary.month
                 });
@@ -99,7 +119,7 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
         });
 
         return Array.from(summaryMap.values());
-    }, [transactions, optimizedSummaries]);
+    }, [transactions, optimizedSummaries, categories]);
 
     // Generate array of months from earliest available data month to current month
     const monthsRange = useMemo(() => {
@@ -126,58 +146,75 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
         return months;
     }, [summaries, actualYear, actualMonthIndex]);
 
-    // Metrics Calculation from summaries
+    // Metrics Calculation — compute directly from transactions by type (same
+    // source of truth the sidebar uses) so numbers always match.
     const metrics = useMemo(() => {
         let spentSelectedMonth = 0;
 
         summaries.forEach(s => {
-            // Selected month total (MonthlySummary uses 1-based month, selectedMonth uses 0-based)
             if (s.year === selectedMonth.year && s.month === selectedMonth.month + 1) {
-                spentSelectedMonth = s.totalSpent;
+                spentSelectedMonth = s.expense;
             }
         });
 
-        // Expense-only yearly totals and average monthly spend
-        const thisYearSpent = transactions
-            .filter(t => t.type === 'expense')
-            .filter(t => new Date(t.date).getFullYear() === currentYear)
-            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-
-        const thisYearSpentYtd = transactions
-            .filter(t => t.type === 'expense')
-            .filter(t => {
-                const txDate = new Date(t.date);
-                return txDate.getFullYear() === currentYear && txDate.getMonth() <= actualMonthIndex;
-            })
-            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-
         const prevYear = currentYear - 1;
-        const prevYearSpent = transactions
-            .filter(t => t.type === 'expense')
-            .filter(t => new Date(t.date).getFullYear() === prevYear)
-            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+        const monthsElapsed = actualMonthIndex + 1;
 
-        const thisYearAvgMonthly = thisYearSpentYtd / (actualMonthIndex + 1);
-        const prevYearAvgMonthly = prevYearSpent / 12;
+        let thisYearExpense = 0;
+        let thisYearInvest = 0;
+        let prevYearExpense = 0;
+        let prevYearInvest = 0;
+
+        const categoryTypeMap: Record<string, string> = {};
+        categories.forEach(c => {
+            categoryTypeMap[c.id] = getCategoryTransactionType(c.id, categories);
+        });
+
+        transactions.forEach(t => {
+            if (t.category === 'transfer') return;
+            const categoryId = t.category || 'uncategorized';
+            const resolvedType = categoryTypeMap[categoryId] || 'expense';
+            if (resolvedType === 'transfer') return;
+
+            const d = new Date(t.date);
+            const yr = d.getFullYear();
+
+            if (yr === currentYear) {
+                if (resolvedType === 'expense') {
+                    thisYearExpense += t.amount || 0;
+                } else if (resolvedType === 'investment') {
+                    thisYearInvest += t.amount || 0;
+                }
+            } else if (yr === prevYear) {
+                if (resolvedType === 'expense') {
+                    prevYearExpense += t.amount || 0;
+                } else if (resolvedType === 'investment') {
+                    prevYearInvest += t.amount || 0;
+                }
+            }
+        });
 
         return {
             spentSelectedMonth,
             thisYear: {
                 year: currentYear,
-                spent: thisYearSpent,
-                avgMonthly: thisYearAvgMonthly
+                spent: thisYearExpense,
+                avgMonthly: thisYearExpense / monthsElapsed,
+                invested: thisYearInvest,
+                avgMonthlyInvest: thisYearInvest / monthsElapsed
             },
             prevYear: {
                 year: prevYear,
-                spent: prevYearSpent,
-                avgMonthly: prevYearAvgMonthly
+                spent: prevYearExpense,
+                avgMonthly: prevYearExpense / 12,
+                invested: prevYearInvest,
+                avgMonthlyInvest: prevYearInvest / 12
             }
         };
-    }, [summaries, currentYear, actualMonthIndex, selectedMonth, transactions]);
+    }, [summaries, currentYear, actualMonthIndex, selectedMonth, transactions, categories]);
 
     // Chart Data - Dynamic based on monthsRange and summaries
     const chartData = useMemo(() => {
-        // Create a lookup map for fast access
         const summaryMap = new Map<string, typeof summaries[number]>();
         summaries.forEach(s => {
             summaryMap.set(`${s.year}-${s.month}`, s);
@@ -187,9 +224,11 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
             const isCurrent = year === actualYear && month === actualMonthIndex;
             const isSelected = year === selectedMonth.year && month === selectedMonth.month;
             
-            // Get amount from summary (summaries use 1-based month, monthsRange uses 0-based)
             const summary = summaryMap.get(`${year}-${month + 1}`);
-            const amount = summary?.totalSpent || 0;
+            const expense = summary?.expense || 0;
+            const investment = summary?.investment || 0;
+            const income = summary?.income || 0;
+            const amount = expense + investment + income;
 
             return {
                 key,
@@ -198,6 +237,9 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                 name: new Date(year, month, 1).toLocaleString('default', { month: 'narrow' }),
                 fullMonth: new Date(year, month, 1).toLocaleString('default', { month: 'short', year: 'numeric' }),
                 amount,
+                expense,
+                investment,
+                income,
                 isCurrent,
                 isSelected
             };
@@ -315,9 +357,9 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
         setSelectedMonth({ year: data.year, month: data.month });
     };
 
-    // Calculate max amount for scaling bars
+    // Calculate max amount for scaling bars (based on tallest stacked total)
     const maxAmount = useMemo(() => {
-        return Math.max(...chartData.map(d => d.amount), 1);
+        return Math.max(...chartData.map(d => d.expense + d.investment + d.income), 1);
     }, [chartData]);
 
     return (
@@ -365,9 +407,14 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                 >
                     <div className="flex items-end gap-1 h-40 min-w-max px-2">
                         {chartData.map((data, index) => {
-                            const barHeight = maxAmount > 0 ? (data.amount / maxAmount) * 120 : 0;
-                            const isFuture = data.year > currentYear || (data.year === currentYear && data.month > currentRealMonthIndex);
-                            const showYear = index === 0 || data.month === 0; // Show year label on Jan or first bar
+                            const BAR_MAX = 120;
+                            const expenseH = maxAmount > 0 ? (data.expense / maxAmount) * BAR_MAX : 0;
+                            const investH  = maxAmount > 0 ? (data.investment / maxAmount) * BAR_MAX : 0;
+                            const incomeH  = maxAmount > 0 ? (data.income / maxAmount) * BAR_MAX : 0;
+                            const hasData  = data.expense > 0 || data.investment > 0 || data.income > 0;
+                            const stackedH = hasData ? Math.max(expenseH + investH + incomeH, 4) : 4;
+                            const isFuture = data.year > actualYear || (data.year === actualYear && data.month > actualMonthIndex);
+                            const showYear = index === 0 || data.month === 0;
                             
                             return (
                                 <div 
@@ -376,28 +423,45 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                                     onClick={() => handleBarClick(data)}
                                 >
                                     {/* Tooltip on hover */}
-                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity mb-1 bg-white dark:bg-gray-800 px-2 py-1 rounded shadow-lg border border-gray-100 dark:border-gray-700 text-xs whitespace-nowrap z-20">
-                                        <p className="font-medium">{data.fullMonth}</p>
-                                        <p className="text-primary-600 dark:text-primary-400 font-bold">{formatCurrency(data.amount)}</p>
+                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity mb-1 bg-white dark:bg-gray-800 px-2 py-1.5 rounded shadow-lg border border-gray-100 dark:border-gray-700 text-xs whitespace-nowrap z-20 pointer-events-none">
+                                        <p className="font-semibold mb-0.5">{data.fullMonth}</p>
+                                        {data.expense > 0    && <p className="text-red-500">Exp: {formatCurrency(data.expense)}</p>}
+                                        {data.investment > 0 && <p className="text-purple-500">Inv: {formatCurrency(data.investment)}</p>}
+                                        {data.income > 0     && <p className="text-green-500">Inc: {formatCurrency(data.income)}</p>}
+                                        {!hasData && <p className="text-gray-400">No data</p>}
                                     </div>
                                     
-                                    {/* Bar */}
-                                    <div 
-                                        className={cn(
-                                            "w-6 rounded-t transition-all duration-200 hover:opacity-80",
-                                            data.isSelected 
-                                                ? "bg-green-500" 
-                                                : isFuture 
-                                                    ? "bg-gray-200 dark:bg-gray-800" 
-                                                    : "bg-gray-300 dark:bg-gray-600"
-                                        )}
-                                        style={{ height: Math.max(barHeight, 4) }}
-                                    />
+                                    {/* Stacked Bar */}
+                                    {isFuture ? (
+                                        <div className="w-6 rounded-t bg-gray-200 dark:bg-gray-800" style={{ height: 4 }} />
+                                    ) : (
+                                        <div
+                                            className="flex flex-col-reverse w-6 rounded-t overflow-hidden transition-opacity duration-200 hover:opacity-80"
+                                            style={{ height: stackedH }}
+                                        >
+                                            {/* expense — bottom */}
+                                            {expenseH > 0 && (
+                                                <div style={{ height: expenseH, backgroundColor: data.isSelected ? '#EF4444' : '#FCA5A5' }} />
+                                            )}
+                                            {/* investment — middle */}
+                                            {investH > 0 && (
+                                                <div style={{ height: investH, backgroundColor: data.isSelected ? '#8B5CF6' : '#C4B5FD' }} />
+                                            )}
+                                            {/* income — top */}
+                                            {incomeH > 0 && (
+                                                <div style={{ height: incomeH, backgroundColor: data.isSelected ? '#10B981' : '#6EE7B7' }} />
+                                            )}
+                                            {/* placeholder when no data */}
+                                            {!hasData && (
+                                                <div className="flex-1 bg-gray-300 dark:bg-gray-600" />
+                                            )}
+                                        </div>
+                                    )}
                                     
                                     {/* Month Label */}
                                     <span className={cn(
                                         "text-[10px] mt-1",
-                                        data.isSelected ? "text-green-600 dark:text-green-400 font-bold" : "text-gray-400"
+                                        data.isSelected ? "font-bold text-gray-700 dark:text-gray-200" : "text-gray-400"
                                     )}>
                                         {data.name}
                                     </span>
@@ -413,22 +477,43 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                         })}
                     </div>
                 </div>
+
+                {/* Legend */}
+                <div className="flex gap-4 justify-center mt-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#EF4444' }} />
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Expenses</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#8B5CF6' }} />
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Investments</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#10B981' }} />
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Income</span>
+                    </div>
+                </div>
             </div>
 
             {/* Metrics Row */}
             <div className="border-t border-b border-gray-100 dark:border-gray-800 py-6">
-                <div className="grid grid-cols-3 gap-4 md:gap-8 mb-3">
-                    <div></div>
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Spent per year</p>
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 text-right sm:text-left">Avg monthly spend</p>
+                {/* Header */}
+                <div className="grid gap-2 sm:gap-4 mb-3" style={{ gridTemplateColumns: 'auto 1fr 1fr 1fr 1fr' }}>
+                    <div />
+                    <p className="text-xs font-medium text-red-500 dark:text-red-400">Expenses / yr</p>
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Avg / mo</p>
+                    <p className="text-xs font-medium text-purple-600 dark:text-purple-400">Invested / yr</p>
+                    <p className="text-xs font-medium text-purple-500 dark:text-purple-300">Avg / mo</p>
                 </div>
 
                 <div className="space-y-3">
                     {[metrics.thisYear, metrics.prevYear].map(row => (
-                        <div key={row.year} className="grid grid-cols-3 gap-4 md:gap-8 items-center">
-                            <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">{row.year}</p>
-                            <p className={cn(theme.textPrimary, "text-xl font-bold")}>{formatCurrency(row.spent)}</p>
-                            <p className={cn(theme.textPrimary, "text-xl font-bold text-right sm:text-left")}>{formatCurrency(row.avgMonthly)}</p>
+                        <div key={row.year} className="grid gap-2 sm:gap-4 items-center" style={{ gridTemplateColumns: 'auto 1fr 1fr 1fr 1fr' }}>
+                            <p className="text-sm font-semibold text-gray-500 dark:text-gray-400 w-10">{row.year}</p>
+                            <p className={cn(theme.textPrimary, "text-base sm:text-lg font-bold")}>{formatCurrency(row.spent)}</p>
+                            <p className="text-base sm:text-lg font-bold text-gray-500 dark:text-gray-400">{formatCurrency(row.avgMonthly)}</p>
+                            <p className="text-base sm:text-lg font-bold text-purple-600 dark:text-purple-400">{formatCurrency(row.invested)}</p>
+                            <p className="text-base sm:text-lg font-bold text-purple-500 dark:text-purple-300">{formatCurrency(row.avgMonthlyInvest)}</p>
                         </div>
                     ))}
                 </div>
@@ -438,10 +523,10 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
             <div>
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 px-2 gap-2">
                     <h3 className={cn(theme.textPrimary, "text-base font-bold")}>Regular Categories</h3>
-                    <div className="hidden sm:flex gap-6 md:gap-8 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                        <span className="w-24 text-right">Spent</span>
-                        <span className="w-24 text-right">Budget</span>
-                        <span className="w-24 text-right">Left</span>
+                    <div className="hidden sm:flex gap-6 md:gap-3 lg:gap-8 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                        <span className="w-24 md:w-20 lg:w-24 text-right">Spent</span>
+                        <span className="w-24 md:w-20 lg:w-24 text-right">Budget</span>
+                        <span className="w-24 md:w-20 lg:w-24 text-right">Left</span>
                     </div>
                 </div>
 
@@ -455,22 +540,22 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                             <div key={group.id} className="relative">
                                 {/* Group Header - Implicitly shows the grouping */}
                                 <div className="flex items-center py-1.5 px-2 bg-gray-50 dark:bg-gray-800/80 rounded-lg mb-1">
-                                    <div className="flex items-center gap-2 flex-1">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
                                         <span className="text-base">{group.icon || '📁'}</span>
-                                        <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{group.name}</span>
+                                        <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{group.name}</span>
                                     </div>
-                                    <div className="hidden sm:flex gap-6 md:gap-8 text-xs font-semibold text-gray-500 dark:text-gray-400 opacity-75">
-                                        <span className="w-24 text-right">{formatCurrency(group.totalSpent)}</span>
-                                        <span className="w-24 text-right">-</span>
-                                        <span className="w-24 text-right">-</span>
+                                    <div className="hidden sm:flex gap-6 md:gap-3 lg:gap-8 text-xs font-semibold text-gray-500 dark:text-gray-400 opacity-75">
+                                        <span className="w-24 md:w-20 lg:w-24 text-right">{formatCurrency(group.totalSpent)}</span>
+                                        <span className="w-24 md:w-20 lg:w-24 text-right">-</span>
+                                        <span className="w-24 md:w-20 lg:w-24 text-right">-</span>
                                     </div>
                                 </div>
 
                                 {/* Sub-categories (Indented) */}
                                 <div className="space-y-0.5">
                                     {group.categories.map((cat: any) => (
-                                        <div key={cat.id} className="flex items-center justify-between py-1 pl-9 pr-2 hover:bg-gray-50 dark:hover:bg-gray-800/30 rounded cursor-pointer transition-colors group/row">
-                                            <div className="flex items-center gap-2">
+                                        <div key={cat.id} className="flex items-center justify-between gap-2 py-1 pl-9 pr-2 hover:bg-gray-50 dark:hover:bg-gray-800/30 rounded cursor-pointer transition-colors group/row">
+                                            <div className="flex items-center gap-2 min-w-0">
                                                 {/* Small indicator dot or just text */}
                                                 <div className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600 group-hover/row:bg-blue-400"></div>
                                                 <span className={cn(theme.textPrimary, "text-sm", cat.id === group.id && "italic text-gray-500")}>
@@ -478,14 +563,14 @@ const CategoryOverview: React.FC<CategoryOverviewProps> = ({
                                                 </span>
                                             </div>
 
-                                            <div className="flex gap-4 sm:gap-6 md:gap-8 text-sm">
-                                                <span className={cn(theme.textPrimary, "w-20 sm:w-24 text-right font-medium text-xs")}>
+                                            <div className="flex flex-shrink-0 gap-4 sm:gap-6 md:gap-3 lg:gap-8 text-sm">
+                                                <span className={cn(theme.textPrimary, "w-20 sm:w-24 md:w-20 lg:w-24 text-right font-medium text-xs")}>
                                                     {formatCurrency(cat.spent)}
                                                 </span>
-                                                <span className="w-20 sm:w-24 text-right text-gray-500 font-medium text-xs hidden sm:block">
+                                                <span className="w-20 sm:w-24 md:w-20 lg:w-24 text-right text-gray-500 font-medium text-xs hidden sm:block">
                                                     {formatCurrency(cat.budget)}
                                                 </span>
-                                                <span className={cn("w-20 sm:w-24 text-right font-medium text-xs", cat.left < 0 ? "text-red-500" : "text-green-500")}>
+                                                <span className={cn("w-20 sm:w-24 md:w-20 lg:w-24 text-right font-medium text-xs", cat.left < 0 ? "text-red-500" : "text-green-500")}>
                                                     {formatCurrency(cat.left)}
                                                 </span>
                                             </div>

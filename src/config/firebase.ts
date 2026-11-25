@@ -1,6 +1,13 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  disableNetwork,
+  enableNetwork,
+  connectFirestoreEmulator,
+} from "firebase/firestore";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB3iPF9zVqLetH50OKs4tWNR96-JzeEpcg",
@@ -15,20 +22,28 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase services
-export const db = getFirestore(app);
-import { enableIndexedDbPersistence } from "firebase/firestore";
-
-// Enable offline persistence
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code == 'failed-precondition') {
-    // Multiple tabs open, persistence can only be enabled in one tab at a a time.
-    console.log('Firebase persistence failed: Multiple tabs open');
-  } else if (err.code == 'unimplemented') {
-    // The current browser does not support all of the features required to enable persistence
-    console.log('Firebase persistence not supported');
-  }
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
 });
 
+/** Go offline — all reads from IndexedDB cache, writes queued locally */
+export const goOffline = () => disableNetwork(db);
+
+/** Go online — flush queued writes and read from server */
+export const goOnline = () => enableNetwork(db);
+
 export const auth = getAuth(app);
+
+// Local emulator wiring — opt-in via `VITE_USE_EMULATORS=true` (e.g. `npm run dev:emulators`).
+// Never runs against production: guarded by the env flag, which is only set in
+// the emulator dev script. Ports match firebase.json.
+if (import.meta.env.VITE_USE_EMULATORS === "true") {
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  // eslint-disable-next-line no-console
+  console.warn("🔧 Firebase EMULATORS active (auth:9099, firestore:8080)");
+}
 
 export default app;

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ChevronDown, Plus } from 'lucide-react';
 import SidePanel from '../common/SidePanel';
 import { cn } from '../../hooks/useThemeClasses';
-import { Category } from '../../constants/categories';
+import { Category, CategoryTransactionType } from '../../constants/categories';
 import { useData } from '../../contexts/DataContext';
 
 export interface CategoryFormProps {
@@ -41,6 +41,10 @@ const CategoryForm = forwardRef<CategoryFormHandle, CategoryFormProps>(({
     const [budgetInput, setBudgetInput] = useState<string>(
         initialData?.budget !== undefined ? String(initialData.budget) : ''
     );
+    // Transaction type: only editable for root groups (no parentId)
+    const [transactionType, setTransactionType] = useState<CategoryTransactionType>(
+        initialData?.transactionType || 'expense'
+    );
     // Group selection popover state
     const [groupOpen, setGroupOpen] = useState(false);
     const groupButtonRef = useRef<HTMLButtonElement>(null);
@@ -51,6 +55,7 @@ const CategoryForm = forwardRef<CategoryFormHandle, CategoryFormProps>(({
     const [newGroupName, setNewGroupName] = useState('');
     const [newGroupColor, setNewGroupColor] = useState('#3B82F6');
     const [newGroupIcon, setNewGroupIcon] = useState('📁');
+    const [newGroupTransactionType, setNewGroupTransactionType] = useState<CategoryTransactionType>('expense');
     const [showNewGroupIconPicker, setShowNewGroupIconPicker] = useState(false);
     const [newGroupEmojiSearch, setNewGroupEmojiSearch] = useState('');
     const newGroupEmojiBtnRef = useRef<HTMLButtonElement>(null);
@@ -215,7 +220,9 @@ const CategoryForm = forwardRef<CategoryFormHandle, CategoryFormProps>(({
             icon: icon.trim() || '📁',
             parentId: parentId || undefined,
             isCustom: true,
-            budget: parsedBudget && !isNaN(parsedBudget) ? parsedBudget : undefined
+            budget: parsedBudget && !isNaN(parsedBudget) ? parsedBudget : undefined,
+            // Only set transactionType on root groups; subcategories inherit from parent
+            ...(!parentId ? { transactionType } : {})
         });
     };
 
@@ -370,6 +377,35 @@ const CategoryForm = forwardRef<CategoryFormHandle, CategoryFormProps>(({
                     </div>
                 </div>
 
+                {/* Transaction Type — only for root groups, full-width row */}
+                {!parentId && (
+                    <div>
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">
+                            Transaction Type
+                        </label>
+                        <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
+                            {(['expense', 'income', 'investment', 'transfer'] as CategoryTransactionType[]).map(t => (
+                                <button
+                                    key={t}
+                                    type="button"
+                                    onClick={() => setTransactionType(t)}
+                                    className={cn(
+                                        "flex-1 px-2 py-2 text-xs font-semibold capitalize transition-colors",
+                                        transactionType === t
+                                            ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900"
+                                            : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                    )}
+                                >
+                                    {t}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                            Subcategories inherit this type automatically.
+                        </p>
+                    </div>
+                )}
+
                 {/* Parent Category Selection or Ungroup for root groups */}
                 {initialData && !initialData.parentId && hasChildren ? (
                     <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg">
@@ -483,7 +519,8 @@ const CategoryForm = forwardRef<CategoryFormHandle, CategoryFormProps>(({
                                 color: newGroupColor,
                                 icon: newGroupIcon || '📁',
                                 isCustom: true,
-                                order: maxOrder + 10
+                                order: maxOrder + 10,
+                                transactionType: newGroupTransactionType
                             });
                             if (newId) {
                                 setParentId(newId);
@@ -491,6 +528,7 @@ const CategoryForm = forwardRef<CategoryFormHandle, CategoryFormProps>(({
                                 setNewGroupName('');
                                 setNewGroupColor('#3B82F6');
                                 setNewGroupIcon('📁');
+                                setNewGroupTransactionType('expense');
                             }
                         }}
                         className="px-4 py-1.5 bg-black text-white rounded-lg text-sm font-semibold shadow hover:bg-gray-900"
@@ -584,6 +622,28 @@ const CategoryForm = forwardRef<CategoryFormHandle, CategoryFormProps>(({
                                         )}
                                         style={{ backgroundColor: c }}
                                     />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Transaction Type for New Group */}
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Transaction Type</label>
+                            <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden">
+                                {(['expense', 'income', 'investment', 'transfer'] as CategoryTransactionType[]).map(t => (
+                                    <button
+                                        key={t}
+                                        type="button"
+                                        onClick={() => setNewGroupTransactionType(t)}
+                                        className={cn(
+                                            "flex-1 px-2 py-2 text-xs font-semibold capitalize transition-colors",
+                                            newGroupTransactionType === t
+                                                ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900"
+                                                : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                        )}
+                                    >
+                                        {t}
+                                    </button>
                                 ))}
                             </div>
                         </div>

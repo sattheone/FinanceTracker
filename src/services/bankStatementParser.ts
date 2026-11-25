@@ -12,6 +12,39 @@ export interface BankStatementData {
   closingBalance: number;
   transactions: ParsedTransaction[];
   bankName: string;
+  // Only set when one PDF covers several accounts (e.g. all accounts under one customer ID).
+  // `transactions` then holds every section's rows, each tagged with statementSectionId.
+  sections?: BankStatementSection[];
+}
+
+// Totals printed in a statement's summary block, used to sanity-check what was parsed
+export interface StatementSummaryTotals {
+  openingBalance: number;
+  debitTotal: number;
+  creditTotal: number;
+  closingBalance: number;
+  debitCount?: number;
+  creditCount?: number;
+}
+
+// One account's part of a multi-account statement (no transactions - safe to pass to UI state)
+export interface StatementSectionInfo {
+  id: string;
+  accountLast4: string;
+  accountNumberMasked: string; // e.g. "••1234"
+  // Account number as printed in the section header - may itself be masked ("XXXX1234").
+  // Used to spot transfers between the statement's accounts and to prefill new accounts.
+  accountNumber?: string;
+  bankName?: string;
+  openingBalance?: number;
+  closingBalance?: number;
+  transactionCount: number;
+  warnings: string[];
+}
+
+export interface BankStatementSection extends StatementSectionInfo {
+  transactions: ParsedTransaction[];
+  summary?: StatementSummaryTotals;
 }
 
 export interface StatementParserStrategy {
@@ -43,7 +76,15 @@ class BankStatementParser {
     console.log(`Using parsing strategy: ${strategy.name}`);
 
     try {
-      // 2. Execute Strategy
+      // 2. A PDF covering several accounts is parsed one account section at a time so
+      //    running balances and summaries don't bleed across accounts
+      const sectionTexts = this.splitAccountSections(pdfText);
+      if (sectionTexts) {
+        console.log(`Statement covers ${sectionTexts.length} accounts`);
+        return this.parseMultiAccountStatement(strategy, sectionTexts);
+      }
+
+      // 3. Execute Strategy
       return strategy.parse(pdfText);
     } catch (error) {
       console.error(`Error parsing with ${strategy.name}:`, error);
@@ -79,22 +120,192 @@ class BankStatementParser {
     return best || this.strategies.find(s => s.name === 'Generic')!;
   }
 
+  // --- Multi-account statements ---
+
+  /**
+   * Split a statement into per-account sections using "Account Number : ..." style
+   * headers (Account No / Number, A/c No, Acct No). Pages repeating the same account
+   * number are grouped together. Returns null when fewer than two distinct accounts are
+   * found, so single-account statements keep the normal parsing path.
+   *
+   * A line only counts as an account header when a transaction table header
+   * ("Txn Date ... Balance") follows it before any transaction row - an account number
+   * mentioned inside a narration is followed by more rows, not by a table header.
+   */
+  private splitAccountSections(text: string): { accountNumber: string; text: string }[] | null {
+    const lines = text.split('\n');
+    const headerPattern = /(?:^|[^A-Za-z])(?:Account|A\/c|Acct)\.?\s*(?:No|Number|Num)\b\.?\s*[:\-]?\s*([Xx*•]*\d[\d-]{6,22}\d)(?![\d-])/i;
+    const tableHeaderPattern = /\bDate\b.*\b(?:Balance|Narration|Description|Particulars|Withdrawals?|Deposits?)\b/i;
+    const rowPattern = /^\s*\d{2}[\/\-]\d{2}[\/\-]\d{2,4}\s+.*\d\.\d{2}\b/;
+
+    const isAccountHeader = (index: number): boolean => {
+      for (let j = index + 1; j < Math.min(lines.length, index + 40); j++) {
+        if (tableHeaderPattern.test(lines[j])) return true;
+        if (rowPattern.test(lines[j])) return false;
+      }
+      return false;
+    };
+
+    const order: string[] = [];
+    const sectionLines = new Map<string, string[]>();
+    let currentKey: string | null = null;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!rowPattern.test(line)) {
+        const match = line.match(headerPattern);
+        if (match) {
+          const accountNumber = match[1].replace(/-/g, '').toUpperCase();
+          const digits = accountNumber.replace(/\D/g, '');
+          if (digits.length >= 4 && accountNumber.length >= 9 && /\d{4}$/.test(accountNumber) && isAccountHeader(i)) {
+            currentKey = accountNumber;
+            if (!sectionLines.has(currentKey)) {
+              sectionLines.set(currentKey, []);
+              order.push(currentKey);
+            }
+          }
+        }
+      }
+      // Lines before the first account header (customer details, relationship summary) are skipped
+      if (currentKey) sectionLines.get(currentKey)!.push(line);
+    }
+
+    if (order.length < 2) return null;
+    return order.map(accountNumber => ({ accountNumber, text: sectionLines.get(accountNumber)!.join('\n') }));
+  }
+
+  private parseMultiAccountStatement(
+    strategy: StatementParserStrategy,
+    sectionTexts: { accountNumber: string; text: string }[]
+  ): BankStatementData {
+    const parsedSections = sectionTexts.map(s => ({ ...s, data: strategy.parse(s.text) }));
+
+    const sections: BankStatementSection[] = parsedSections.map((s, index) => {
+      const id = `section-${index + 1}`;
+      const accountLast4 = s.accountNumber.slice(-4);
+      const summary = this.extractStatementSummary(s.text) || undefined;
+      const transactions = s.data.transactions.map(t => ({ ...t, statementSectionId: id }));
+
+      return {
+        id,
+        accountLast4,
+        accountNumberMasked: `••${accountLast4}`,
+        accountNumber: s.accountNumber,
+        bankName: s.data.bankName,
+        openingBalance: summary?.openingBalance ?? (s.data.openingBalance || undefined),
+        closingBalance: summary?.closingBalance ?? (s.data.closingBalance || undefined),
+        transactionCount: transactions.length,
+        warnings: summary ? this.checkAgainstSummary(transactions, summary) : [],
+        transactions,
+        summary
+      };
+    });
+
+    const first = parsedSections[0].data;
+    const froms = parsedSections.map(s => s.data.statementPeriod.from).filter(Boolean).sort();
+    const tos = parsedSections.map(s => s.data.statementPeriod.to).filter(Boolean).sort();
+
+    return {
+      accountNumber: sections.map(s => s.accountNumberMasked).join(', '),
+      accountHolder: first.accountHolder,
+      statementPeriod: { from: froms[0] || first.statementPeriod.from, to: tos[tos.length - 1] || first.statementPeriod.to },
+      openingBalance: 0,
+      closingBalance: 0,
+      transactions: sections.flatMap(s => s.transactions),
+      bankName: first.bankName,
+      sections
+    };
+  }
+
+  public toSectionInfos(sections?: BankStatementSection[]): StatementSectionInfo[] | undefined {
+    if (!sections || sections.length < 2) return undefined;
+    return sections.map(({ transactions: _transactions, summary: _summary, ...info }) => info);
+  }
+
+  /**
+   * Statement summary block, e.g.
+   *   "Opening Balance  Debit Amount  Credit Amount  Closing Balance" / 4 amounts
+   *   "Debit Count  Credit Count" / 2 counts
+   * or the older single-row form: opening, Dr count, Cr count, debits, credits, closing.
+   */
+  private extractStatementSummary(text: string): StatementSummaryTotals | null {
+    const amt = '((?:\\d{1,3}(?:,\\d{2,3})+|\\d+)\\.\\d{2})';
+    const columns = text.match(new RegExp(
+      `Opening\\s+Balance\\s+Debits?\\s+Amount\\s+Credits?\\s+Amount\\s+Closing\\s+Balance\\s*\\n\\s*${amt}\\s+${amt}\\s+${amt}\\s+${amt}`, 'i'
+    ));
+    if (columns) {
+      const counts = text.match(/(?:Debit|Dr)\s+Count\s+(?:Credit|Cr)\s+Count\s*\n\s*(\d+)\s+(\d+)/i);
+      return {
+        openingBalance: this.parseAmount(columns[1]),
+        debitTotal: this.parseAmount(columns[2]),
+        creditTotal: this.parseAmount(columns[3]),
+        closingBalance: this.parseAmount(columns[4]),
+        debitCount: counts ? parseInt(counts[1], 10) : undefined,
+        creditCount: counts ? parseInt(counts[2], 10) : undefined
+      };
+    }
+
+    const singleRow = text.match(new RegExp(`${amt}\\s+(\\d+)\\s+(\\d+)\\s+${amt}\\s+${amt}\\s+${amt}`));
+    if (singleRow) {
+      return {
+        openingBalance: this.parseAmount(singleRow[1]),
+        debitCount: parseInt(singleRow[2], 10),
+        creditCount: parseInt(singleRow[3], 10),
+        debitTotal: this.parseAmount(singleRow[4]),
+        creditTotal: this.parseAmount(singleRow[5]),
+        closingBalance: this.parseAmount(singleRow[6])
+      };
+    }
+
+    return null;
+  }
+
+  private checkAgainstSummary(transactions: ParsedTransaction[], summary: StatementSummaryTotals): string[] {
+    const toPaise = (n: number) => Math.round(n * 100);
+    const debits = transactions.filter(t => t.type === 'expense');
+    const credits = transactions.filter(t => t.type === 'income');
+    const debitTotal = debits.reduce((sum, t) => sum + toPaise(t.amount), 0);
+    const creditTotal = credits.reduce((sum, t) => sum + toPaise(t.amount), 0);
+    const format = (paise: number) => (paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const warnings: string[] = [];
+    const countsMismatch =
+      (summary.debitCount !== undefined && summary.debitCount !== debits.length) ||
+      (summary.creditCount !== undefined && summary.creditCount !== credits.length);
+    if (countsMismatch) {
+      warnings.push(
+        `Statement summary lists ${summary.debitCount ?? '?'} debits and ${summary.creditCount ?? '?'} credits, ` +
+        `but ${debits.length} debits and ${credits.length} credits were read.`
+      );
+    }
+    if (debitTotal !== toPaise(summary.debitTotal) || creditTotal !== toPaise(summary.creditTotal)) {
+      warnings.push(
+        `Statement summary totals (debits ₹${format(toPaise(summary.debitTotal))}, credits ₹${format(toPaise(summary.creditTotal))}) ` +
+        `don't match what was read (debits ₹${format(debitTotal)}, credits ₹${format(creditTotal)}). Some rows may be missing or misread.`
+      );
+    }
+    return warnings;
+  }
+
   // --- HDFC Standard Strategy ---
   private createHDFCStandardStrategy(): StatementParserStrategy {
     return {
       name: 'HDFC Standard',
-      identifiers: ['HDFC BANK', 'Account No'],
+      // 'Account N' matches both "Account No" and the newer "Account Number" header
+      identifiers: ['HDFC BANK', 'Account N'],
       parse: (text: string) => {
         // ... (Existing logic moved here) ...
         const patterns = {
-          accountNumber: /Account\s+No[:\s]+(\d{11,16})/i,
+          accountNumber: /Account\s+(?:No|Number)\.?[:\s]+(\d{11,16})/i,
           accountHolder: /Account\s+Holder[:\s]+([A-Z\s]+)/i,
-          statementPeriod: /Statement\s+Period[:\s]+(\d{2}\/\d{2}\/\d{2,4})\s+to\s+(\d{2}\/\d{2}\/\d{2,4})/i,
+          statementPeriod: /Statement\s+(?:Period|From)[:\s]+(\d{2}\/\d{2}\/\d{2,4})\s+to\s+(\d{2}\/\d{2}\/\d{2,4})/i,
           openingBalance: /Opening\s+Balance[:\s]+(?:Rs\.?\s*)?([0-9,]+\.?\d*)/i,
           closingBalance: /Closing\s+Balance[:\s]+(?:Rs\.?\s*)?([0-9,]+\.?\d*)/i,
           summaryTable: /([0-9,]+\.\d{2})\s+\d+\s+\d+\s+[0-9,]+\.\d{2}\s+[0-9,]+\.\d{2}\s+[0-9,]+\.\d{2}/,
           transactionLineStandard: /(\d{2}\/\d{2}\/\d{4})\s+(.+?)\s+([0-9,]+\.?\d*)\s+(Dr|Cr)\s+([0-9,]+\.?\d*)/,
-          transactionLineColumnar: /^(\d{2}\/\d{2}\/\d{2,4})\s+(.+?)\s+(\d{2}\/\d{2}\/\d{2,4})\s+([0-9,]+\.\d{2})\s+([0-9,]+\.\d{2})/
+          transactionLineColumnar: /^(\d{2}\/\d{2}\/\d{2,4})\s+(.+?)\s+(\d{2}\/\d{2}\/\d{2,4})\s+([0-9,]+\.\d{2})\s+([0-9,]+\.\d{2})/,
+          // Txn Date | Narration | Withdrawals | Deposits | Closing Balance (narration may wrap onto following lines)
+          transactionLineThreeColumn: /^(\d{2}\/\d{2}\/\d{2,4})\s+(.*?)\s+((?:\d{1,3}(?:,\d{2,3})+|\d+)\.\d{2})\s+((?:\d{1,3}(?:,\d{2,3})+|\d+)\.\d{2})\s+((?:\d{1,3}(?:,\d{2,3})+|\d+)\.\d{2})\s*$/
         };
 
         const accountNumber = this.extractPattern(text, patterns.accountNumber) || 'Unknown';
@@ -111,6 +322,15 @@ class BankStatementParser {
 
         let openingBalance = this.parseAmount(this.extractPattern(text, patterns.openingBalance) || '0');
         let closingBalance = this.parseAmount(this.extractPattern(text, patterns.closingBalance) || '0');
+
+        // Newer layout: "Opening Balance : x" sits in the account header and the closing
+        // balance only appears in the SUMMARY block (the "Closing Balance" column header
+        // would otherwise be read as a value)
+        if (new RegExp(patterns.transactionLineThreeColumn.source, 'm').test(text)) {
+          const summary = this.extractStatementSummary(text);
+          if (summary && openingBalance === 0) openingBalance = summary.openingBalance;
+          closingBalance = summary ? summary.closingBalance : 0;
+        }
 
         if (openingBalance === 0) {
           const summaryMatch = text.match(patterns.summaryTable);
@@ -430,6 +650,10 @@ class BankStatementParser {
   private extractHDFCTransactions(pdfText: string, openingBalance: number, patterns: any): ParsedTransaction[] {
     const rawTransactions: any[] = [];
     const lines = pdfText.split('\n');
+    // Wrapped narration lines of the last three-column row, until a page/section boundary
+    let continuation: { parts: string[] } | null = null;
+    const boundaryPattern = /^(?:SUMMARY\b|Page\s+\d+\s+of\s+\d+|Txn\s+Date\b|Date\s+Narration|Opening\s+Balance|Closing\s+Balance|Statement\s+(?:From|Period|of|Summary)|Account\s+(?:No|Number|Branch|Type)|Customer\s+ID|Debit\s+Count|Total\s|\*)/i;
+    const MAX_CONTINUATION_LINES = 4;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
@@ -438,6 +662,7 @@ class BankStatementParser {
       // Try standard match first
       const stdMatch = line.match(patterns.transactionLineStandard);
       if (stdMatch) {
+        continuation = null;
         const [, date, description, amount, type, balance] = stdMatch;
         rawTransactions.push({
           date: this.convertDateFormat(date),
@@ -452,9 +677,26 @@ class BankStatementParser {
         continue;
       }
 
+      // Withdrawals | Deposits | Closing Balance - direction resolved below from the columns
+      const threeColMatch = line.match(patterns.transactionLineThreeColumn);
+      if (threeColMatch) {
+        const [, date, description, withdrawal, deposit, balance] = threeColMatch;
+        const raw = {
+          date: this.convertDateFormat(date),
+          descriptionParts: [description],
+          amountText: `${withdrawal} ${deposit} ${balance}`,
+          balance: this.parseAmount(balance),
+          format: 'threeColumn'
+        };
+        rawTransactions.push(raw);
+        continuation = { parts: raw.descriptionParts };
+        continue;
+      }
+
       // Try columnar match
       const colMatch = line.match(patterns.transactionLineColumnar);
       if (colMatch) {
+        continuation = null;
         const [, date, description, , amount, balance] = colMatch;
         rawTransactions.push({
           date: this.convertDateFormat(date),
@@ -468,8 +710,14 @@ class BankStatementParser {
         continue;
       }
 
-      // Handle multiline description logic (simplified for this refactor)
-      // ...
+      // Narration continuation of the previous three-column row
+      if (continuation) {
+        if (boundaryPattern.test(line) || continuation.parts.length > MAX_CONTINUATION_LINES) {
+          continuation = null;
+        } else {
+          continuation.parts.push(line);
+        }
+      }
     }
 
     // Post-process types (same logic as before)
@@ -478,7 +726,22 @@ class BankStatementParser {
     let currentBalance = openingBalance;
 
     for (const raw of rawTransactions) {
-      if (raw.type === 'unknown') {
+      if (raw.format === 'threeColumn') {
+        const { amount, isCredit, balance } = this.resolveAmountAndType(
+          raw.amountText, this.matchCurrencyAmounts(raw.amountText), currentBalance, /$^/, /$^/
+        );
+        if (amount > 0) {
+          transactions.push({
+            date: raw.date,
+            description: this.cleanDescription(this.stripNarrationNoise(raw.descriptionParts.join(' '))),
+            amount,
+            type: isCredit ? 'income' : 'expense',
+            category: '',
+            confidence: 0.9
+          });
+        }
+        if (balance !== null) currentBalance = balance;
+      } else if (raw.type === 'unknown') {
         const txBalance = raw.balance;
         let type: 'income' | 'expense' = 'expense';
         // Logic: Prev - Amount = Curr => Expense
@@ -575,6 +838,12 @@ class BankStatementParser {
     }
 
     return { amount, isCredit, balance };
+  }
+
+  // Drop "Value Dt dd/mm/yyyy Ref 1234..." trailers that statements print under each narration
+  private stripNarrationNoise(narration: string): string {
+    // "Value" may be glued to the end of the narration when the PDF wraps mid-word
+    return narration.replace(/\s*Value\s+Dt(?:\s+\d{2}\/\d{2}\/\d{2,4}|\s*$).*$/i, '').trim() || narration;
   }
 
   private extractPattern(text: string, pattern: RegExp): string | null {

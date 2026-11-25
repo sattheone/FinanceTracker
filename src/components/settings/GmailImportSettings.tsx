@@ -26,12 +26,13 @@ import gmailCrawlerService, {
   GmailConfig,
   FoundStatement,
   ProcessedIndex,
-  StatementStatus
+  StatementStatus,
+  DEFAULT_BANK_SENDERS
 } from '../../services/gmailCrawlerService';
 import FirebaseService from '../../services/firebaseService';
 import statementPasswordStore from '../../services/statementPasswordStore';
 import AutoCategorizationService from '../../services/autoCategorization';
-import DataConfirmationDialog from '../common/DataConfirmationDialog';
+import DataConfirmationDialog, { StatementImportGroup } from '../common/DataConfirmationDialog';
 import DuplicateConfirmationDialog from '../common/DuplicateConfirmationDialog';
 import { formatCurrency } from '../../utils/formatters';
 
@@ -39,25 +40,25 @@ const BANK_INFO: Record<string, { label: string; icon: string; defaultSender: st
   hdfc: {
     label: 'HDFC Bank',
     icon: '🏦',
-    defaultSender: 'hdfcbank.net',
+    defaultSender: DEFAULT_BANK_SENDERS.hdfc,
     passwordHint: 'Usually your Customer ID, or first 4 characters of name in lowercase + DOB in DDMM format.'
   },
   icici: {
     label: 'ICICI Bank',
     icon: '🏢',
-    defaultSender: 'icicibank.com',
+    defaultSender: DEFAULT_BANK_SENDERS.icici,
     passwordHint: 'Usually first 4 characters of name in lowercase + DOB in DDMM format (e.g., john0101).'
   },
   sbi: {
     label: 'State Bank of India',
     icon: '🏛️',
-    defaultSender: 'sbi.co.in',
+    defaultSender: DEFAULT_BANK_SENDERS.sbi,
     passwordHint: 'Usually 11-digit account number, or DOB (DDMMYYYY) + last 5 digits of registered mobile.'
   },
   axis: {
     label: 'Axis Bank',
     icon: '🏪',
-    defaultSender: 'axisbank.com',
+    defaultSender: DEFAULT_BANK_SENDERS.axis,
     passwordHint: 'Usually first 4 letters of your name in UPPERCASE + last 4 digits of Customer ID.'
   },
   custom: {
@@ -391,16 +392,40 @@ const GmailImportSettings: React.FC = () => {
       return;
     }
 
-    const transactionsToAdd: Omit<Transaction, 'id'>[] = confirmedData.map(item => ({
-      description: item.description,
-      amount: Number(item.amount) || 0,
-      date: item.date,
-      type: item.type,
-      category: item.category,
-      bankAccountId: accountId,
-      tags: ['imported', 'gmail-import']
-    }));
+    const transactionsToAdd: Omit<Transaction, 'id'>[] = confirmedData.map(item => toImportTransaction(item, accountId));
+    await importReviewedTransactions(statement, transactionsToAdd, isHistorical, accountId);
+  };
 
+  // Multi-account statement: every chosen account section is saved in one bulk import, so
+  // the email is only marked processed once all of them are in
+  const handleConfirmReviewGroups = async (groups: StatementImportGroup[], isHistorical: boolean) => {
+    const statement = reviewStatement;
+    if (!statement) return;
+
+    const transactionsToAdd = groups.flatMap(group =>
+      group.transactions.map(item => toImportTransaction(item, group.accountId))
+    );
+    await importReviewedTransactions(statement, transactionsToAdd, isHistorical, groups[0]?.accountId);
+  };
+
+  const toImportTransaction = (item: any, accountId: string): Omit<Transaction, 'id'> => ({
+    description: item.description,
+    amount: Number(item.amount) || 0,
+    date: item.date,
+    type: item.type,
+    category: item.category,
+    bankAccountId: accountId,
+    // importTags/importNote: set by the review dialog, e.g. for transfers between own accounts
+    tags: ['imported', 'gmail-import', ...(item.importTags || [])],
+    ...(item.importNote ? { notes: item.importNote } : {})
+  });
+
+  const importReviewedTransactions = async (
+    statement: FoundStatement,
+    transactionsToAdd: Omit<Transaction, 'id'>[],
+    isHistorical: boolean,
+    accountId?: string
+  ) => {
     if (transactionsToAdd.length === 0) {
       return;
     }
@@ -415,7 +440,7 @@ const GmailImportSettings: React.FC = () => {
       } else if (result.summary) {
         // Possible duplicates of existing transactions - let the user decide
         setDuplicateSummary(result.summary);
-        setPendingDuplicateImport({ statement, transactions: transactionsToAdd, accountId, isHistorical });
+        setPendingDuplicateImport({ statement, transactions: transactionsToAdd, accountId: accountId || '', isHistorical });
       } else {
         setNotice({ type: 'error', message: `Import failed: ${result.error || 'Unknown error'}` });
       }
@@ -622,7 +647,7 @@ const GmailImportSettings: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-700/60 rounded-xl p-5 shadow-sm">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-700/60 rounded-xl p-4 sm:p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start space-x-3">
             <div className="p-2.5 bg-blue-600 text-white rounded-lg shadow-sm">
@@ -671,14 +696,14 @@ const GmailImportSettings: React.FC = () => {
       )}
 
       {/* Main Enable Switch */}
-      <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
-        <div>
+      <div className="flex items-center justify-between gap-3 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
+        <div className="min-w-0">
           <h4 className="font-semibold text-gray-900 dark:text-white">Enable Gmail Statement Import</h4>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Allow the app to search your Gmail (read-only) for statement emails from the banks you enable
           </p>
         </div>
-        <label className="relative inline-flex items-center cursor-pointer">
+        <label className="relative inline-flex items-center cursor-pointer shrink-0">
           <input
             type="checkbox"
             checked={config.enabled}
@@ -1101,6 +1126,8 @@ const GmailImportSettings: React.FC = () => {
           categories={categories}
           accounts={bankAccounts}
           selectedAccountId={reviewStatement.linkedAccountId || ''}
+          sections={reviewStatement.sections}
+          onConfirmGroups={handleConfirmReviewGroups}
         />
       )}
 

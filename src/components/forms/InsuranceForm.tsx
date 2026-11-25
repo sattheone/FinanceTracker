@@ -115,7 +115,8 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
 
   const getAnnualPremium = () => {
     const multiplier = formData.premiumFrequency === 'monthly' ? 12 :
-      formData.premiumFrequency === 'quarterly' ? 4 : 1;
+      formData.premiumFrequency === 'quarterly' ? 4 :
+      formData.premiumFrequency === 'half-yearly' ? 2 : 1;
     return formData.premiumAmount * multiplier;
   };
 
@@ -227,6 +228,7 @@ const InsuranceForm: React.FC<InsuranceFormProps> = ({ insurance, onSubmit, onCa
           >
             <option value="monthly">Monthly</option>
             <option value="quarterly">Quarterly</option>
+            <option value="half-yearly">Half-Yearly</option>
             <option value="yearly">Yearly</option>
           </select>
         </div>

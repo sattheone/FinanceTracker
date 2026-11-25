@@ -9,6 +9,13 @@ interface BankAccountFormProps {
   currentBalance?: number;
   onSubmit: (accountData: Omit<BankAccount, 'id'>) => void;
   onCancel: () => void;
+  // Prefill for a new account (e.g. from an imported statement); ignored when editing
+  defaults?: {
+    bank?: string;
+    accountNumber?: string;
+    initialBalance?: number;
+    balanceHint?: string;
+  };
 }
 
 const accountTypes: { type: AccountType; name: string; icon: any }[] = [
@@ -35,24 +42,27 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
   currentBalance,
   onSubmit,
   onCancel,
+  defaults,
 }) => {
+  const prefill = account ? undefined : defaults;
   const { user } = useAuth();
 
   // Account type state
   const [accountType, setAccountType] = useState<AccountType>(account?.accountType || 'bank');
 
   // Determine if initial bank is custom (not in the predefined list, ignoring 'Other')
-  const isInitiallyCustom = account?.bank && !bankOptions.some(b => b.name === account.bank && b.name !== 'Other');
+  const initialBank = account?.bank || prefill?.bank || '';
+  const isInitiallyCustom = initialBank && !bankOptions.some(b => b.name === initialBank && b.name !== 'Other');
   const [isCustomBank, setIsCustomBank] = useState(isInitiallyCustom || false);
 
   const [showStatementPassword, setShowStatementPassword] = useState(false);
 
   const [formData, setFormData] = useState({
-    bank: account?.bank || '',
-    accountNumber: account?.number ? account.number.replace('xx', '') : '',
-    initialBalance: account?.initialBalance || 0,
+    bank: initialBank,
+    accountNumber: account?.number ? account.number.replace('xx', '') : (prefill?.accountNumber || ''),
+    initialBalance: account?.initialBalance || prefill?.initialBalance || 0,
     currentBalance: currentBalance ?? (account?.initialBalance || 0),
-    logo: account?.logo || '🏦',
+    logo: account?.logo || bankOptions.find(b => b.name === initialBank)?.logo || '🏦',
     // Prefer the device-local copy; fall back to a legacy value loaded from Firestore
     statementPassword: (account?.id && statementPasswordStore.get(account.id)) || account?.statementPassword || '',
   });
@@ -157,7 +167,7 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
                 key={type.type}
                 type="button"
                 onClick={() => handleAccountTypeChange(type.type)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-colors ${
+                className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 px-1 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
                   i > 0 ? 'border-l' : ''
                 }`}
                 style={{
@@ -166,7 +176,7 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
                   color: active ? 'var(--color-text-inverse)' : 'var(--color-text-secondary)',
                 }}
               >
-                <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+                <Icon className="hidden sm:block w-3.5 h-3.5 flex-shrink-0" />
                 <span className="truncate">{type.name}</span>
               </button>
             );
@@ -281,14 +291,17 @@ const BankAccountForm: React.FC<BankAccountFormProps> = ({
             className="input-field theme-input w-full"
             placeholder="0.00"
           />
+          {prefill?.balanceHint && (
+            <p className="mt-1 text-xs theme-text-muted">{prefill.balanceHint}</p>
+          )}
         </div>
       )}
 
       {/* Statement PDF Password */}
       {accountType !== 'cash' && (
         <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="form-label !mb-0 flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 mb-1">
+            <label className="form-label !mb-0 !flex items-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-gray-500" />
               Statement PDF Password (Optional)
             </label>

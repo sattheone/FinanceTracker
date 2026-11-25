@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Edit3, Trash2, Repeat, Tag, Type } from 'lucide-react';
+import { Edit3, Trash2, Repeat, Tag, Type, Flag } from 'lucide-react';
 import { Transaction } from '../../types';
 import { useThemeClasses, cn } from '../../hooks/useThemeClasses';
 
@@ -14,6 +14,7 @@ interface TransactionContextMenuProps {
     onMakeRecurring: (t: Transaction) => void;
     onChangeCategory: (t: Transaction) => void;
     onChangeType: (t: Transaction) => void;
+    onToggleReview?: (t: Transaction) => void;
 }
 
 const TransactionContextMenu: React.FC<TransactionContextMenuProps> = ({
@@ -26,6 +27,7 @@ const TransactionContextMenu: React.FC<TransactionContextMenuProps> = ({
     onMakeRecurring,
     onChangeCategory,
     onChangeType,
+    onToggleReview,
 }) => {
     const menuRef = useRef<HTMLDivElement>(null);
     const theme = useThemeClasses();
@@ -97,6 +99,17 @@ const TransactionContextMenu: React.FC<TransactionContextMenuProps> = ({
                     <Tag className="w-4 h-4 text-green-500" />
                     <span>Change Category</span>
                 </button>
+
+                {/* Review Flag */}
+                {onToggleReview && (
+                    <button
+                        onClick={() => { onToggleReview(transaction); onClose(); }}
+                        className={cn("w-full text-left px-4 py-2 text-sm flex items-center space-x-2", theme.interactive)}
+                    >
+                        <Flag className={cn("w-4 h-4 text-amber-500", transaction.needsReview && "fill-amber-500")} />
+                        <span>{transaction.needsReview ? 'Mark as Reviewed' : 'Flag for Review'}</span>
+                    </button>
+                )}
 
                 {/* Divider */}
                 <div className={cn("border-t my-1", theme.borderSecondary)} />

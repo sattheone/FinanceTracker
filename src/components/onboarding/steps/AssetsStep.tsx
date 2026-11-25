@@ -126,44 +126,44 @@ const AssetsStep: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Assets & Investments</h2>
-        <p className="text-gray-600 dark:text-gray-300">
+        <h2 className="text-2xl font-bold theme-text-primary mb-2">Assets & Investments</h2>
+        <p className="theme-text-secondary">
           Add your current assets and investments to track your portfolio.
         </p>
       </div>
 
       {/* Summary */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-lg p-6">
+      <div className="metric-card">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Total Portfolio Value</h3>
-            <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-1">
+            <h3 className="text-lg font-semibold theme-text-primary">Total Portfolio Value</h3>
+            <p className="text-3xl font-bold mt-1" style={{ color: 'var(--color-accent-primary)' }}>
               {formatCurrency(totalAssetValue)}
             </p>
           </div>
-          <TrendingUp className="w-12 h-12 text-blue-600 dark:text-blue-400" />
+          <TrendingUp className="w-12 h-12" style={{ color: 'var(--color-accent-primary)' }} />
         </div>
-        <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
+        <p className="text-sm theme-text-muted mt-2">
           {assets.length} {assets.length === 1 ? 'asset' : 'assets'} tracked
         </p>
       </div>
 
       {/* Add Asset Buttons */}
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Assets</h3>
-        <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <h3 className="text-lg font-semibold theme-text-primary">Your Assets</h3>
+        <div className="flex gap-2 w-full sm:w-auto">
           <button
             onClick={() => setShowImageUploader(true)}
-            className="btn-secondary flex items-center"
+            className="btn-secondary flex items-center justify-center flex-1 sm:flex-none"
           >
-            <Camera className="w-4 h-4 mr-2" />
+            <Camera className="w-4 h-4 mr-2 flex-shrink-0" />
             Import Screenshot
           </button>
           <button
             onClick={() => setShowAddForm(true)}
-            className="btn-primary flex items-center"
+            className="btn-primary flex items-center justify-center flex-1 sm:flex-none"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-4 h-4 mr-2 flex-shrink-0" />
             Add Manually
           </button>
         </div>
@@ -171,7 +171,7 @@ const AssetsStep: React.FC = () => {
 
       {/* Screenshot Import */}
       {showImageUploader && (
-        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border-2 border-dashed border-blue-300 dark:border-blue-500">
+        <div className="card border-dashed">
           <ImageUploader
             title="📸 Import Assets from Screenshot"
             description="Upload a screenshot of your portfolio, demat account, or investment app to automatically extract your assets."
@@ -192,11 +192,11 @@ const AssetsStep: React.FC = () => {
 
       {/* Add Asset Form */}
       {showAddForm && (
-        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border-2 border-dashed border-gray-300 dark:border-gray-500">
-          <h4 className="font-medium text-gray-900 dark:text-white mb-4">Add New Asset</h4>
+        <div className="card">
+          <h4 className="font-medium theme-text-primary mb-4">Add New Asset</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div ref={nameWrapperRef} className="relative">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+              <label className="form-label">
                 Asset Name
               </label>
               <div className="relative">
@@ -217,18 +217,18 @@ const AssetsStep: React.FC = () => {
                 )}
               </div>
               {showSuggestions && suggestions.length > 0 && (
-                <ul className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                <ul className="absolute z-50 mt-1 w-full theme-dropdown rounded-lg max-h-48 overflow-y-auto">
                   {suggestions.map((item, idx) => (
                     <li
                       key={idx}
                       onMouseDown={() => handleSuggestionClick(item)}
-                      className="px-3 py-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700 text-sm"
+                      className="theme-dropdown-item text-sm"
                     >
-                      <span className="font-medium text-gray-900 dark:text-white">
+                      <span className="font-medium theme-text-primary">
                         {newAsset.category === 'stocks' ? item.symbol : item.name}
                       </span>
                       {item.name && newAsset.category === 'stocks' && (
-                        <span className="ml-2 text-gray-500 dark:text-gray-400 text-xs">{item.name}</span>
+                        <span className="ml-2 theme-text-muted text-xs">{item.name}</span>
                       )}
                     </li>
                   ))}
@@ -236,7 +236,7 @@ const AssetsStep: React.FC = () => {
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+              <label className="form-label">
                 Category
               </label>
               <select
@@ -256,7 +256,7 @@ const AssetsStep: React.FC = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+              <label className="form-label">
                 Current Value
               </label>
               <div className="relative">
@@ -265,14 +265,14 @@ const AssetsStep: React.FC = () => {
                   type="number"
                   value={newAsset.currentValue || ''}
                   onChange={(e) => setNewAsset({ ...newAsset, currentValue: Number(e.target.value) })}
-                  className="w-full currency-input py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+                  className="input-field theme-input currency-input"
                   placeholder="0"
                   min="0"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+              <label className="form-label">
                 Purchase Value (Optional)
               </label>
               <div className="relative">
@@ -281,14 +281,14 @@ const AssetsStep: React.FC = () => {
                   type="number"
                   value={newAsset.purchaseValue || ''}
                   onChange={(e) => setNewAsset({ ...newAsset, purchaseValue: Number(e.target.value) })}
-                  className="w-full currency-input py-2 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+                  className="input-field theme-input currency-input"
                   placeholder="0"
                   min="0"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+              <label className="form-label">
                 Purchase Date (Optional)
               </label>
               <input
@@ -316,10 +316,10 @@ const AssetsStep: React.FC = () => {
       {/* Assets List */}
       <div className="space-y-4">
         {assets.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-            <TrendingUp className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No assets added yet</h3>
-            <p className="text-gray-600 dark:text-gray-300">
+          <div className="text-center py-12 theme-text-muted">
+            <TrendingUp className="w-16 h-16 mx-auto mb-4" style={{ color: 'var(--color-border-secondary)' }} />
+            <h3 className="text-lg font-medium theme-text-primary mb-2">No assets added yet</h3>
+            <p className="theme-text-secondary">
               Start by adding your investments, savings, and other assets to track your portfolio.
             </p>
           </div>
@@ -330,40 +330,36 @@ const AssetsStep: React.FC = () => {
             const gainLossPercent = asset.purchaseValue ? (gainLoss / asset.purchaseValue) * 100 : 0;
 
             return (
-              <div key={asset.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+              <div key={asset.id} className="card !p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center mb-2">
                       <span className="text-2xl mr-3">{category?.icon}</span>
                       <div>
-                        <h4 className="font-medium text-gray-900 dark:text-white">{asset.name}</h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">{category?.label}</p>
+                        <h4 className="font-medium theme-text-primary">{asset.name}</h4>
+                        <p className="text-sm theme-text-secondary">{category?.label}</p>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <p className="text-gray-600 dark:text-gray-300">Current Value</p>
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {formatCurrency(asset.currentValue)}
-                        </p>
+                        <p className="theme-text-secondary">Current Value</p>
+                        <p className="font-semibold theme-text-primary">{formatCurrency(asset.currentValue)}</p>
                       </div>
                       {asset.purchaseValue && (
                         <>
                           <div>
-                            <p className="text-gray-600 dark:text-gray-300">Purchase Value</p>
-                            <p className="font-semibold text-gray-900 dark:text-white">
-                              {formatCurrency(asset.purchaseValue)}
-                            </p>
+                            <p className="theme-text-secondary">Purchase Value</p>
+                            <p className="font-semibold theme-text-primary">{formatCurrency(asset.purchaseValue)}</p>
                           </div>
                           <div>
-                            <p className="text-gray-600 dark:text-gray-300">Gain/Loss</p>
+                            <p className="theme-text-secondary">Gain/Loss</p>
                             <p className={`font-semibold ${gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}
                             </p>
                           </div>
                           <div>
-                            <p className="text-gray-600 dark:text-gray-300">Return %</p>
+                            <p className="theme-text-secondary">Return %</p>
                             <p className={`font-semibold ${gainLossPercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {gainLossPercent >= 0 ? '+' : ''}{gainLossPercent.toFixed(2)}%
                             </p>
@@ -375,7 +371,7 @@ const AssetsStep: React.FC = () => {
 
                   <button
                     onClick={() => deleteAsset(asset.id)}
-                    className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:bg-red-900/20 p-2 rounded-lg"
+                    className="p-2 rounded-lg transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -388,8 +384,8 @@ const AssetsStep: React.FC = () => {
 
       {/* Asset Categories Summary */}
       {assets.length > 0 && (
-        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
-          <h4 className="font-medium text-gray-900 dark:text-white mb-4">Portfolio Allocation</h4>
+        <div className="card">
+          <h4 className="font-medium theme-text-primary mb-4">Portfolio Allocation</h4>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {assetCategories.map(category => {
               const categoryAssets = assets.filter(a => a.category === category.value);
@@ -399,13 +395,11 @@ const AssetsStep: React.FC = () => {
               if (categoryValue === 0) return null;
 
               return (
-                <div key={category.value} className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
+                <div key={category.value} className="text-center p-3 rounded-xl" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
                   <div className="text-xl mb-1">{category.icon}</div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{category.label}</p>
-                  <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                    {formatCurrency(categoryValue)}
-                  </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-300">{percentage.toFixed(1)}%</p>
+                  <p className="text-sm font-medium theme-text-primary">{category.label}</p>
+                  <p className="text-lg font-bold" style={{ color: 'var(--color-accent-primary)' }}>{formatCurrency(categoryValue)}</p>
+                  <p className="text-xs theme-text-muted">{percentage.toFixed(1)}%</p>
                 </div>
               );
             })}

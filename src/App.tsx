@@ -70,11 +70,7 @@ const AppContent: React.FC = () => {
   // Skip onboarding if:
   // 1. User has completed onboarding
   // 2. Manual bypass is set
-  // 3. User has been registered for more than 1 day (likely existing user)
-  const userCreatedAt = user?.createdAt ? new Date(user.createdAt) : null;
-  const isOldUser = userCreatedAt && (Date.now() - userCreatedAt.getTime()) > 24 * 60 * 60 * 1000;
-
-  if (!user?.onboardingCompleted && !bypassOnboarding && !isOldUser) {
+  if (!user?.onboardingCompleted && !bypassOnboarding) {
     return <OnboardingWizard />;
   }
 
@@ -107,7 +103,7 @@ function App() {
         <AuthProvider>
           <DataProvider>
             <AppContent />
-            <FirebaseMonitor />
+            {import.meta.env.DEV && <FirebaseMonitor />}
             <ReloadPrompt />
             <PWAInstallPrompt />
           </DataProvider>

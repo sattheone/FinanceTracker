@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback, ReactNode } from 'react';
 import { Asset, Insurance, Goal, LifeEvent, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction, CategoryRule, SIPRule, Tag, DashboardSummary } from '../types';
-import { Category } from '../constants/categories';
+import { Category, isTransferTransaction } from '../constants/categories';
+import { autoPairCandidate, buildTransferCounterpart, findAutoCreatedCounterpart, findTransferCandidates } from '../services/transferPairing';
 import { UserProfile, SyncSettings } from '../types/user';
 import { useAuth } from './AuthContext';
 import FirebaseService from '../services/firebaseService';
@@ -241,13 +242,17 @@ interface DataContextType {
   toggleLifeEventActive: (id: string) => Promise<void>;
   importGoalAsLifeEvent: (goal: Goal, currentAge: number) => Promise<void>;
 
-  addTransaction: (transaction: Omit<Transaction, 'id'>) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<string | undefined>;
   addTransactionsBulk: (transactions: Omit<Transaction, 'id'>[], options?: { isHistorical?: boolean; skipDuplicateCheck?: boolean }) => Promise<{ success: boolean; summary?: any; error?: string }>;
   updateTransaction: (id: string, transaction: Partial<Transaction>) => void;
   bulkUpdateTransactions: (ids: string[], update: Partial<Transaction>) => Promise<void>;
   bulkUpdateTransactionsById: (updatesById: Record<string, Partial<Transaction>>) => Promise<void>;
   deleteTransaction: (id: string) => void;
   bulkDeleteTransactions: (ids: string[]) => Promise<void>;
+  // Transfers between own accounts: link the two sides, unlink, or add the missing side
+  linkTransfer: (id: string, otherId: string) => Promise<void>;
+  unlinkTransfer: (id: string) => Promise<void>;
+  createTransferCounterpart: (id: string, accountId: string) => Promise<void>;
 
   // Transaction paging (industry standard: don't load all history on cold start)
   loadMoreTransactions: () => Promise<void>;
@@ -1775,6 +1780,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       setTransactions(prev => [...prev, newTransaction]);
       invalidateCaches();
       trackPendingNew([id]);
+      return id;
     } else {
       try {
         const id = await FirebaseService.addTransaction(user.id, transaction);
@@ -1782,6 +1788,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         setTransactions(prev => [...prev, newTransaction]);
         invalidateCaches();
         trackPendingNew([id]);
+        return id;
       } catch (error) {
         console.error('Error adding transaction:', error);
         throw error;
@@ -1789,10 +1796,21 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
-  const updateTransaction = async (id: string, transaction: Partial<Transaction>) => {
+  const updateTransaction = async (id: string, update: Partial<Transaction>) => {
     if (!user) return;
 
     const oldTransaction = transactions.find(t => t.id === id);
+    let transaction = update;
+
+    // Re-categorised away from Transfer: it's no longer one side of a transfer
+    const partnerId = oldTransaction?.transferPairId;
+    if (partnerId && update.category !== undefined && !isTransferTransaction({ ...oldTransaction, ...update }, categories)) {
+      transaction = { ...update, transferPairId: null };
+      const partner = transactions.find(t => t.id === partnerId);
+      if (partner?.transferPairId === id) {
+        updateTransaction(partnerId, { transferPairId: null });
+      }
+    }
 
     // Optimistic local update for immediate UI feedback (list + summary views)
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...transaction } : t));
@@ -1826,8 +1844,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
-  const bulkUpdateTransactions = async (ids: string[], update: Partial<Transaction>) => {
+  const bulkUpdateTransactions = async (ids: string[], categoryUpdate: Partial<Transaction>) => {
     if (!user) return;
+    // Re-categorised away from Transfer: drop the transfer links (see getTransferPartner)
+    const update = categoryUpdate.category !== undefined && !isTransferTransaction({ category: categoryUpdate.category, type: categoryUpdate.type }, categories)
+      ? { ...categoryUpdate, transferPairId: null }
+      : categoryUpdate;
     
     try {
       // Get old transactions for category summary updates
@@ -1932,7 +1954,16 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       // Check user's duplicate detection preferences
       const duplicateSettings = JSON.parse(localStorage.getItem('duplicateDetectionSettings') || '{"enabled": true, "smartMode": true, "strictMode": false}');
 
-      let transactionsToImport: Omit<Transaction, 'id'>[] = newTransactions;
+      // An imported record that stands for an app-created other side of a transfer replaces
+      // it: it takes over the link, and the placeholder is removed once the import is saved
+      const placeholders = new Set<string>();
+      let transactionsToImport: Omit<Transaction, 'id'>[] = newTransactions.map(t => {
+        const placeholder = findAutoCreatedCounterpart(t, transactions, placeholders);
+        if (!placeholder) return t;
+        placeholders.add(placeholder.id);
+        return { ...t, category: 'transfer', transferPairId: placeholder.transferPairId || null };
+      });
+      const existingTransactions = transactions.filter(t => !placeholders.has(t.id));
       let duplicateCheck: any = null;
 
       // Only check for duplicates if user has it enabled
@@ -1940,7 +1971,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         const { default: duplicateDetectionService } = await import('../services/duplicateDetectionService');
 
         // Convert to full transactions for duplicate checking
-        const fullTransactions: Transaction[] = newTransactions.map(t => ({
+        const fullTransactions: Transaction[] = transactionsToImport.map(t => ({
           ...t,
           id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         }));
@@ -1949,7 +1980,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         const useSmartMode = duplicateSettings.smartMode && !duplicateSettings.strictMode;
 
         // Check for duplicates against EXISTING transactions (from state)
-        duplicateCheck = duplicateDetectionService.checkBulkDuplicates(fullTransactions, transactions, useSmartMode);
+        duplicateCheck = duplicateDetectionService.checkBulkDuplicates(fullTransactions, existingTransactions, useSmartMode);
 
         if (duplicateCheck.duplicateTransactions > 0) {
           // If we have duplicates, we need to handle them
@@ -2008,7 +2039,41 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       } else {
         createdTransactions = await FirebaseService.bulkAddTransactions(user.id, cleanedTransactions);
       }
-      const mergedTransactions = [...transactions, ...createdTransactions];
+      let mergedTransactions = [...existingTransactions, ...createdTransactions];
+
+      // Link transfer sides: the partners of replaced placeholders, then imported transfers
+      // with exactly one strong match. Best-effort - the records are already saved.
+      try {
+        const pairUpdates: Record<string, Partial<Transaction>> = {};
+        const paired = new Set<string>();
+        createdTransactions.forEach(t => {
+          if (!t.transferPairId) return;
+          pairUpdates[t.transferPairId] = { transferPairId: t.id };
+          paired.add(t.id);
+          paired.add(t.transferPairId);
+        });
+        createdTransactions.forEach(t => {
+          if (paired.has(t.id) || !isTransferTransaction(t, categories)) return;
+          const pool = mergedTransactions.filter(other => !paired.has(other.id));
+          const match = autoPairCandidate(findTransferCandidates(t, pool, bankAccounts, categories));
+          if (!match) return;
+          pairUpdates[t.id] = { transferPairId: match.id };
+          pairUpdates[match.id] = { transferPairId: t.id, category: 'transfer' };
+          paired.add(t.id);
+          paired.add(match.id);
+        });
+
+        if (Object.keys(pairUpdates).length > 0) {
+          await FirebaseService.bulkUpdateTransactionsById(pairUpdates);
+          mergedTransactions = mergedTransactions.map(t => pairUpdates[t.id] ? { ...t, ...pairUpdates[t.id] } : t);
+        }
+        if (placeholders.size > 0) {
+          await FirebaseService.bulkDeleteTransactions([...placeholders]);
+        }
+      } catch (pairError) {
+        console.error('Transactions saved, but failed to link transfers:', pairError);
+      }
+
       setTransactions(mergedTransactions);
       invalidateCaches();
       trackPendingNew(createdTransactions.map(t => t.id));
@@ -2017,6 +2082,15 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       // bookkeeping is best-effort: a failure here must not report the import
       // as failed (callers would otherwise retry and create duplicates).
       try {
+        // Net effect of this import on an account: imported records, less the placeholders
+        // they replaced (those were already part of the balance)
+        const netHistoricalChange = (accountId: string) => {
+          const signed = (t: Pick<Transaction, 'type' | 'amount'>) => (t.type === 'income' ? t.amount : -t.amount);
+          const imported = cleanedTransactions.filter(t => t.bankAccountId === accountId).reduce((sum, t) => sum + signed(t), 0);
+          const replaced = transactions.filter(t => placeholders.has(t.id) && t.bankAccountId === accountId).reduce((sum, t) => sum + signed(t), 0);
+          return imported - replaced;
+        };
+
         // Recalculate balance for affected bank accounts
         // Group transactions by bank account
         const accountsToUpdate = new Set(transactionsToImport.map(t => t.bankAccountId).filter(Boolean));
@@ -2035,11 +2109,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
             // If historical import, adjust initialBalance so that the FINAL balance remains unchanged
             if (options?.isHistorical) {
-              const importedForAccount = cleanedTransactions.filter(t => t.bankAccountId === account.id);
-              const netImported = importedForAccount.reduce((sum, t) => {
-                return sum + (t.type === 'income' ? t.amount : -t.amount);
-              }, 0);
-              initialBalance -= netImported;
+              initialBalance -= netHistoricalChange(account.id);
             }
 
             const newBalance = initialBalance + totalTransactionAmount;
@@ -2063,11 +2133,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
               let initialBalance = account.initialBalance ?? 0;
 
               if (options?.isHistorical) {
-                const importedForAccount = cleanedTransactions.filter(t => t.bankAccountId === account.id);
-                const netImported = importedForAccount.reduce((sum, t) => {
-                  return sum + (t.type === 'income' ? t.amount : -t.amount);
-                }, 0);
-                initialBalance -= netImported;
+                initialBalance -= netHistoricalChange(account.id);
               }
 
 
@@ -2187,6 +2253,52 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error bulk deleting transactions:', error);
     }
+  };
+
+  // Transfers between own accounts. Both sides point at each other and are categorised as
+  // transfers; a side previously linked elsewhere is unlinked first.
+  const linkTransfer = async (id: string, otherId: string) => {
+    const a = transactions.find(t => t.id === id);
+    const b = transactions.find(t => t.id === otherId);
+    if (!a || !b) return;
+    const updates: Record<string, Partial<Transaction>> = {
+      [id]: { transferPairId: otherId, category: 'transfer' },
+      [otherId]: { transferPairId: id, category: 'transfer' }
+    };
+    [a, b].forEach(t => {
+      if (t.transferPairId && t.transferPairId !== id && t.transferPairId !== otherId) {
+        updates[t.transferPairId] = { transferPairId: null };
+      }
+    });
+    await bulkUpdateTransactionsById(updates);
+  };
+
+  const unlinkTransfer = async (id: string) => {
+    const t = transactions.find(tx => tx.id === id);
+    if (!t?.transferPairId) return;
+    const updates: Record<string, Partial<Transaction>> = { [id]: { transferPairId: null } };
+    if (transactions.some(tx => tx.id === t.transferPairId)) {
+      updates[t.transferPairId] = { transferPairId: null };
+    }
+    await bulkUpdateTransactionsById(updates);
+  };
+
+  const createTransferCounterpart = async (id: string, accountId: string) => {
+    const t = transactions.find(tx => tx.id === id);
+    if (!t) return;
+    const newId = await addTransaction(buildTransferCounterpart(t, accountId, bankAccounts));
+    if (!newId) return;
+    // addTransaction appended the new record; update this side without the stale list
+    setTransactions(prev => prev.map(tx => tx.id === id ? { ...tx, transferPairId: newId, category: 'transfer' } : tx));
+    if (!pendingNewIds.has(id)) trackPendingEdit(id, t);
+    const write = FirebaseService.updateTransaction(id, { transferPairId: newId, category: 'transfer' });
+    const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+    if (isManual) {
+      write.catch(err => console.error('Error linking transfer (queued):', err));
+    } else {
+      await write;
+    }
+    invalidateCaches();
   };
 
   // Bank Account operations
@@ -3166,6 +3278,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     addTransactionsBulk,
     updateTransaction,
     deleteTransaction,
+    linkTransfer,
+    unlinkTransfer,
+    createTransferCounterpart,
     addBankAccount,
     updateBankAccount,
     deleteBankAccount,

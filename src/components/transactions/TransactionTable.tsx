@@ -1,10 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Edit3, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Tag, MoreHorizontal, Folder, TrendingUp, Database } from 'lucide-react';
+import { Edit3, Trash2, ArrowUp, ArrowDown, ArrowUpDown, Tag, MoreHorizontal, Folder, Database, Repeat, Flag } from 'lucide-react';
 import { Transaction } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
 import { cn, useThemeClasses } from '../../hooks/useThemeClasses';
 import InlineCategoryEditor from './InlineCategoryEditor';
-import InlineTypeEditor from './InlineTypeEditor';
 import { useData } from '../../contexts/DataContext';
 
 interface TransactionTableProps {
@@ -25,6 +24,7 @@ interface TransactionTableProps {
     onBulkDelete?: () => void;
     highlightTransactionId?: string | null;
     showLocalCacheIndicator?: boolean;
+    onToggleReview?: (transaction: Transaction) => void;
 }
 
 type SortKey = 'date' | 'description' | 'category' | 'type' | 'amount';
@@ -46,31 +46,28 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
     onBulkTagClick,
     onBulkDelete,
     onClearSelection,
-    showLocalCacheIndicator = false
+    showLocalCacheIndicator = false,
+    onToggleReview
 }) => {
     const theme = useThemeClasses();
-    const { categories, tags } = useData();
+    const { categories, tags, pendingEditIds, pendingNewIds } = useData();
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'date', direction: 'desc' });
     const [hoveredTransactionId, setHoveredTransactionId] = useState<string | null>(null);
     const [moreOpen, setMoreOpen] = useState(false);
-    const [typeOpen, setTypeOpen] = useState(false);
     const moreContainerRef = useRef<HTMLDivElement | null>(null);
-    const typeContainerRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
-        if (!moreOpen && !typeOpen) return;
+        if (!moreOpen) return;
         const handleOutside = (e: MouseEvent) => {
             const target = e.target as Node;
             const inMore = moreContainerRef.current?.contains(target);
-            const inType = typeContainerRef.current?.contains(target);
-            if (!inMore && !inType) {
+            if (!inMore) {
                 setMoreOpen(false);
-                setTypeOpen(false);
             }
         };
         document.addEventListener('mousedown', handleOutside);
         return () => document.removeEventListener('mousedown', handleOutside);
-    }, [moreOpen, typeOpen]);
+    }, [moreOpen]);
 
     const tableTransactions = useMemo(() => transactions.filter(t => !t.isSplitParent), [transactions]);
 
@@ -94,7 +91,6 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
         });
     }, [tableTransactions, sortConfig, categories]);
 
-    const selectedTxns = useMemo(() => tableTransactions.filter(t => selectedTransactions.has(t.id)), [tableTransactions, selectedTransactions]);
     const cachedTransactionIds = useMemo(() => {
         if (!showLocalCacheIndicator || typeof window === 'undefined') return new Set<string>();
         try {
@@ -106,12 +102,6 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             return new Set<string>();
         }
     }, [showLocalCacheIndicator, transactions.length]);
-    const bulkCommonType = useMemo(() => {
-        if (selectedTxns.length === 0) return undefined;
-        const t0 = selectedTxns[0].type;
-        return selectedTxns.every(t => t.type === t0) ? t0 : undefined;
-    }, [selectedTxns]);
-
     const lastClickedIndexRef = useRef<number | null>(null);
 
     const handleSort = (key: SortKey) => {
@@ -233,10 +223,33 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                                     <Database className="h-3 w-3 text-emerald-500" />
                                                 </span>
                                             )}
+                                            {transaction.recurringTransactionId && (
+                                                <span title="Recurring transaction">
+                                                    <Repeat className="h-3 w-3 text-indigo-500" />
+                                                </span>
+                                            )}
+                                            {pendingEditIds.has(transaction.id) && (
+                                                <span className={cn(
+                                                    'inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold',
+                                                    pendingNewIds.has(transaction.id)
+                                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
+                                                        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                                                )} title={pendingNewIds.has(transaction.id) ? 'New — not synced yet' : 'Edited — not synced yet'}>
+                                                    {pendingNewIds.has(transaction.id) ? 'New' : 'Edited'}
+                                                </span>
+                                            )}
                                         </span>
                                     </td>
                                     <td className={cn(theme.tableCell, '!py-2 !px-3 text-xs font-medium max-w-xs overflow-hidden')} title={transaction.description}>
-                                        <span className={cn(theme.textPrimary, 'truncate')}>{transaction.description}</span>
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            <span className={cn(theme.textPrimary, 'truncate')}>{transaction.description}</span>
+                                            {transaction.needsReview && (
+                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 shrink-0" title={transaction.reviewNote || "Flagged for review"}>
+                                                    <Flag className="w-2.5 h-2.5 fill-amber-500 text-amber-600 dark:text-amber-400" />
+                                                    Review
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap text-xs overflow-hidden')}>
                                         {onUpdateTransaction ? (
@@ -251,20 +264,9 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                         )}
                                     </td>
                                     <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap overflow-hidden')}>
-                                        {onUpdateTransaction ? (
-                                            <InlineTypeEditor
-                                                currentType={transaction.type}
-                                                allowUnchanged={false}
-                                                onSave={(newType) => {
-                                                    if (newType === 'unchanged') return;
-                                                    onUpdateTransaction(transaction.id, { type: newType });
-                                                }}
-                                            />
-                                        ) : (
-                                            <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-full ${getTypeColor(transaction.type)}`}>
-                                                {transaction.type}
-                                            </span>
-                                        )}
+                                        <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-full ${getTypeColor(transaction.type)}`}>
+                                            {transaction.type}
+                                        </span>
                                     </td>
                                     <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap text-xs text-right font-medium')}>
                                         <span className={transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
@@ -303,6 +305,26 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                     </td>
                                     <td className={cn(theme.tableCell, '!py-2 !px-3 whitespace-nowrap text-right text-xs font-medium')}>
                                         <div className="flex justify-end gap-1">
+                                            {onToggleReview && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onToggleReview(transaction);
+                                                    }}
+                                                    className={cn(
+                                                        'p-1 rounded transition-opacity',
+                                                        transaction.needsReview
+                                                            ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 opacity-100'
+                                                            : cn(
+                                                                'text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20',
+                                                                hoveredTransactionId === transaction.id ? 'opacity-100' : 'opacity-0'
+                                                            )
+                                                    )}
+                                                    title={transaction.needsReview ? "Mark as Reviewed" : "Flag for Review"}
+                                                >
+                                                    <Flag className={cn("w-3 h-3", transaction.needsReview && "fill-amber-500 text-amber-600 dark:text-amber-400")} />
+                                                </button>
+                                            )}
                                             {onTagClick && (
                                                 <button
                                                     onClick={(e) => {
@@ -377,7 +399,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                 )}
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-start justify-between gap-2">
-                                        <p className={cn(theme.textPrimary, 'text-[15px] font-semibold leading-5 break-all')} title={transaction.description}>
+                                        <p className={cn(theme.textPrimary, 'text-[15px] font-semibold leading-5 min-w-0 [overflow-wrap:anywhere]')} title={transaction.description}>
                                             {transaction.description}
                                         </p>
                                         <span className={cn(
@@ -394,6 +416,21 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                                 <Database className="h-3 w-3 text-emerald-500" />
                                             </span>
                                         )}
+                                        {transaction.recurringTransactionId && (
+                                            <span className="inline-flex ml-1 align-middle" title="Recurring transaction">
+                                                <Repeat className="h-3 w-3 text-indigo-500" />
+                                            </span>
+                                        )}
+                                        {pendingEditIds.has(transaction.id) && (
+                                            <span className={cn(
+                                                'inline-flex ml-1 align-middle px-1.5 py-0.5 rounded text-[9px] font-semibold',
+                                                pendingNewIds.has(transaction.id)
+                                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
+                                                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                                            )} title={pendingNewIds.has(transaction.id) ? 'New — not synced yet' : 'Edited — not synced yet'}>
+                                                {pendingNewIds.has(transaction.id) ? 'New' : 'Edited'}
+                                            </span>
+                                        )}
                                     </p>
                                     <div className="mt-2 flex items-center gap-2 flex-wrap">
                                         <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 max-w-full truncate" title={categoryName}>
@@ -402,6 +439,12 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                         <span className={`inline-flex px-2 py-0.5 text-[10px] font-semibold rounded-full ${getTypeColor(transaction.type)}`}>
                                             {transaction.type}
                                         </span>
+                                        {transaction.needsReview && (
+                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                                                <Flag className="w-2.5 h-2.5 mr-1 fill-amber-500 text-amber-600" />
+                                                Needs Review
+                                            </span>
+                                        )}
                                         {transaction.tags && transaction.tags.length > 0 && (
                                             <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300">
                                                 <Tag className="w-3 h-3 mr-1" />
@@ -412,14 +455,31 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                 </div>
                             </div>
 
-                            <div className="mt-2 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                            <div className="mt-1 -mr-1.5 flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+                                {onToggleReview && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onToggleReview(transaction);
+                                        }}
+                                        className={cn(
+                                            'p-2.5 rounded-lg',
+                                            transaction.needsReview 
+                                                ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30' 
+                                                : 'text-gray-400 hover:text-amber-600 dark:hover:text-amber-400'
+                                        )}
+                                        title={transaction.needsReview ? "Mark as Reviewed" : "Flag for Review"}
+                                    >
+                                        <Flag className={cn("w-3.5 h-3.5", transaction.needsReview && "fill-amber-500 text-amber-600")} />
+                                    </button>
+                                )}
                                 {onTagClick && (
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onTagClick(transaction, e.currentTarget);
                                         }}
-                                        className="text-purple-600 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-200 p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                                        className="text-purple-600 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-200 p-2.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20"
                                         title="Manage Tags"
                                     >
                                         <Tag className="w-3.5 h-3.5" />
@@ -431,7 +491,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                             e.stopPropagation();
                                             onTransactionClick(transaction);
                                         }}
-                                        className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-200 p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                        className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-200 p-2.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
                                         title="Edit Transaction"
                                     >
                                         <Edit3 className="w-3.5 h-3.5" />
@@ -443,7 +503,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                                             e.stopPropagation();
                                             onDeleteTransaction(transaction.id);
                                         }}
-                                        className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-200 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                                        className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-200 p-2.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
                                         title="Delete Transaction"
                                     >
                                         <Trash2 className="w-3.5 h-3.5" />
@@ -456,7 +516,7 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
             </div>
 
             {selectedTransactions.size > 0 && (
-                <div className="fixed bottom-4 left-2 right-2 md:left-1/2 md:right-auto md:-translate-x-1/2 z-40">
+                <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-4 left-2 right-2 md:left-1/2 md:right-auto md:-translate-x-1/2 z-40">
                     <div className="flex flex-wrap items-center gap-2 md:gap-3 px-3 md:px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl w-full md:w-auto">
                         <span className="text-xs md:text-sm font-semibold text-gray-900 dark:text-white">
                             {selectedTransactions.size} selected
@@ -475,28 +535,6 @@ const TransactionTable: React.FC<TransactionTableProps> = ({
                             <Tag className="w-4 h-4" />
                             Tag
                         </button>
-                        <div className="relative" ref={typeContainerRef}>
-                            <InlineTypeEditor
-                                currentType={bulkCommonType || 'expense'}
-                                allowUnchanged={false}
-                                onSave={(newType) => {
-                                    if (!onUpdateTransaction || newType === 'unchanged') return;
-                                    transactions.forEach(t => {
-                                        if (selectedTransactions.has(t.id)) {
-                                            onUpdateTransaction(t.id, { type: newType });
-                                        }
-                                    });
-                                }}
-                                onCancel={() => setTypeOpen(false)}
-                                triggerClassName={'inline-flex items-center gap-1.5 h-9 px-2.5 text-xs md:text-sm bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'}
-                                triggerContent={(
-                                    <>
-                                        <TrendingUp className="w-4 h-4" />
-                                        <span>Type</span>
-                                    </>
-                                )}
-                            />
-                        </div>
                         <div className="relative" ref={moreContainerRef}>
                             <button
                                 className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs md:text-sm bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"

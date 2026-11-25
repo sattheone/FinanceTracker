@@ -130,10 +130,10 @@ const CalendarPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Financial Calendar</h1>
-          <div className="flex items-center gap-4 mt-1">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
             <div className="flex items-center gap-1.5">
               <span className={cn(theme.textMuted, 'text-sm')}>Total Transactions:</span>
               <span className={cn(theme.textPrimary, 'text-sm font-semibold')}>{filteredTransactions.length}</span>
@@ -205,7 +205,7 @@ const CalendarPage: React.FC = () => {
                 />
 
                 {/* Popover Content */}
-                <div className="absolute right-0 top-full mt-2 w-96 popup-surface rounded-xl z-50 max-h-[calc(100vh-200px)] overflow-y-auto"
+                <div className="fixed inset-x-4 top-28 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full mt-2 sm:w-96 popup-surface rounded-xl z-50 max-h-[calc(100dvh-200px)] overflow-y-auto"
                   style={{ backgroundColor: 'var(--color-card-bg)', borderColor: 'var(--color-border-primary)' }}>
                   <div className="p-4 space-y-4">
                     {/* Header */}

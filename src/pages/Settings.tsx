@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useData } from '../contexts/DataContext';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, TINT_PALETTES, TintColorId } from '../contexts/ThemeContext';
 
 import SimpleCategoryManager from '../components/categories/SimpleCategoryManager';
 import CategoryMigration from '../components/settings/CategoryMigration';
@@ -55,7 +55,14 @@ const CategoriesWithMigration: React.FC = () => {
 const Settings: React.FC = () => {
   const { user, deleteAccount, updateUser } = useAuth();
   const { userProfile, bankAccounts, getAccountBalance, updateUserProfile } = useData();
-  const { theme, setTheme } = useTheme();
+  const { 
+    theme, setTheme, 
+    tintColor, setTintColor, 
+    accentColor, setAccentColor, 
+    density, setDensity, 
+    fontSize, setFontSize, 
+    visualStyle, setVisualStyle 
+  } = useTheme();
 
 
   const [activeTab, setActiveTab] = useState('profile');
@@ -87,6 +94,11 @@ const Settings: React.FC = () => {
 
     // Display preferences
     theme: theme,
+    tintColor: tintColor,
+    accentColor: accentColor,
+    density: density,
+    fontSize: fontSize,
+    visualStyle: visualStyle,
     language: 'english',
     dashboardLayout: 'default',
     defaultTimePeriod: userProfile?.displayPreferences?.defaultTimePeriod || 'current',
@@ -133,6 +145,21 @@ const Settings: React.FC = () => {
     // Handle theme change
     if (key === 'theme') {
       setTheme(value);
+    }
+    if (key === 'tintColor') {
+      setTintColor(value as TintColorId);
+    }
+    if (key === 'accentColor') {
+      setAccentColor(value);
+    }
+    if (key === 'density') {
+      setDensity(value);
+    }
+    if (key === 'fontSize') {
+      setFontSize(value);
+    }
+    if (key === 'visualStyle') {
+      setVisualStyle(value);
     }
 
     if (key === 'defaultTimePeriod') {
@@ -295,7 +322,7 @@ Type "DELETE" to confirm:`;
         </div>
       </div>
 
-      <div className="flex justify-between pt-4 border-t border-gray-200 dark:border-gray-600">
+      <div className="flex flex-wrap justify-between gap-3 pt-4 border-t border-gray-200 dark:border-gray-600">
         <button
           onClick={handleSaveProfile}
           className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -388,7 +415,7 @@ Type "DELETE" to confirm:`;
 
   const renderBankAccountSettings = () => (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Bank Accounts</h3>
         <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
           <CreditCard className="w-4 h-4 mr-2" />
@@ -398,12 +425,12 @@ Type "DELETE" to confirm:`;
 
       <div className="space-y-4">
         {bankAccounts.map((account) => (
-          <div key={account.id} className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
-            <div className="flex items-center space-x-3">
+          <div key={account.id} className="flex items-center justify-between gap-3 p-3 sm:p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
+            <div className="flex items-center space-x-3 min-w-0">
               <span className="text-2xl">{account.logo}</span>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h4 className="font-medium text-gray-900 dark:text-white">{account.bank}</h4>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <h4 className="font-medium text-gray-900 dark:text-white break-words min-w-0">{account.bank}</h4>
                   {account.accountType && (
                     <span className={`text-xs px-2 py-0.5 rounded-full ${account.accountType === 'credit_card'
                         ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
@@ -415,12 +442,12 @@ Type "DELETE" to confirm:`;
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{account.number || 'No account number'}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 break-all">{account.number || 'No account number'}</p>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className={`text-lg font-semibold ${account.accountType === 'credit_card' ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
-                {account.accountType === 'credit_card' ? '-' : ''}₹{getAccountBalance(account.id).toLocaleString()}
+            <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+              <span className={`text-base sm:text-lg font-semibold whitespace-nowrap ${getAccountBalance(account.id) < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
+                {getAccountBalance(account.id) < 0 ? `-₹${Math.abs(getAccountBalance(account.id)).toLocaleString('en-IN')}` : `₹${getAccountBalance(account.id).toLocaleString('en-IN')}`}
               </span>
               <button className="p-2 text-gray-400 hover:text-blue-600 dark:text-blue-400">
                 <SettingsIcon className="w-4 h-4" />
@@ -443,25 +470,263 @@ Type "DELETE" to confirm:`;
     </div>
   );
 
-  const renderDisplaySettings = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  const renderDisplaySettings = () => {
+    const activeTint = TINT_PALETTES[settings.tintColor as TintColorId] ?? TINT_PALETTES.cream;
+
+    const themeOptions = [
+      {
+        id: 'light',
+        label: 'White',
+        description: 'Clean white',
+        bgStyle: { backgroundColor: '#ffffff' },
+        cardStyle: { backgroundColor: '#f3f4f6' },
+        borderColor: '#e5e7eb',
+      },
+      {
+        id: 'tinted',
+        label: 'Tinted',
+        description: activeTint.label,
+        bgStyle: { backgroundColor: activeTint.hexPrimary },
+        cardStyle: { backgroundColor: activeTint.hexSecondary },
+        borderColor: activeTint.hexBorder,
+      },
+      {
+        id: 'dark',
+        label: 'Dark',
+        description: 'Dark mode',
+        bgStyle: { backgroundColor: '#1a1714' },
+        cardStyle: { backgroundColor: '#201e1b' },
+        borderColor: '#2e2b27',
+      },
+      {
+        id: 'auto',
+        label: 'Auto',
+        description: 'System default',
+        bgStyle: { background: 'linear-gradient(135deg, #ffffff 50%, #1a1714 50%)' },
+        cardStyle: { backgroundColor: '#cccccc' },
+        borderColor: '#d1d5db',
+      },
+    ];
+
+    const tintOptions = Object.entries(TINT_PALETTES) as [TintColorId, typeof TINT_PALETTES[TintColorId]][];
+
+    return (
+    <div className="space-y-8">
+      {/* Theme Picker */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-1">
+          App Theme
+        </label>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+          Choose how the app looks. "Auto" follows your device preference.
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {themeOptions.map((opt) => {
+            const isSelected = settings.theme === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => handleSettingChange('theme', opt.id)}
+                className={`relative rounded-xl border-2 p-3 text-left transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 ${
+                  isSelected
+                    ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                }`}
+              >
+                {/* Mini preview */}
+                <div
+                  className="rounded-lg h-16 w-full mb-2 overflow-hidden flex flex-col gap-1 p-1.5"
+                  style={{ ...opt.bgStyle, border: `1px solid ${opt.borderColor}` }}
+                >
+                  <div className="h-2 w-10 rounded-full" style={opt.cardStyle} />
+                  <div className="h-6 w-full rounded-md" style={{ ...opt.cardStyle, border: `1px solid ${opt.borderColor}` }} />
+                  <div className="h-2 w-8 rounded-full opacity-50" style={opt.cardStyle} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={`text-sm font-medium ${
+                      isSelected ? 'text-blue-700 dark:text-blue-400' : 'text-gray-900 dark:text-white'
+                    }`}>
+                      {opt.label}
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 leading-tight mt-0.5">
+                      {opt.description}
+                    </p>
+                  </div>
+                  {isSelected && (
+                    <span className="ml-1 flex-shrink-0 w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+                      <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none">
+                        <path d="M1 6l3.5 3.5L11 2.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Tint Color Picker — shown only when Tinted theme is active */}
+      {settings.theme === 'tinted' && (
         <div>
-          <label className="form-label">Theme</label>
-          <select
-            value={settings.theme}
-            onChange={(e) => handleSettingChange('theme', e.target.value)}
-            className="input-field theme-input"
-          >
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-            <option value="auto">Auto (System)</option>
-          </select>
-          <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-400 mt-1">
-            Auto theme follows your system preference
+          <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-1">
+            Tint Color
+          </label>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Pick a color tone for the background.
           </p>
+          <div className="flex flex-wrap gap-3">
+            {tintOptions.map(([id, palette]) => {
+              const isActive = settings.tintColor === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => handleSettingChange('tintColor', id)}
+                  title={palette.label}
+                  className={`flex flex-col items-center gap-1.5 focus:outline-none group`}
+                >
+                  <span
+                    className={`w-10 h-10 rounded-full block transition-all ${
+                      isActive
+                        ? 'ring-2 ring-offset-2 ring-blue-500 scale-110'
+                        : 'ring-1 ring-transparent hover:ring-gray-300 hover:scale-105'
+                    }`}
+                    style={{ backgroundColor: palette.swatch }}
+                  />
+                  <span className={`text-xs ${
+                    isActive ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-500 dark:text-gray-400'
+                  }`}>
+                    {palette.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Accent Color Picker */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-1">
+          Accent Color
+        </label>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          Select the highlight color for buttons, selections, and interactive states.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {([
+            { id: 'violet', label: 'Violet', color: '#635bff' },
+            { id: 'blue', label: 'Blue', color: '#2563eb' },
+            { id: 'emerald', label: 'Emerald', color: '#059669' },
+            { id: 'amber', label: 'Amber', color: '#d97706' },
+            { id: 'rose', label: 'Rose', color: '#e11d48' },
+          ] as const).map(({ id, label, color }) => {
+            const isActive = settings.accentColor === id;
+            return (
+              <button
+                key={id}
+                onClick={() => handleSettingChange('accentColor', id)}
+                title={label}
+                className="flex flex-col items-center gap-1.5 focus:outline-none"
+              >
+                <span
+                  className={`w-9 h-9 rounded-full block transition-all ${
+                    isActive
+                      ? 'ring-2 ring-offset-2 ring-blue-500 scale-110'
+                      : 'hover:scale-105 ring-1 ring-transparent hover:ring-gray-300'
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+                <span className={`text-[10px] ${isActive ? 'text-blue-600 dark:text-blue-400 font-semibold' : 'text-gray-500'}`}>
+                  {label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Density Control */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-1">Layout Spacing</label>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Adjust spacing and padding density</p>
+          <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-gray-150 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+            {([
+              { id: 'compact', label: 'Compact' },
+              { id: 'comfortable', label: 'Comfortable' },
+              { id: 'relaxed', label: 'Relaxed' },
+            ] as const).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => handleSettingChange('density', opt.id)}
+                className={`py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  settings.density === opt.id
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
 
+        {/* Font Scale Control */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-1">Text Scaling</label>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Scale size of interface typography</p>
+          <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-gray-150 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+            {([
+              { id: 'small', label: 'Small' },
+              { id: 'medium', label: 'Medium' },
+              { id: 'large', label: 'Large' },
+            ] as const).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => handleSettingChange('fontSize', opt.id)}
+                className={`py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  settings.fontSize === opt.id
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Visual Style Control */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-1">Card Styling</label>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Set flat borders vs. glass overlays</p>
+          <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-gray-150 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+            {([
+              { id: 'flat', label: 'Flat borders' },
+              { id: 'glass', label: 'Glassmorphic' },
+            ] as const).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => handleSettingChange('visualStyle', opt.id)}
+                className={`py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  settings.visualStyle === opt.id
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="form-label">Language</label>
           <div className="relative">
@@ -546,6 +811,7 @@ Type "DELETE" to confirm:`;
       </div>
     </div>
   );
+};
 
   const renderSecuritySettings = () => (
     <div className="space-y-6">
@@ -650,8 +916,8 @@ Type "DELETE" to confirm:`;
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-700 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 py-4 sm:py-8">
+    <div className="lg:min-h-screen bg-gray-50 dark:bg-gray-700 dark:bg-gray-900">
+      <div className="max-w-7xl mx-auto px-0 sm:px-4 py-2 sm:py-8">
         <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white dark:text-white">Settings</h1>
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 dark:text-gray-400 mt-2">Manage your account preferences and settings</p>
@@ -659,7 +925,7 @@ Type "DELETE" to confirm:`;
 
         <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
           {/* Sidebar - Horizontal scroll on mobile, vertical on desktop */}
-          <div className="lg:w-64 -mx-4 px-4 lg:mx-0 lg:px-0">
+          <div className="lg:w-64 -mx-3 px-3 sm:-mx-4 sm:px-4 lg:mx-0 lg:px-0">
             <nav className="flex lg:flex-col space-x-2 lg:space-x-0 lg:space-y-1 overflow-x-auto scrollbar-hide pb-2 lg:pb-0">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
@@ -683,7 +949,7 @@ Type "DELETE" to confirm:`;
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sm:p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-3 sm:p-6">
               <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white dark:text-white mb-4 sm:mb-6">
                 {tabs.find(tab => tab.id === activeTab)?.label}
               </h2>

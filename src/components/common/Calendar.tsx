@@ -391,8 +391,8 @@ const Calendar: React.FC<CalendarProps> = ({
               </div>
             ))}
             {dayEvents.length > 2 && (
-              <div className="text-xs text-gray-500 dark:text-gray-400 px-1">
-                +{dayEvents.length - 2} more
+              <div className="text-[11px] sm:text-xs leading-tight text-gray-500 dark:text-gray-400 px-1 truncate">
+                +{dayEvents.length - 2}<span className="hidden sm:inline"> more</span>
               </div>
             )}
           </div>
@@ -411,13 +411,13 @@ const Calendar: React.FC<CalendarProps> = ({
   return (
     <div className="space-y-4">
       {/* Calendar Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center space-x-2">
           <span className={cn(theme.textPrimary, 'font-medium text-lg')}>
             {monthNames[month]} {year}
           </span>
         </div>
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {/* Legend */}
           <div className="flex items-center space-x-2 text-xs">
             <div className="flex items-center space-x-1">
@@ -461,7 +461,7 @@ const Calendar: React.FC<CalendarProps> = ({
         {/* Day Headers */}
         <div className="grid grid-cols-7 bg-gray-50 dark:bg-gray-700">
           {dayNames.map(day => (
-            <div key={day} className="p-3 text-center text-sm font-medium text-gray-600 dark:text-gray-300 border-r border-gray-200 dark:border-gray-600 last:border-r-0">
+            <div key={day} className="p-2 sm:p-3 text-center text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300 border-r border-gray-200 dark:border-gray-600 last:border-r-0">
               {day}
             </div>
           ))}
