@@ -44,11 +44,12 @@ const MetricCard: React.FC<MetricCardProps> = ({
   };
 
   return (
-    <div className="metric-card relative group cursor-help" tabIndex={tooltipContent ? 0 : undefined}>
+    <div className={`metric-card relative group cursor-help ${tooltipContent ? "hover:z-30 focus:z-30" : ""}`} tabIndex={tooltipContent ? 0 : undefined}>
       {tooltipContent && (
-        <div className="absolute z-50 invisible group-hover:visible group-focus:visible text-white text-xs rounded-xl py-2 px-3 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-52 max-w-[calc(100vw-2rem)] shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity duration-200" style={{ backgroundColor: 'var(--color-bg-primary, #111)', border: '1px solid var(--color-border-primary)' }}>
+        <div className="absolute z-50 invisible group-hover:visible group-focus:visible text-xs rounded-xl py-2 px-3 top-full left-1/2 transform -translate-x-1/2 mt-2 w-52 max-w-[calc(100vw-2rem)] shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity duration-200" style={{ backgroundColor: 'var(--color-bg-primary, #111)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border-primary)' }}>
+          {/* Opens below the card: above it, the tooltip ran under the sticky page header and got cut off. */}
           {tooltipContent}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent" style={{ borderTopColor: 'var(--color-border-primary)' }}></div>
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 border-4 border-transparent" style={{ borderBottomColor: 'var(--color-border-primary)' }}></div>
         </div>
       )}
       <div className="flex items-start justify-between gap-2">

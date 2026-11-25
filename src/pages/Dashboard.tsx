@@ -294,10 +294,10 @@ const Dashboard: React.FC = () => {
                 )}
 
                 {/* Divider */}
-                <div className="border-t border-gray-500 my-1"></div>
+                <div className="border-t my-1" style={{ borderColor: 'var(--color-border-primary)' }}></div>
 
                 {/* Liabilities in red */}
-                <div className="flex justify-between gap-4 text-red-300">
+                <div className="flex justify-between gap-4 text-red-600 dark:text-red-400">
                   <span>Liabilities</span>
                   <span>: {formatLargeNumber(totalLiabilities)}</span>
                 </div>
