@@ -1,8 +1,7 @@
 import { db } from '../config/firebase';
-import { collection, doc, setDoc, getDoc, getDocs, query, where, increment, writeBatch, Timestamp } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { collection, doc, setDoc, getDoc, getDocs, query, where, increment, writeBatch, Timestamp, serverTimestamp, DocumentData, DocumentReference } from 'firebase/firestore';
 import { Transaction } from '../types';
-import { accumulateSummaryDelta, SummaryDelta, SummaryTx, SUMMARY_SCHEMA_VERSION, NO_CATEGORY_KEY } from './summaryMath';
+import { accumulateSummaryDelta, isEmptyDelta, SummaryDelta, SummaryTx, SUMMARY_SCHEMA_VERSION, NO_CATEGORY_KEY } from './summaryMath';
 
 export interface CategorySummary {
   id: string;
@@ -562,10 +561,8 @@ export const rebuildOptimizedMonthlySummaries = async (
   userId: string,
   _transactions: Transaction[]
 ): Promise<void> => {
-  // Server-only: the Cloud Function reads every transaction (the client may hold only
-  // some months or categories) and marks the summaries complete. A client-side rebuild
-  // from partial data would overwrite good summaries, so there is no fallback.
-  await rebuildMonthlySummariesCloud();
+  // Always rebuild from every transaction in Firestore, not the (possibly partial) loaded set.
+  await rebuildMonthlySummariesClient(userId);
   clearCategorySummaryCache();
   await refreshMonthlySummaries(userId, { full: true });
 };
@@ -637,21 +634,7 @@ export const rebuildCategorySummaries = async (
   console.log(`✅ Rebuilt ${summaries.size} category summaries`);
 };
 
-/**
- * Call Cloud Function to rebuild monthly summaries
- * This is more efficient and runs server-side
- */
-export const rebuildMonthlySummariesCloud = async (): Promise<{ success: boolean; summariesCount: number; transactionsProcessed: number }> => {
-  const functions = getFunctions();
-  const rebuildFn = httpsCallable<void, { success: boolean; summariesCount: number; transactionsProcessed: number }>(
-    functions, 
-    'rebuildMonthlySummaries'
-  );
-  
-  const result = await rebuildFn();
-  console.log('✅ Monthly summaries rebuilt via Cloud Function:', result.data);
-  return result.data;
-};
+
 
 // ============================================================
 // v2 helpers: incremental refresh + optimistic patching
@@ -736,8 +719,8 @@ export const refreshMonthlySummaries = async (
     let lastSeen = 0;
     const list: MonthlySummary[] = [];
     snapshot.forEach(d => {
-      const s = docToSummary(d.id, d.data());
-      lastSeen = Math.max(lastSeen, s.lastUpdated.getTime());
+      const s = docToSummary(d.id, d.data({ serverTimestamps: 'estimate' }));
+      if (!d.metadata.hasPendingWrites) lastSeen = Math.max(lastSeen, s.lastUpdated.getTime());
       list.push(s);
     });
     writeSyncState(userId, { lastSeen, lastFull: now });
@@ -749,8 +732,8 @@ export const refreshMonthlySummaries = async (
   const byId = new Map(stored!.map(s => [s.id, s]));
   let lastSeen = sync!.lastSeen;
   snapshot.forEach(d => {
-    const s = docToSummary(d.id, d.data());
-    lastSeen = Math.max(lastSeen, s.lastUpdated.getTime());
+    const s = docToSummary(d.id, d.data({ serverTimestamps: 'estimate' }));
+    if (!d.metadata.hasPendingWrites) lastSeen = Math.max(lastSeen, s.lastUpdated.getTime());
     byId.set(d.id, s);
   });
   writeSyncState(userId, { lastSeen, lastFull: sync!.lastFull });
@@ -837,3 +820,129 @@ export const yearTotalsFromSummaries = (
 };
 
 export { SUMMARY_SCHEMA_VERSION };
+
+// ============================================================
+// Client-maintained summaries (no Cloud Function: the project is on the Spark plan).
+// Every transaction change made by the app writes matching increments here.
+// ============================================================
+
+let rebuildRunning = false;
+let rebuildDirty = false;
+
+/** Firestore increment payload for one month (empty maps left out: under merge they would replace). */
+const deltaToWrite = (userId: string, delta: SummaryDelta): DocumentData => {
+  const byType: Record<string, Record<string, ReturnType<typeof increment>>> = {};
+  for (const [type, cats] of Object.entries(delta.byType)) {
+    for (const [categoryId, amount] of Object.entries(cats)) {
+      if (amount === 0) continue;
+      (byType[type] = byType[type] || {})[categoryId] = increment(amount);
+    }
+  }
+  const categoryTotals: Record<string, ReturnType<typeof increment>> = {};
+  for (const [categoryId, amount] of Object.entries(delta.categoryTotals)) {
+    if (amount !== 0) categoryTotals[categoryId] = increment(amount);
+  }
+  const data: DocumentData = {
+    userId,
+    year: delta.year,
+    month: delta.month,
+    expense: increment(delta.expense),
+    income: increment(delta.income),
+    investment: increment(delta.investment),
+    totalSpent: increment(delta.totalSpent),
+    txCount: increment(delta.txCount),
+    lastUpdated: serverTimestamp(),
+  };
+  if (Object.keys(byType).length > 0) data.byType = byType;
+  if (Object.keys(categoryTotals).length > 0) data.categoryTotals = categoryTotals;
+  return data;
+};
+
+/**
+ * Persist the summary effect of local transaction changes with atomic increments
+ * (one batched write, no reads). Works offline: the batch is queued like the
+ * transaction writes themselves. Don't await it in offline mode.
+ */
+export const writeSummaryDeltas = async (
+  userId: string,
+  removed: SummaryTx[],
+  added: SummaryTx[]
+): Promise<void> => {
+  if (rebuildRunning) {
+    // The running rebuild will re-read all transactions, including this change.
+    rebuildDirty = true;
+    return;
+  }
+  const deltas = new Map<string, SummaryDelta>();
+  removed.forEach(t => accumulateSummaryDelta(deltas, t, -1));
+  added.forEach(t => accumulateSummaryDelta(deltas, t, 1));
+  const batch = writeBatch(db);
+  let writes = 0;
+  deltas.forEach((delta, monthKey) => {
+    if (isEmptyDelta(delta)) return;
+    batch.set(doc(db, `users/${userId}/monthlySummaries`, monthKey), deltaToWrite(userId, delta), { merge: true });
+    writes++;
+  });
+  if (writes > 0) await batch.commit();
+};
+
+/**
+ * Rebuild every monthly summary from all of the user's transactions and mark the
+ * summaries complete (users/{uid}.summariesVersion). One read per transaction, once.
+ * Changes made on this device while it runs trigger another pass, so none are lost
+ * or counted twice.
+ */
+export const rebuildMonthlySummariesClient = async (
+  userId: string
+): Promise<{ summariesCount: number; transactionsProcessed: number }> => {
+  if (rebuildRunning) throw new Error('A summary rebuild is already running');
+  rebuildRunning = true;
+  try {
+    for (let pass = 1; pass <= 3; pass++) {
+      rebuildDirty = false;
+      const txSnap = await getDocs(query(collection(db, 'transactions'), where('userId', '==', userId)));
+      const deltas = new Map<string, SummaryDelta>();
+      txSnap.forEach(d => accumulateSummaryDelta(deltas, d.data() as SummaryTx, 1));
+
+      const summariesCol = collection(db, `users/${userId}/monthlySummaries`);
+      const existing = await getDocs(summariesCol);
+      const ops: Array<{ ref: DocumentReference; data?: DocumentData }> = [];
+      deltas.forEach((delta, monthKey) => ops.push({
+        ref: doc(summariesCol, monthKey),
+        data: { userId, ...delta, schemaVersion: SUMMARY_SCHEMA_VERSION, lastUpdated: serverTimestamp() },
+      }));
+      existing.forEach(d => { if (!deltas.has(d.id)) ops.push({ ref: d.ref }); });
+
+      for (let i = 0; i < ops.length; i += 400) {
+        const batch = writeBatch(db);
+        ops.slice(i, i + 400).forEach(op => (op.data ? batch.set(op.ref, op.data) : batch.delete(op.ref)));
+        await batch.commit();
+      }
+
+      if (!rebuildDirty) {
+        rebuildRunning = false; // synchronous with the check: no change can slip in between
+        await setDoc(doc(db, 'users', userId), {
+          summariesVersion: SUMMARY_SCHEMA_VERSION,
+          summariesRebuiltAt: serverTimestamp(),
+        }, { merge: true });
+        return { summariesCount: deltas.size, transactionsProcessed: txSnap.size };
+      }
+      console.log(`[summaries] Transactions changed during pass ${pass}; rebuilding again`);
+    }
+    throw new Error('Transactions kept changing during the summary rebuild; try again');
+  } finally {
+    rebuildRunning = false;
+  }
+};
+
+/** Remove every monthly summary (used when all transactions are deleted). */
+export const deleteAllMonthlySummaries = async (userId: string): Promise<void> => {
+  const snap = await getDocs(collection(db, `users/${userId}/monthlySummaries`));
+  for (let i = 0; i < snap.docs.length; i += 400) {
+    const batch = writeBatch(db);
+    snap.docs.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+    await batch.commit();
+  }
+  clearCategorySummaryCache();
+  try { localStorage.removeItem(SUMMARY_SYNC_LS_KEY(userId)); } catch { /* ignore */ }
+};

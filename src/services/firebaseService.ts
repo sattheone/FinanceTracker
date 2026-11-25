@@ -1,3 +1,4 @@
+import { deleteAllMonthlySummaries } from './categorySummaryService';
 import {
   collection,
   doc,
@@ -1461,14 +1462,16 @@ export class FirebaseService {
         return 0;
       }
 
-      const batch = writeBatch(db);
-      querySnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-
-      await batch.commit();
-      incrementFirestoreBatches(1);
+      // Batches hold at most 500 writes
+      for (const chunk of this.chunkArray(querySnapshot.docs, 400)) {
+        const batch = writeBatch(db);
+        chunk.forEach(docSnap => batch.delete(docSnap.ref));
+        await batch.commit();
+        incrementFirestoreBatches(1);
+      }
       incrementFirestoreWrites(querySnapshot.size);
+      // Monthly summaries describe these transactions; with none left, none apply.
+      await deleteAllMonthlySummaries(userId);
       console.log(`✅ Deleted ${querySnapshot.size} transactions`);
       return querySnapshot.size;
     } catch (error) {

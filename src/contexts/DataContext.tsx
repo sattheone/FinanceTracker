@@ -10,7 +10,7 @@ import { deleteField } from 'firebase/firestore';
 import { goOffline, goOnline } from '../config/firebase';
 import GoalMigrationService from '../services/goalMigration';
 import CategoryRuleService from '../services/categoryRuleService';
-import { clearCategorySummaryCache, setCurrentUserId, MonthlySummary, refreshMonthlySummaries, patchMonthlySummaries, rebuildMonthlySummariesCloud, SUMMARY_SCHEMA_VERSION } from '../services/categorySummaryService';
+import { clearCategorySummaryCache, setCurrentUserId, MonthlySummary, refreshMonthlySummaries, patchMonthlySummaries, rebuildMonthlySummariesClient, writeSummaryDeltas, SUMMARY_SCHEMA_VERSION } from '../services/categorySummaryService';
 
 
 // Transaction pagination page sizes (each doc = 1 Firestore read).
@@ -415,7 +415,6 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   /** True once `monthlySummaries` holds a full list for this user (server refresh or its local copy) */
   const [monthlySummariesLoaded, setMonthlySummariesLoaded] = useState(false);
   const monthlySummariesLoadedRef = useRef(false);
-  const summaryRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const markSummariesLoaded = (loaded: boolean) => {
     monthlySummariesLoadedRef.current = loaded;
     setMonthlySummariesLoaded(loaded);
@@ -660,22 +659,15 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     loadedTransactionMonthsRef.current.clear();
     if (change && ((change.removed?.length ?? 0) > 0 || (change.added?.length ?? 0) > 0)) {
       const userId = user.id;
+      const removed = change.removed ?? [];
+      const added = change.added ?? [];
       // Only patch a complete list; patching a partial one would store a partial list.
       if (monthlySummariesLoadedRef.current) {
-        setMonthlySummaries(prev => patchMonthlySummaries(userId, prev, change.removed ?? [], change.added ?? []));
+        setMonthlySummaries(prev => patchMonthlySummaries(userId, prev, removed, added));
       }
-      // Pick up the server's version once the Cloud Function has applied the change
-      // (incremental: reads only the months that changed).
-      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
-      if (!isManual) {
-        if (summaryRefreshTimerRef.current) clearTimeout(summaryRefreshTimerRef.current);
-        summaryRefreshTimerRef.current = setTimeout(() => {
-          summaryRefreshTimerRef.current = null;
-          refreshMonthlySummaries(userId)
-            .then(list => { setMonthlySummaries(list); markSummariesLoaded(true); })
-            .catch(err => console.warn('[DataContext] Summary refresh after edit failed:', err));
-        }, 10000);
-      }
+      // Persist the same change to the summary docs (increments; queued when offline).
+      writeSummaryDeltas(userId, removed, added)
+        .catch(err => console.warn('[DataContext] Failed to write summary update:', err));
     }
     setCategorySummaryVersion(prev => prev + 1);
   }, [user]);
@@ -1481,9 +1473,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const summariesRebuildAttemptKey = (userId: string) => `monthlySummariesRebuildAttempt:${userId}`;
 
   /**
-   * Keep monthly summaries fresh and, once per user, ask the server to rebuild them
-   * in the v2 schema. After that the Cloud Function keeps them complete, so year
-   * views can be drawn from ~12 summary docs instead of every transaction.
+   * Keep monthly summaries fresh and, once per user, rebuild them in the v2 schema
+   * from all transactions. After that every change made in the app keeps them
+   * complete, so year views can be drawn from ~12 summary docs instead of every
+   * transaction.
    */
   const syncMonthlySummaries = async (userId: string) => {
     let rebuilt = false;
@@ -1517,8 +1510,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       if (Date.now() - lastAttempt < 24 * 60 * 60 * 1000) return;
       try { localStorage.setItem(summariesRebuildAttemptKey(userId), String(Date.now())); } catch { /* ignore */ }
 
-      console.log('[DataContext] Rebuilding monthly summaries (v2) on the server…');
-      const result = await rebuildMonthlySummariesCloud();
+      console.log('[DataContext] Rebuilding monthly summaries (v2) from all transactions…');
+      const result = await rebuildMonthlySummariesClient(userId);
       clearCategorySummaryCache();
       setMonthlySummaries(await refreshMonthlySummaries(userId, { full: true }));
       markSummariesLoaded(true);
@@ -3212,10 +3205,6 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     setMonthlySummariesComplete(false);
     setMonthlySummaries([]);
     markSummariesLoaded(false);
-    if (summaryRefreshTimerRef.current) {
-      clearTimeout(summaryRefreshTimerRef.current);
-      summaryRefreshTimerRef.current = null;
-    }
     lazyLoadedRef.current = new Set();
     lastDashboardSummarySignatureRef.current = '';
     knownAccountBalancesRef.current = {};

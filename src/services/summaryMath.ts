@@ -1,9 +1,8 @@
 /**
  * Monthly summary math (schema v2).
  *
- * KEEP IN SYNC with functions/src/summaryMath.ts (Cloud Functions). The client
- * uses the same rules to patch summaries optimistically, so the two copies
- * must produce identical numbers.
+ * The app maintains these docs itself (no Cloud Function): every transaction
+ * change writes matching increments, and a one-time rebuild recomputes them.
  *
  * Doc: users/{userId}/monthlySummaries/{YYYY-MM}
  *   byType        { [rawType]: { [categoryId]: amount } }  - every transaction, transfers included,
