@@ -28,46 +28,66 @@ const sendgridApiKey = defineString("SENDGRID_API_KEY");
 // Summary rules are in ./summaryMath (kept in sync with the web app).
 // ============================================================
 
-/** Write per-month deltas with atomic increments (no reads). */
-async function applySummaryDeltas(userId: string, deltas: Map<string, SummaryDelta>): Promise<void> {
+/** A rebuild holds this lock on users/{uid}.summariesRebuild while it runs. */
+const REBUILD_LOCK_TTL_MS = 9 * 60 * 1000;
+
+function isRebuildLockActive(lock: any): boolean {
+  if (!lock?.startedAt || lock.finishedAt) return false;
+  const startedMs = typeof lock.startedAt.toMillis === "function" ? lock.startedAt.toMillis() : 0;
+  return Date.now() - startedMs < REBUILD_LOCK_TTL_MS;
+}
+
+/** Firestore increment payload for one month's delta (empty maps left out: under merge they would replace). */
+function deltaToWrite(userId: string, delta: SummaryDelta): admin.firestore.DocumentData {
   const inc = admin.firestore.FieldValue.increment;
-  const writes: Promise<unknown>[] = [];
-
-  deltas.forEach((delta, monthKey) => {
-    if (isEmptyDelta(delta)) return;
-
-    const byType: Record<string, Record<string, admin.firestore.FieldValue>> = {};
-    for (const [type, cats] of Object.entries(delta.byType)) {
-      for (const [categoryId, amount] of Object.entries(cats)) {
-        if (amount === 0) continue;
-        (byType[type] = byType[type] || {})[categoryId] = inc(amount);
-      }
+  const byType: Record<string, Record<string, admin.firestore.FieldValue>> = {};
+  for (const [type, cats] of Object.entries(delta.byType)) {
+    for (const [categoryId, amount] of Object.entries(cats)) {
+      if (amount === 0) continue;
+      (byType[type] = byType[type] || {})[categoryId] = inc(amount);
     }
-    const categoryTotals: Record<string, admin.firestore.FieldValue> = {};
-    for (const [categoryId, amount] of Object.entries(delta.categoryTotals)) {
-      if (amount !== 0) categoryTotals[categoryId] = inc(amount);
-    }
+  }
+  const categoryTotals: Record<string, admin.firestore.FieldValue> = {};
+  for (const [categoryId, amount] of Object.entries(delta.categoryTotals)) {
+    if (amount !== 0) categoryTotals[categoryId] = inc(amount);
+  }
+  const data: admin.firestore.DocumentData = {
+    userId,
+    year: delta.year,
+    month: delta.month,
+    expense: inc(delta.expense),
+    income: inc(delta.income),
+    investment: inc(delta.investment),
+    totalSpent: inc(delta.totalSpent),
+    txCount: inc(delta.txCount),
+    lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  if (Object.keys(byType).length > 0) data.byType = byType;
+  if (Object.keys(categoryTotals).length > 0) data.categoryTotals = categoryTotals;
+  return data;
+}
 
-    const ref = db.doc(`users/${userId}/monthlySummaries/${monthKey}`);
-    // Empty maps are left out: under merge they would replace the stored map.
-    const maps: Record<string, unknown> = {};
-    if (Object.keys(byType).length > 0) maps.byType = byType;
-    if (Object.keys(categoryTotals).length > 0) maps.categoryTotals = categoryTotals;
-    writes.push(ref.set({
-      userId,
-      year: delta.year,
-      month: delta.month,
-      ...maps,
-      expense: inc(delta.expense),
-      income: inc(delta.income),
-      investment: inc(delta.investment),
-      totalSpent: inc(delta.totalSpent),
-      txCount: inc(delta.txCount),
-      lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true }));
+/**
+ * Apply per-month deltas atomically. Runs in a transaction that also reads the
+ * user's rebuild lock: while a rebuild runs, the change is not applied; instead
+ * the rebuild is flagged dirty and re-reads all transactions before finishing.
+ * The transaction guarantees the lock can't be taken between check and write.
+ */
+async function applySummaryDeltas(userId: string, deltas: Map<string, SummaryDelta>): Promise<void> {
+  const changed = [...deltas.entries()].filter(([, delta]) => !isEmptyDelta(delta));
+  if (changed.length === 0) return;
+
+  const userRef = db.doc(`users/${userId}`);
+  await db.runTransaction(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    if (isRebuildLockActive(userSnap.get("summariesRebuild"))) {
+      tx.set(userRef, { summariesRebuild: { dirty: true } }, { merge: true });
+      return;
+    }
+    for (const [monthKey, delta] of changed) {
+      tx.set(db.doc(`users/${userId}/monthlySummaries/${monthKey}`), deltaToWrite(userId, delta), { merge: true });
+    }
   });
-
-  await Promise.all(writes);
 }
 
 /**
@@ -107,19 +127,8 @@ export const onTransactionWritten = onDocumentWritten(
   }
 );
 
-/**
- * Callable: rebuild every monthly summary for the calling user from scratch.
- * Use after imports, migrations or if summaries drift. Also marks the user's
- * summaries as complete (users/{uid}.summariesVersion) so the app can trust them.
- */
-export const rebuildMonthlySummaries = onCall({ timeoutSeconds: 300, memory: "512MiB" }, async (request) => {
-  const userId = request.auth?.uid;
-  if (!userId) {
-    throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
-  }
-
-  console.log(`Rebuilding monthly summaries for user ${userId}`);
-
+/** One full pass: read every transaction of the user and overwrite all month docs. */
+async function rebuildSummariesPass(userId: string): Promise<{ months: number; transactions: number }> {
   const transactionsSnap = await db.collection("transactions").where("userId", "==", userId).get();
   const deltas = new Map<string, SummaryDelta>();
   transactionsSnap.forEach((doc) => accumulateSummaryDelta(deltas, doc.data() as SummaryTx, 1));
@@ -148,18 +157,63 @@ export const rebuildMonthlySummaries = onCall({ timeoutSeconds: 300, memory: "51
     }
     await batch.commit();
   }
+  return { months: deltas.size, transactions: transactionsSnap.size };
+}
 
-  await db.doc(`users/${userId}`).set({
-    summariesVersion: SUMMARY_SCHEMA_VERSION,
-    summariesRebuiltAt: now,
+/**
+ * Callable: rebuild every monthly summary for the calling user from scratch.
+ * Use after imports, migrations or if summaries drift. Marks the summaries as
+ * complete (users/{uid}.summariesVersion) so the app can trust them.
+ *
+ * Concurrency: a lock makes the trigger skip (and flag `dirty`) while a pass runs;
+ * a dirty pass is repeated, so no change made during the rebuild is lost or doubled.
+ */
+export const rebuildMonthlySummaries = onCall({ timeoutSeconds: 300, memory: "512MiB" }, async (request) => {
+  const userId = request.auth?.uid;
+  if (!userId) {
+    throw new functions.https.HttpsError("unauthenticated", "User must be authenticated");
+  }
+
+  const userRef = db.doc(`users/${userId}`);
+  const serverNow = admin.firestore.FieldValue.serverTimestamp();
+  console.log(`Rebuilding monthly summaries for user ${userId}`);
+
+  await userRef.set({
+    summariesRebuild: { startedAt: serverNow, dirty: false, finishedAt: admin.firestore.FieldValue.delete() },
   }, { merge: true });
 
-  console.log(`Rebuilt ${deltas.size} monthly summaries from ${transactionsSnap.size} transactions for user ${userId}`);
+  const MAX_PASSES = 5;
+  let result = { months: 0, transactions: 0 };
+  let clean = false;
+  for (let pass = 1; pass <= MAX_PASSES && !clean; pass++) {
+    result = await rebuildSummariesPass(userId);
+    clean = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(userRef);
+      if (snap.get("summariesRebuild.dirty")) {
+        tx.set(userRef, { summariesRebuild: { dirty: false } }, { merge: true });
+        return false;
+      }
+      tx.set(userRef, {
+        summariesRebuild: { finishedAt: admin.firestore.FieldValue.serverTimestamp() },
+        summariesVersion: SUMMARY_SCHEMA_VERSION,
+        summariesRebuiltAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return true;
+    });
+    if (!clean) console.log(`Transactions changed during pass ${pass}; rebuilding again`);
+  }
 
+  if (!clean) {
+    // Release the lock without marking the summaries complete; the app retries later.
+    await userRef.set({ summariesRebuild: { finishedAt: admin.firestore.FieldValue.serverTimestamp() } }, { merge: true });
+    throw new functions.https.HttpsError("aborted", "Transactions kept changing during the rebuild; try again");
+  }
+
+  console.log(`Rebuilt ${result.months} monthly summaries from ${result.transactions} transactions for user ${userId}`);
   return {
     success: true,
-    summariesCount: deltas.size,
-    transactionsProcessed: transactionsSnap.size,
+    summariesCount: result.months,
+    transactionsProcessed: result.transactions,
   };
 });
 

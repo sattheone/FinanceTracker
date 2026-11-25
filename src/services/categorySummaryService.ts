@@ -560,41 +560,14 @@ export const getOptimizedCategorySummariesByYear = async (
  */
 export const rebuildOptimizedMonthlySummaries = async (
   userId: string,
-  transactions: Transaction[]
+  _transactions: Transaction[]
 ): Promise<void> => {
-  // Prefer the server rebuild: it reads every transaction, not just the loaded ones,
-  // and marks the summaries as complete on the user profile.
-  try {
-    await rebuildMonthlySummariesCloud();
-    clearCategorySummaryCache();
-    await refreshMonthlySummaries(userId, { full: true });
-    return;
-  } catch (error) {
-    console.warn('Cloud rebuild unavailable, rebuilding from loaded transactions:', error);
-  }
-
-  // Fallback: same v2 math as the Cloud Function, from the transactions we have.
-  const deltas = new Map<string, SummaryDelta>();
-  transactions.forEach(txn => accumulateSummaryDelta(deltas, txn, 1));
-
-  const batch = writeBatch(db);
-  let batchCount = 0;
-  deltas.forEach((delta, monthKey) => {
-    const summaryRef = doc(db, `users/${userId}/monthlySummaries`, monthKey);
-    batch.set(summaryRef, {
-      userId,
-      ...delta,
-      schemaVersion: SUMMARY_SCHEMA_VERSION,
-      lastUpdated: new Date(),
-    });
-    batchCount++;
-  });
-
-  if (batchCount > 0) {
-    await batch.commit();
-  }
+  // Server-only: the Cloud Function reads every transaction (the client may hold only
+  // some months or categories) and marks the summaries complete. A client-side rebuild
+  // from partial data would overwrite good summaries, so there is no fallback.
+  await rebuildMonthlySummariesCloud();
   clearCategorySummaryCache();
-  console.log(`✅ Rebuilt ${batchCount} optimized monthly summaries`);
+  await refreshMonthlySummaries(userId, { full: true });
 };
 
 /**

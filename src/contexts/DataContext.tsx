@@ -320,7 +320,7 @@ interface DataContextType {
   isDataLoaded: boolean;
   categorySummaryVersion: number;
   monthlySummaries: MonthlySummary[];
-  /** True once monthly summaries were rebuilt with the v2 schema and are kept complete server-side */
+  /** True when monthly summaries are v2, kept complete server-side, and fully loaded for this user */
   monthlySummariesComplete: boolean;
   indexes: {
     categoriesById: Map<string, Category>;
@@ -412,6 +412,14 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [categorySummaryVersion, setCategorySummaryVersion] = useState(0);
   const [monthlySummaries, setMonthlySummaries] = useState<MonthlySummary[]>([]);
   const [monthlySummariesComplete, setMonthlySummariesComplete] = useState(false);
+  /** True once `monthlySummaries` holds a full list for this user (server refresh or its local copy) */
+  const [monthlySummariesLoaded, setMonthlySummariesLoaded] = useState(false);
+  const monthlySummariesLoadedRef = useRef(false);
+  const summaryRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markSummariesLoaded = (loaded: boolean) => {
+    monthlySummariesLoadedRef.current = loaded;
+    setMonthlySummariesLoaded(loaded);
+  };
   const loadedCategoryRangesRef = useRef<Set<string>>(new Set());
   const [lastSyncTimestamp, setLastSyncTimestamp] = useState<number | null>(() => {
     const ts = localStorage.getItem('lastSyncTimestamp');
@@ -652,7 +660,22 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     loadedTransactionMonthsRef.current.clear();
     if (change && ((change.removed?.length ?? 0) > 0 || (change.added?.length ?? 0) > 0)) {
       const userId = user.id;
-      setMonthlySummaries(prev => patchMonthlySummaries(userId, prev, change.removed ?? [], change.added ?? []));
+      // Only patch a complete list; patching a partial one would store a partial list.
+      if (monthlySummariesLoadedRef.current) {
+        setMonthlySummaries(prev => patchMonthlySummaries(userId, prev, change.removed ?? [], change.added ?? []));
+      }
+      // Pick up the server's version once the Cloud Function has applied the change
+      // (incremental: reads only the months that changed).
+      const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+      if (!isManual) {
+        if (summaryRefreshTimerRef.current) clearTimeout(summaryRefreshTimerRef.current);
+        summaryRefreshTimerRef.current = setTimeout(() => {
+          summaryRefreshTimerRef.current = null;
+          refreshMonthlySummaries(userId)
+            .then(list => { setMonthlySummaries(list); markSummariesLoaded(true); })
+            .catch(err => console.warn('[DataContext] Summary refresh after edit failed:', err));
+        }, 10000);
+      }
     }
     setCategorySummaryVersion(prev => prev + 1);
   }, [user]);
@@ -856,6 +879,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
             lastUpdated: new Date(s.lastUpdated)
           }));
           setMonthlySummaries(parsed);
+          markSummariesLoaded(true);
           hasCachedData = true;
         }
       } catch (e) { console.warn('Error parsing cached monthly summaries', e); }
@@ -1474,11 +1498,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       if (isManual || offline) {
         // Offline-first: whatever is cached locally (patched by local edits)
         const cached = await refreshMonthlySummaries(userId).catch(() => null);
-        if (cached) setMonthlySummaries(cached);
+        if (cached) { setMonthlySummaries(cached); markSummariesLoaded(true); }
         return;
       }
 
       setMonthlySummaries(await refreshMonthlySummaries(userId));
+      markSummariesLoaded(true);
 
       const profileVersion = userProfileRef.current?.summariesVersion ?? 0;
       if (rebuilt || profileVersion >= SUMMARY_SCHEMA_VERSION) {
@@ -1496,6 +1521,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const result = await rebuildMonthlySummariesCloud();
       clearCategorySummaryCache();
       setMonthlySummaries(await refreshMonthlySummaries(userId, { full: true }));
+      markSummariesLoaded(true);
       try { localStorage.setItem(summariesRebuiltKey(userId), 'true'); } catch { /* ignore */ }
       setUserProfile(prev => prev ? { ...prev, summariesVersion: SUMMARY_SCHEMA_VERSION } : prev);
       setMonthlySummariesComplete(true);
@@ -3059,9 +3085,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
       if (Object.keys(updatesById).length > 0) {
         await FirebaseService.bulkUpdateTransactionsById(updatesById);
+        const before = transactions.filter(t => updatesById[t.id]);
         setTransactions(prev => prev.map(t =>
           updatesById[t.id] ? { ...t, ...updatesById[t.id] } : t
         ));
+        invalidateCaches({ removed: before, added: before.map(t => ({ ...t, ...updatesById[t.id] })) });
       }
 
       // 2. Update rule stats
@@ -3133,9 +3161,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
     if (Object.keys(updatesById).length > 0) {
       await FirebaseService.bulkUpdateTransactionsById(updatesById);
+      const before = transactions.filter(t => updatesById[t.id]);
       setTransactions(prev => prev.map(t =>
         updatesById[t.id] ? { ...t, ...updatesById[t.id] } : t
       ));
+      invalidateCaches({ removed: before, added: before.map(t => ({ ...t, ...updatesById[t.id] })) });
     }
 
     // Update rule stats
@@ -3180,6 +3210,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     loadedTransactionMonthsRef.current = new Set();
     loadedCategoryRangesRef.current = new Set();
     setMonthlySummariesComplete(false);
+    setMonthlySummaries([]);
+    markSummariesLoaded(false);
+    if (summaryRefreshTimerRef.current) {
+      clearTimeout(summaryRefreshTimerRef.current);
+      summaryRefreshTimerRef.current = null;
+    }
     lazyLoadedRef.current = new Set();
     lastDashboardSummarySignatureRef.current = '';
     knownAccountBalancesRef.current = {};
@@ -3443,7 +3479,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     isDataLoaded,
     categorySummaryVersion,
     monthlySummaries,
-    monthlySummariesComplete,
+    monthlySummariesComplete: monthlySummariesComplete && monthlySummariesLoaded,
     indexes,
     bulkUpdateTransactions,
     bulkUpdateTransactionsById,
