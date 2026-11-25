@@ -1,7 +1,8 @@
 import { db } from '../config/firebase';
-import { collection, doc, setDoc, getDoc, getDocs, query, where, increment, writeBatch } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocs, query, where, increment, writeBatch, Timestamp } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Transaction } from '../types';
+import { accumulateSummaryDelta, SummaryDelta, SummaryTx, SUMMARY_SCHEMA_VERSION } from './summaryMath';
 
 export interface CategorySummary {
   id: string;
@@ -279,6 +280,10 @@ export interface MonthlySummary {
   expense: number; // Total expense amount
   income: number; // Total income amount
   investment: number; // Total investment amount
+  /** v2: { [rawTransactionType]: { [categoryId]: amount } }, transfers included */
+  byType?: Record<string, Record<string, number>>;
+  txCount?: number;
+  schemaVersion?: number;
   lastUpdated: Date;
 }
 
@@ -455,6 +460,9 @@ export const getAllOptimizedMonthlySummaries = async (
           expense: data.expense || 0,
           income: data.income || 0,
           investment: data.investment || 0,
+          byType: data.byType,
+          txCount: data.txCount,
+          schemaVersion: data.schemaVersion,
           lastUpdated: data.lastUpdated?.toDate?.() || new Date()
         };
 
@@ -554,73 +562,38 @@ export const rebuildOptimizedMonthlySummaries = async (
   userId: string,
   transactions: Transaction[]
 ): Promise<void> => {
-  // Aggregate by month
-  const monthlyData = new Map<string, {
-    year: number;
-    month: number;
-    categoryTotals: Record<string, number>;
-    totalSpent: number;
-    expense: number;
-    income: number;
-    investment: number;
-  }>();
-  
-  transactions.forEach((txn) => {
-    const date = new Date(txn.date);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1; // 1-based
-    const categoryId = txn.category || 'uncategorized';
-    const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-    
-    if (!monthlyData.has(monthKey)) {
-      monthlyData.set(monthKey, {
-        year,
-        month,
-        categoryTotals: {},
-        totalSpent: 0,
-        expense: 0,
-        income: 0,
-        investment: 0
-      });
-    }
-    
-    const isTransfer = txn.type === 'transfer' || categoryId === 'transfer';
-    if (isTransfer) {
-      // Transfers are net-neutral and do not count toward cash-flow income, expense, or totalSpent
-      return;
-    }
+  // Prefer the server rebuild: it reads every transaction, not just the loaded ones,
+  // and marks the summaries as complete on the user profile.
+  try {
+    await rebuildMonthlySummariesCloud();
+    clearCategorySummaryCache();
+    await refreshMonthlySummaries(userId, { full: true });
+    return;
+  } catch (error) {
+    console.warn('Cloud rebuild unavailable, rebuilding from loaded transactions:', error);
+  }
 
-    const summary = monthlyData.get(monthKey)!;
-    summary.categoryTotals[categoryId] = (summary.categoryTotals[categoryId] || 0) + txn.amount;
-    if (txn.type === 'income') {
-      summary.income += txn.amount;
-    } else if (txn.type === 'investment') {
-      summary.investment += txn.amount;
-      summary.totalSpent += txn.amount;
-    } else {
-      summary.expense += txn.amount;
-      summary.totalSpent += txn.amount;
-    }
-  });
-  
-  // Write all summaries
+  // Fallback: same v2 math as the Cloud Function, from the transactions we have.
+  const deltas = new Map<string, SummaryDelta>();
+  transactions.forEach(txn => accumulateSummaryDelta(deltas, txn, 1));
+
   const batch = writeBatch(db);
   let batchCount = 0;
-  
-  monthlyData.forEach((data, monthKey) => {
+  deltas.forEach((delta, monthKey) => {
     const summaryRef = doc(db, `users/${userId}/monthlySummaries`, monthKey);
     batch.set(summaryRef, {
       userId,
-      ...data,
+      ...delta,
+      schemaVersion: SUMMARY_SCHEMA_VERSION,
       lastUpdated: new Date(),
     });
     batchCount++;
   });
-  
+
   if (batchCount > 0) {
     await batch.commit();
   }
-  
+  clearCategorySummaryCache();
   console.log(`✅ Rebuilt ${batchCount} optimized monthly summaries`);
 };
 
@@ -706,3 +679,186 @@ export const rebuildMonthlySummariesCloud = async (): Promise<{ success: boolean
   console.log('✅ Monthly summaries rebuilt via Cloud Function:', result.data);
   return result.data;
 };
+
+// ============================================================
+// v2 helpers: incremental refresh + optimistic patching
+// ============================================================
+
+const SUMMARY_SYNC_LS_KEY = (userId: string) => `monthlySummariesSync:v1:${userId}`;
+const FULL_REFRESH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+
+interface SummarySyncState {
+  /** Highest lastUpdated (ms) seen from the server */
+  lastSeen: number;
+  /** When the whole collection was last fetched (ms) */
+  lastFull: number;
+}
+
+const readSyncState = (userId: string): SummarySyncState | null => {
+  try {
+    const raw = localStorage.getItem(SUMMARY_SYNC_LS_KEY(userId));
+    return raw ? JSON.parse(raw) as SummarySyncState : null;
+  } catch { return null; }
+};
+
+const writeSyncState = (userId: string, state: SummarySyncState) => {
+  try { localStorage.setItem(SUMMARY_SYNC_LS_KEY(userId), JSON.stringify(state)); } catch { /* ignore */ }
+};
+
+const sortSummaries = (list: MonthlySummary[]) =>
+  [...list].sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month));
+
+const docToSummary = (id: string, data: any): MonthlySummary => ({
+  id,
+  userId: data.userId,
+  year: data.year,
+  month: data.month,
+  categoryTotals: data.categoryTotals || {},
+  totalSpent: data.totalSpent || 0,
+  expense: data.expense || 0,
+  income: data.income || 0,
+  investment: data.investment || 0,
+  byType: data.byType,
+  txCount: data.txCount,
+  schemaVersion: data.schemaVersion,
+  lastUpdated: data.lastUpdated?.toDate?.() || new Date(),
+});
+
+/** Replace the in-memory + localStorage copy of all monthly summaries. */
+export const storeMonthlySummaries = (userId: string, summaries: MonthlySummary[]) => {
+  const sorted = sortSummaries(summaries);
+  allMonthlySummariesCache.set(userId, sorted);
+  try { localStorage.setItem(MONTHLY_SUMMARIES_LS_KEY(userId), JSON.stringify(sorted)); } catch { /* ignore */ }
+  return sorted;
+};
+
+const readStoredSummaries = (userId: string): MonthlySummary[] | null => {
+  const mem = allMonthlySummariesCache.get(userId);
+  if (mem) return mem;
+  try {
+    const ls = localStorage.getItem(MONTHLY_SUMMARIES_LS_KEY(userId));
+    if (!ls) return null;
+    return (JSON.parse(ls) as MonthlySummary[]).map(s => ({ ...s, lastUpdated: new Date(s.lastUpdated) }));
+  } catch { return null; }
+};
+
+/**
+ * Bring monthly summaries up to date with the server at minimal cost:
+ * only docs whose lastUpdated moved since the last sync are read
+ * (usually 0-2 reads). A full read happens on first use, when `full`
+ * is set, or once a week (to drop months deleted by a rebuild).
+ */
+export const refreshMonthlySummaries = async (
+  userId: string,
+  options: { full?: boolean } = {}
+): Promise<MonthlySummary[]> => {
+  const stored = readStoredSummaries(userId);
+  const sync = readSyncState(userId);
+  const now = Date.now();
+  const needFull = options.full || !stored || !sync || now - sync.lastFull > FULL_REFRESH_INTERVAL_MS;
+  const summariesRef = collection(db, `users/${userId}/monthlySummaries`);
+
+  if (needFull) {
+    const snapshot = await getDocs(summariesRef);
+    let lastSeen = 0;
+    const list: MonthlySummary[] = [];
+    snapshot.forEach(d => {
+      const s = docToSummary(d.id, d.data());
+      lastSeen = Math.max(lastSeen, s.lastUpdated.getTime());
+      list.push(s);
+    });
+    writeSyncState(userId, { lastSeen, lastFull: now });
+    return storeMonthlySummaries(userId, list);
+  }
+
+  const snapshot = await getDocs(query(summariesRef, where('lastUpdated', '>', Timestamp.fromMillis(sync!.lastSeen))));
+  if (snapshot.empty) return stored!;
+  const byId = new Map(stored!.map(s => [s.id, s]));
+  let lastSeen = sync!.lastSeen;
+  snapshot.forEach(d => {
+    const s = docToSummary(d.id, d.data());
+    lastSeen = Math.max(lastSeen, s.lastUpdated.getTime());
+    byId.set(d.id, s);
+  });
+  writeSyncState(userId, { lastSeen, lastFull: sync!.lastFull });
+  return storeMonthlySummaries(userId, [...byId.values()]);
+};
+
+/**
+ * Apply local transaction changes to summaries using the same math as the
+ * Cloud Function, so the UI is correct before the server catches up.
+ */
+export const patchMonthlySummaries = (
+  userId: string,
+  summaries: MonthlySummary[],
+  removed: SummaryTx[],
+  added: SummaryTx[]
+): MonthlySummary[] => {
+  const deltas = new Map<string, SummaryDelta>();
+  removed.forEach(t => accumulateSummaryDelta(deltas, t, -1));
+  added.forEach(t => accumulateSummaryDelta(deltas, t, 1));
+  if (deltas.size === 0) return summaries;
+
+  const byId = new Map(summaries.map(s => [s.id, s]));
+  deltas.forEach((delta, monthKey) => {
+    const existing = byId.get(monthKey);
+    const base: MonthlySummary = existing
+      ? { ...existing, categoryTotals: { ...existing.categoryTotals }, byType: existing.byType ? { ...existing.byType } : existing.byType }
+      : {
+          id: monthKey, userId, year: delta.year, month: delta.month,
+          categoryTotals: {}, totalSpent: 0, expense: 0, income: 0, investment: 0,
+          byType: {}, txCount: 0, lastUpdated: new Date(),
+        };
+    if (base.byType) {
+      for (const [type, cats] of Object.entries(delta.byType)) {
+        const typeMap = { ...(base.byType[type] || {}) };
+        for (const [cat, amount] of Object.entries(cats)) typeMap[cat] = (typeMap[cat] || 0) + amount;
+        base.byType[type] = typeMap;
+      }
+    }
+    for (const [cat, amount] of Object.entries(delta.categoryTotals)) {
+      base.categoryTotals[cat] = (base.categoryTotals[cat] || 0) + amount;
+    }
+    base.expense += delta.expense;
+    base.income += delta.income;
+    base.investment += delta.investment;
+    base.totalSpent += delta.totalSpent;
+    base.txCount = (base.txCount || 0) + delta.txCount;
+    byId.set(monthKey, base);
+  });
+  return storeMonthlySummaries(userId, [...byId.values()]);
+};
+
+/**
+ * Per-category totals for one calendar year from v2 summaries, split the
+ * same way the Categories page splits raw transactions. `resolveType`
+ * receives a synthetic { type, category } and must return the role.
+ * Returns null when any month of that year lacks v2 data.
+ */
+export const yearTotalsFromSummaries = (
+  summaries: MonthlySummary[],
+  year: number,
+  resolveType: (tx: { type: string; category: string }) => 'expense' | 'income' | 'investment' | 'transfer'
+): Record<'expense' | 'income' | 'investment' | 'transfer', Record<string, number>> | null => {
+  const out = { expense: {}, income: {}, investment: {}, transfer: {} } as Record<'expense' | 'income' | 'investment' | 'transfer', Record<string, number>>;
+  for (const s of summaries) {
+    if (s.year !== year) continue;
+    if (!s.byType) return null;
+    for (const [type, cats] of Object.entries(s.byType)) {
+      for (const [category, amount] of Object.entries(cats)) {
+        if (!amount) continue;
+        const role = resolveType({ type, category });
+        out[role][category] = (out[role][category] || 0) + amount;
+      }
+    }
+  }
+  // Drop rounding dust left by add/remove pairs
+  for (const role of Object.keys(out) as Array<keyof typeof out>) {
+    for (const [cat, value] of Object.entries(out[role])) {
+      if (Math.abs(value) < 0.005) delete out[role][cat];
+    }
+  }
+  return out;
+};
+
+export { SUMMARY_SCHEMA_VERSION };

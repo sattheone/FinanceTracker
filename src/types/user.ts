@@ -29,6 +29,9 @@ export interface UserProfile {
     defaultTimePeriod: 'current' | 'previous';
   };
   syncSettings?: SyncSettings;
+  /** Set by the rebuildMonthlySummaries Cloud Function once monthly summaries are complete (schema version) */
+  summariesVersion?: number;
+  summariesRebuiltAt?: unknown;
   onboardingStep: number;
 }
 

@@ -10,7 +10,7 @@ import { deleteField } from 'firebase/firestore';
 import { goOffline, goOnline } from '../config/firebase';
 import GoalMigrationService from '../services/goalMigration';
 import CategoryRuleService from '../services/categoryRuleService';
-import { clearCategorySummaryCache, setCurrentUserId, getAllOptimizedMonthlySummaries, MonthlySummary } from '../services/categorySummaryService';
+import { clearCategorySummaryCache, setCurrentUserId, MonthlySummary, refreshMonthlySummaries, patchMonthlySummaries, rebuildMonthlySummariesCloud, SUMMARY_SCHEMA_VERSION } from '../services/categorySummaryService';
 
 
 // Transaction pagination page sizes (each doc = 1 Firestore read).
@@ -320,6 +320,8 @@ interface DataContextType {
   isDataLoaded: boolean;
   categorySummaryVersion: number;
   monthlySummaries: MonthlySummary[];
+  /** True once monthly summaries were rebuilt with the v2 schema and are kept complete server-side */
+  monthlySummariesComplete: boolean;
   indexes: {
     categoriesById: Map<string, Category>;
     bankAccountsById: Map<string, BankAccount>;
@@ -343,6 +345,8 @@ interface DataContextType {
 
   // Explicitly fetch transactions for a specific period (e.g., for reports/dashboard)
   loadTransactionsForPeriod: (startDate: string, endDate: string) => Promise<void>;
+  /** Load only the given categories' transactions in a date range (drill-down; few reads) */
+  loadTransactionsForCategories: (categoryIds: string[], startDate: string, endDate: string) => Promise<void>;
 
   // Sync settings
   lastSyncTimestamp: number | null;
@@ -407,6 +411,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [categorySummaryVersion, setCategorySummaryVersion] = useState(0);
   const [monthlySummaries, setMonthlySummaries] = useState<MonthlySummary[]>([]);
+  const [monthlySummariesComplete, setMonthlySummariesComplete] = useState(false);
+  const loadedCategoryRangesRef = useRef<Set<string>>(new Set());
   const [lastSyncTimestamp, setLastSyncTimestamp] = useState<number | null>(() => {
     const ts = localStorage.getItem('lastSyncTimestamp');
     return ts ? parseInt(ts, 10) : null;
@@ -634,11 +640,20 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     setPendingDeleteCount(prev => prev + count);
   }, []);
 
-  const invalidateCaches = useCallback(() => {
+  /**
+   * Call after any local transaction change. Pass the before/after versions of the
+   * changed transactions so monthly summaries are patched right away (same math as
+   * the Cloud Function that updates them server-side a moment later).
+   */
+  const invalidateCaches = useCallback((change?: { removed?: Transaction[]; added?: Transaction[] }) => {
     if (!user) return;
     clearMonthTransactionsCache(user.id);
     clearCategorySummaryCache();
     loadedTransactionMonthsRef.current.clear();
+    if (change && ((change.removed?.length ?? 0) > 0 || (change.added?.length ?? 0) > 0)) {
+      const userId = user.id;
+      setMonthlySummaries(prev => patchMonthlySummaries(userId, prev, change.removed ?? [], change.added ?? []));
+    }
     setCategorySummaryVersion(prev => prev + 1);
   }, [user]);
 
@@ -653,8 +668,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
     // Case 1: newly added transaction — remove it entirely
     if (pendingNewIds.has(id)) {
+      const discarded = transactions.find(t => t.id === id);
       setTransactions(prev => prev.filter(t => t.id !== id));
-      invalidateCaches();
+      invalidateCaches({ removed: discarded ? [discarded] : [] });
       // Queue a delete to cancel the pending Firestore add
       FirebaseService.deleteTransaction(id).catch(() => {});
       setPendingNewIds(prev => {
@@ -668,8 +684,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     // Case 2: edited existing transaction — revert to snapshot
     const snapshot = pendingEditSnapshots.get(id);
     if (snapshot) {
+      const current = transactions.find(t => t.id === id);
       setTransactions(prev => prev.map(t => t.id === id ? snapshot : t));
-      invalidateCaches();
+      invalidateCaches({ removed: current ? [current] : [], added: [snapshot] });
       // Queue an update with the original values to counter the pending edit
       const { id: _id, ...snapshotData } = snapshot;
       FirebaseService.updateTransaction(id, snapshotData).catch(() => {});
@@ -680,7 +697,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, pendingNewIds, pendingEditSnapshots]);
+  }, [user, pendingNewIds, pendingEditSnapshots, transactions]);
 
   // Load user data when user changes
   useEffect(() => {
@@ -929,12 +946,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         console.log('[DataContext] ⏭️ Skipping background sync (last sync was recent)');
       }
 
-      // Prefetch monthly summaries for category chart (1 Firestore read, cached in localStorage)
-      getAllOptimizedMonthlySummaries(userId)
-        .then(summaries => {
-          if (summaries.length > 0) setMonthlySummaries(summaries);
-        })
-        .catch(err => console.warn('[DataContext] Monthly summaries prefetch failed:', err));
+      // Bring monthly summaries up to date (reads only months that changed since last sync)
+      void syncMonthlySummaries(userId);
 
       if (!hasCachedData) {
         setIsDataLoaded(true);
@@ -1440,6 +1453,82 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
+  const summariesRebuiltKey = (userId: string) => `monthlySummariesRebuilt:v${SUMMARY_SCHEMA_VERSION}:${userId}`;
+  const summariesRebuildAttemptKey = (userId: string) => `monthlySummariesRebuildAttempt:${userId}`;
+
+  /**
+   * Keep monthly summaries fresh and, once per user, ask the server to rebuild them
+   * in the v2 schema. After that the Cloud Function keeps them complete, so year
+   * views can be drawn from ~12 summary docs instead of every transaction.
+   */
+  const syncMonthlySummaries = async (userId: string) => {
+    let rebuilt = false;
+    try { rebuilt = localStorage.getItem(summariesRebuiltKey(userId)) === 'true'; } catch { /* ignore */ }
+    if (rebuilt || (userProfileRef.current?.summariesVersion ?? 0) >= SUMMARY_SCHEMA_VERSION) {
+      setMonthlySummariesComplete(true);
+    }
+
+    const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    try {
+      if (isManual || offline) {
+        // Offline-first: whatever is cached locally (patched by local edits)
+        const cached = await refreshMonthlySummaries(userId).catch(() => null);
+        if (cached) setMonthlySummaries(cached);
+        return;
+      }
+
+      setMonthlySummaries(await refreshMonthlySummaries(userId));
+
+      const profileVersion = userProfileRef.current?.summariesVersion ?? 0;
+      if (rebuilt || profileVersion >= SUMMARY_SCHEMA_VERSION) {
+        try { localStorage.setItem(summariesRebuiltKey(userId), 'true'); } catch { /* ignore */ }
+        return;
+      }
+
+      // One-time server rebuild (retried at most once a day if it fails)
+      let lastAttempt = 0;
+      try { lastAttempt = Number(localStorage.getItem(summariesRebuildAttemptKey(userId)) || 0); } catch { /* ignore */ }
+      if (Date.now() - lastAttempt < 24 * 60 * 60 * 1000) return;
+      try { localStorage.setItem(summariesRebuildAttemptKey(userId), String(Date.now())); } catch { /* ignore */ }
+
+      console.log('[DataContext] Rebuilding monthly summaries (v2) on the server…');
+      const result = await rebuildMonthlySummariesCloud();
+      clearCategorySummaryCache();
+      setMonthlySummaries(await refreshMonthlySummaries(userId, { full: true }));
+      try { localStorage.setItem(summariesRebuiltKey(userId), 'true'); } catch { /* ignore */ }
+      setUserProfile(prev => prev ? { ...prev, summariesVersion: SUMMARY_SCHEMA_VERSION } : prev);
+      setMonthlySummariesComplete(true);
+      setCategorySummaryVersion(prev => prev + 1);
+      console.log(`[DataContext] ✅ Monthly summaries rebuilt: ${result.summariesCount} months from ${result.transactionsProcessed} transactions`);
+    } catch (err) {
+      console.warn('[DataContext] Monthly summaries sync failed:', err);
+    }
+  };
+
+  const loadTransactionsForCategories = useCallback(async (categoryIds: string[], startDate: string, endDate: string) => {
+    if (!user || categoryIds.length === 0) return;
+    const key = `${[...categoryIds].sort().join(',')}|${startDate}|${endDate}`;
+    if (loadedCategoryRangesRef.current.has(key)) return;
+    loadedCategoryRangesRef.current.add(key);
+    try {
+      const fetched = await FirebaseService.getTransactionsByCategoriesAndRange(user.id, categoryIds, startDate, endDate);
+      if (fetched.length === 0) return;
+      setTransactions(prev => {
+        const seen = new Set(prev.map(t => t.id));
+        const additions = fetched.filter(t => !seen.has(t.id)); // local copies win (may hold unsynced edits)
+        if (additions.length === 0) return prev;
+        const merged = [...prev, ...additions];
+        merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        return merged;
+      });
+    } catch (error) {
+      loadedCategoryRangesRef.current.delete(key);
+      console.error('[DataContext] Error loading category transactions:', error);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   const loadTransactionsForPeriod = useCallback(async (startDate: string, endDate: string) => {
     if (!user) return;
     const monthKey = getMonthKey(startDate);
@@ -1778,7 +1867,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const id = FirebaseService.addTransactionOfflineSafe(user.id, transaction);
       const newTransaction: Transaction = { ...transaction, id };
       setTransactions(prev => [...prev, newTransaction]);
-      invalidateCaches();
+      invalidateCaches({ added: [newTransaction] });
       trackPendingNew([id]);
       return id;
     } else {
@@ -1786,7 +1875,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         const id = await FirebaseService.addTransaction(user.id, transaction);
         const newTransaction: Transaction = { ...transaction, id };
         setTransactions(prev => [...prev, newTransaction]);
-        invalidateCaches();
+        invalidateCaches({ added: [newTransaction] });
         trackPendingNew([id]);
         return id;
       } catch (error) {
@@ -1814,7 +1903,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
 
     // Optimistic local update for immediate UI feedback (list + summary views)
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...transaction } : t));
-    invalidateCaches();
+    invalidateCaches(oldTransaction ? { removed: [oldTransaction], added: [{ ...oldTransaction, ...transaction }] } : undefined);
     // Track: if it's already a new item, don't overwrite; otherwise save pre-edit snapshot
     if (!pendingNewIds.has(id) && oldTransaction) {
       trackPendingEdit(id, oldTransaction);
@@ -1835,8 +1924,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         // Roll back local transaction state on persistence failure
         if (oldTransaction) {
           setTransactions(prev => prev.map(t => t.id === id ? oldTransaction : t));
-          clearCategorySummaryCache();
-          setCategorySummaryVersion(prev => prev + 1);
+          invalidateCaches({ removed: [{ ...oldTransaction, ...transaction }], added: [oldTransaction] });
 
 
         }
@@ -1875,7 +1963,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       );
 
       setTransactions(updatedTransactions);
-      invalidateCaches();
+      invalidateCaches({
+        removed: [...oldTransactionsMap.values()],
+        added: [...oldTransactionsMap.values()].map(t => ({ ...t, ...update }))
+      });
       // Track edits for items that aren't already new
       ids.forEach(id => {
         if (!pendingNewIds.has(id)) {
@@ -1918,7 +2009,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         updatesById[t.id] ? { ...t, ...updatesById[t.id] } : t
       );
       setTransactions(updatedTransactions);
-      invalidateCaches();
+      invalidateCaches({
+        removed: [...oldTransactionsMap.values()],
+        added: [...oldTransactionsMap.values()].map(t => ({ ...t, ...updatesById[t.id] }))
+      });
       // Track edits for items that aren't already new
       ids.forEach(id => {
         if (!pendingNewIds.has(id)) {
@@ -2075,7 +2169,15 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       }
 
       setTransactions(mergedTransactions);
-      invalidateCaches();
+      {
+        // Summary change = every record that was added, removed or modified by this import
+        const beforeById = new Map(transactions.map(t => [t.id, t]));
+        const afterById = new Map(mergedTransactions.map(t => [t.id, t]));
+        invalidateCaches({
+          removed: transactions.filter(t => afterById.get(t.id) !== t),
+          added: mergedTransactions.filter(t => beforeById.get(t.id) !== t)
+        });
+      }
       trackPendingNew(createdTransactions.map(t => t.id));
 
       // Transactions are already persisted at this point. Balance/account
@@ -2190,8 +2292,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       } else {
         await FirebaseService.deleteTransaction(id);
       }
+      const deleted = transactions.find(t => t.id === id);
       setTransactions(prev => prev.filter(t => t.id !== id));
-      invalidateCaches();
+      invalidateCaches({ removed: deleted ? [deleted] : [] });
       trackPendingDeletes(1);
       // Remove from pending tracking if it was tracked
       setPendingNewIds(prev => {
@@ -2228,8 +2331,10 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       }
 
       // 2. Update local state
-      setTransactions(prev => prev.filter(t => !ids.includes(t.id)));
-      invalidateCaches();
+      const idSet = new Set(ids);
+      const deleted = transactions.filter(t => idSet.has(t.id));
+      setTransactions(prev => prev.filter(t => !idSet.has(t.id)));
+      invalidateCaches({ removed: deleted });
       trackPendingDeletes(ids.length);
       // Remove deleted IDs from pending tracking
       setPendingNewIds(prev => {
@@ -2298,7 +2403,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     } else {
       await write;
     }
-    invalidateCaches();
+    invalidateCaches({ removed: [t], added: [{ ...t, transferPairId: newId, category: 'transfer' }] });
   };
 
   // Bank Account operations
@@ -3073,6 +3178,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   const resetUserData = () => {
     initialTransactionsLoadedRef.current = false;
     loadedTransactionMonthsRef.current = new Set();
+    loadedCategoryRangesRef.current = new Set();
+    setMonthlySummariesComplete(false);
     lazyLoadedRef.current = new Set();
     lastDashboardSummarySignatureRef.current = '';
     knownAccountBalancesRef.current = {};
@@ -3336,6 +3443,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     isDataLoaded,
     categorySummaryVersion,
     monthlySummaries,
+    monthlySummariesComplete,
     indexes,
     bulkUpdateTransactions,
     bulkUpdateTransactionsById,
@@ -3353,6 +3461,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     loadMonthlyBudget,
     loadInitialTransactions,
     loadTransactionsForPeriod,
+    loadTransactionsForCategories,
 
     // Sync
     lastSyncTimestamp,

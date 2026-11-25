@@ -413,6 +413,32 @@ export class FirebaseService {
     }
   }
 
+  /**
+   * Transactions in any of the given categories within a date range.
+   * Firestore `in` accepts up to 30 values, so larger sets are chunked.
+   * Uses the (userId, category, date) composite index.
+   */
+  static async getTransactionsByCategoriesAndRange(
+    userId: string,
+    categoryIds: string[],
+    startDate: string,
+    endDate: string
+  ): Promise<Transaction[]> {
+    const unique = [...new Set(categoryIds)];
+    const results = await Promise.all(this.chunkArray(unique, 30).map(async chunk => {
+      const q = query(
+        collection(db, this.COLLECTIONS.TRANSACTIONS),
+        where('userId', '==', userId),
+        where('category', 'in', chunk),
+        where('date', '>=', startDate),
+        where('date', '<=', endDate)
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(docSnap => ({ id: docSnap.id, ...(docSnap.data() as Record<string, unknown>) } as Transaction));
+    }));
+    return results.flat().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }
+
   static async getTransactionsByCategoryAndDateRange(
     userId: string,
     category: string,

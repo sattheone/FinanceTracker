@@ -10,12 +10,16 @@ import SidePanel from '../components/common/SidePanel';
 import CategoryForm, { CategoryFormHandle } from '../components/categories/CategoryForm';
 import { Transaction } from '../types';
 import { resolveTransactionType } from '../constants/categories';
+import { yearTotalsFromSummaries } from '../services/categorySummaryService';
 
-// Module-level cache: survives component unmount/remount across navigations
-const yearCategoryCache = new Map<string, Transaction[]>();
+/** ISO bounds of a calendar year in local time */
+const yearBounds = (year: number) => ({
+    start: new Date(year, 0, 1).toISOString(),
+    end: new Date(year, 11, 31, 23, 59, 59).toISOString(),
+});
 
 const Categories: React.FC = () => {
-    const { categories, transactions, monthlyBudget, bankAccounts, addCategory, loadTransactionsForPeriod, userProfile, updateTransaction, categorySummaryVersion } = useData();
+    const { categories, transactions, monthlyBudget, bankAccounts, addCategory, loadTransactionsForPeriod, loadTransactionsForCategories, userProfile, updateTransaction, monthlySummaries, monthlySummariesComplete } = useData();
     const theme = useThemeClasses();
     const [searchParams] = useSearchParams();
 
@@ -65,6 +69,18 @@ const Categories: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showFilters]);
 
+    const viewYear = viewMode === 'prevYear' ? new Date().getFullYear() - 1 : new Date().getFullYear();
+
+    // Year views are drawn from monthly summary docs (≈12 small docs, usually already
+    // cached) instead of downloading every transaction of the year. Summaries are not
+    // split by account, so an account filter falls back to raw transactions.
+    const summaryYearTotals = useMemo(() => {
+        if (viewMode !== 'year' && viewMode !== 'prevYear') return null;
+        if (selectedAccountId !== 'all' || !monthlySummariesComplete) return null;
+        return yearTotalsFromSummaries(monthlySummaries, viewYear, tx => resolveTransactionType(tx, categories));
+    }, [viewMode, viewYear, selectedAccountId, monthlySummariesComplete, monthlySummaries, categories]);
+    const isSummaryBacked = summaryYearTotals !== null;
+
     // Load transactions for the currently viewed period
     // For 'month' and 'prevMonth': load just that single month
     // For 'year' and 'prevYear': load all months of the target year
@@ -88,6 +104,9 @@ const Categories: React.FC = () => {
             const startDate = new Date(prevYear, prevMonth, 1);
             const endDate = new Date(prevYear, prevMonth + 1, 0, 23, 59, 59);
             loadTransactionsForPeriod(startDate.toISOString(), endDate.toISOString());
+        } else if (isSummaryBacked) {
+            // Totals come from summaries; raw transactions load per category on drill-down.
+            return;
         } else if (viewMode === 'year') {
             for (let m = 0; m < 12; m++) {
                 const startDate = new Date(currentYear, m, 1);
@@ -102,20 +121,32 @@ const Categories: React.FC = () => {
                 loadTransactionsForPeriod(startDate.toISOString(), endDate.toISOString());
             }
         }
-    }, [viewMode, loadTransactionsForPeriod]);
+    }, [viewMode, isSummaryBacked, loadTransactionsForPeriod]);
 
-    // When a category is selected, load a trailing history window so the
-    // detail chart shows a multi-month trend rather than just the current period.
+    // Set of category IDs to match (includes children if a group is selected)
+    const selectedCategoryIds = useMemo(() => {
+        if (!selectedCategoryId) return new Set<string>();
+        const childIds = categories.filter(c => c.parentId === selectedCategoryId).map(c => c.id);
+        return childIds.length > 0
+            ? new Set([selectedCategoryId, ...childIds])
+            : new Set([selectedCategoryId]);
+    }, [selectedCategoryId, categories]);
+
+    // When a category is selected, load only that category's transactions:
+    // a trailing 6-month window for the trend chart, plus the viewed year when the
+    // year totals came from summaries. Far cheaper than loading whole months.
     useEffect(() => {
-        if (!selectedCategoryId) return;
+        if (!selectedCategoryId || selectedCategoryIds.size === 0) return;
+        const ids = [...selectedCategoryIds];
         const now = new Date();
-        for (let i = 1; i <= 6; i++) {
-            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const startDate = new Date(d.getFullYear(), d.getMonth(), 1);
-            const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
-            loadTransactionsForPeriod(startDate.toISOString(), endDate.toISOString());
+        const trailingStart = new Date(now.getFullYear(), now.getMonth() - 6, 1).toISOString();
+        const trailingEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+        loadTransactionsForCategories(ids, trailingStart, trailingEnd);
+        if (isSummaryBacked) {
+            const { start, end } = yearBounds(viewYear);
+            loadTransactionsForCategories(ids, start, end);
         }
-    }, [selectedCategoryId, loadTransactionsForPeriod]);
+    }, [selectedCategoryId, selectedCategoryIds, isSummaryBacked, viewYear, loadTransactionsForCategories]);
 
     // Read view mode from URL
     useEffect(() => {
@@ -132,10 +163,6 @@ const Categories: React.FC = () => {
         setViewMode(preferred);
     }, [userProfile?.displayPreferences?.defaultTimePeriod, searchParams]);
 
-    // Invalidate year category detail cache whenever summaries/transactions are updated.
-    useEffect(() => {
-        yearCategoryCache.clear();
-    }, [categorySummaryVersion]);
 
 
 
@@ -157,6 +184,14 @@ const Categories: React.FC = () => {
     }, [viewMode]);
 
     const { expenseSpending, investmentSpending, incomeSpending, transferSpending } = useMemo(() => {
+        if (summaryYearTotals) {
+            return {
+                expenseSpending: summaryYearTotals.expense,
+                investmentSpending: summaryYearTotals.investment,
+                incomeSpending: summaryYearTotals.income,
+                transferSpending: summaryYearTotals.transfer
+            };
+        }
         const expenses: Record<string, number> = {};
         const investments: Record<string, number> = {};
         const income: Record<string, number> = {};
@@ -208,7 +243,7 @@ const Categories: React.FC = () => {
             incomeSpending: income,
             transferSpending: transfers
         };
-    }, [filteredTransactions, viewMode, categories]);
+    }, [filteredTransactions, viewMode, categories, summaryYearTotals]);
 
     // --- 2. Selection Handling ---
 
@@ -219,15 +254,6 @@ const Categories: React.FC = () => {
     const selectedCategory = useMemo(() =>
         categories.find(c => c.id === selectedCategoryId),
         [categories, selectedCategoryId]);
-
-    // Set of category IDs to match (includes children if a group is selected)
-    const selectedCategoryIds = useMemo(() => {
-        if (!selectedCategoryId) return new Set<string>();
-        const childIds = categories.filter(c => c.parentId === selectedCategoryId).map(c => c.id);
-        return childIds.length > 0
-            ? new Set([selectedCategoryId, ...childIds])
-            : new Set([selectedCategoryId]);
-    }, [selectedCategoryId, categories]);
 
     // Period-scoped transactions for the stats + list in the detail view
     const categoryTransactions = useMemo(() => {
