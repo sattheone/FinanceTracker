@@ -281,6 +281,8 @@ export interface MonthlySummary {
   investment: number; // Total investment amount
   /** v2: { [rawTransactionType]: { [categoryId]: amount } }, transfers included */
   byType?: Record<string, Record<string, number>>;
+  /** v3: { [bankAccountId]: month's balance effect } */
+  accountNet?: Record<string, number>;
   txCount?: number;
   schemaVersion?: number;
   lastUpdated: Date;
@@ -460,6 +462,7 @@ export const getAllOptimizedMonthlySummaries = async (
           income: data.income || 0,
           investment: data.investment || 0,
           byType: data.byType,
+          accountNet: data.accountNet,
           txCount: data.txCount,
           schemaVersion: data.schemaVersion,
           lastUpdated: data.lastUpdated?.toDate?.() || new Date()
@@ -648,6 +651,8 @@ interface SummarySyncState {
   lastSeen: number;
   /** When the whole collection was last fetched (ms) */
   lastFull: number;
+  /** Summary schema the local copy was fetched with; a newer schema forces a full fetch */
+  schema?: number;
 }
 
 const readSyncState = (userId: string): SummarySyncState | null => {
@@ -675,6 +680,7 @@ const docToSummary = (id: string, data: any): MonthlySummary => ({
   income: data.income || 0,
   investment: data.investment || 0,
   byType: data.byType,
+  accountNet: data.accountNet,
   txCount: data.txCount,
   schemaVersion: data.schemaVersion,
   lastUpdated: data.lastUpdated?.toDate?.() || new Date(),
@@ -711,7 +717,8 @@ export const refreshMonthlySummaries = async (
   const stored = readStoredSummaries(userId);
   const sync = readSyncState(userId);
   const now = Date.now();
-  const needFull = options.full || !stored || !sync || now - sync.lastFull > FULL_REFRESH_INTERVAL_MS;
+  const needFull = options.full || !stored || !sync || sync.schema !== SUMMARY_SCHEMA_VERSION ||
+    now - sync.lastFull > FULL_REFRESH_INTERVAL_MS;
   const summariesRef = collection(db, `users/${userId}/monthlySummaries`);
 
   if (needFull) {
@@ -723,7 +730,7 @@ export const refreshMonthlySummaries = async (
       if (!d.metadata.hasPendingWrites) lastSeen = Math.max(lastSeen, s.lastUpdated.getTime());
       list.push(s);
     });
-    writeSyncState(userId, { lastSeen, lastFull: now });
+    writeSyncState(userId, { lastSeen, lastFull: now, schema: SUMMARY_SCHEMA_VERSION });
     return storeMonthlySummaries(userId, list);
   }
 
@@ -736,7 +743,7 @@ export const refreshMonthlySummaries = async (
     if (!d.metadata.hasPendingWrites) lastSeen = Math.max(lastSeen, s.lastUpdated.getTime());
     byId.set(d.id, s);
   });
-  writeSyncState(userId, { lastSeen, lastFull: sync!.lastFull });
+  writeSyncState(userId, { lastSeen, lastFull: sync!.lastFull, schema: SUMMARY_SCHEMA_VERSION });
   return storeMonthlySummaries(userId, [...byId.values()]);
 };
 
@@ -759,11 +766,11 @@ export const patchMonthlySummaries = (
   deltas.forEach((delta, monthKey) => {
     const existing = byId.get(monthKey);
     const base: MonthlySummary = existing
-      ? { ...existing, categoryTotals: { ...existing.categoryTotals }, byType: existing.byType ? { ...existing.byType } : existing.byType }
+      ? { ...existing, categoryTotals: { ...existing.categoryTotals }, byType: existing.byType ? { ...existing.byType } : existing.byType, accountNet: { ...(existing.accountNet || {}) } }
       : {
           id: monthKey, userId, year: delta.year, month: delta.month,
           categoryTotals: {}, totalSpent: 0, expense: 0, income: 0, investment: 0,
-          byType: {}, txCount: 0, lastUpdated: new Date(),
+          byType: {}, accountNet: {}, txCount: 0, lastUpdated: new Date(),
         };
     if (base.byType) {
       for (const [type, cats] of Object.entries(delta.byType)) {
@@ -774,6 +781,10 @@ export const patchMonthlySummaries = (
     }
     for (const [cat, amount] of Object.entries(delta.categoryTotals)) {
       base.categoryTotals[cat] = (base.categoryTotals[cat] || 0) + amount;
+    }
+    const accountNet = base.accountNet || (base.accountNet = {});
+    for (const [accountId, amount] of Object.entries(delta.accountNet)) {
+      accountNet[accountId] = (accountNet[accountId] || 0) + amount;
     }
     base.expense += delta.expense;
     base.income += delta.income;
@@ -855,6 +866,11 @@ const deltaToWrite = (userId: string, delta: SummaryDelta): DocumentData => {
   };
   if (Object.keys(byType).length > 0) data.byType = byType;
   if (Object.keys(categoryTotals).length > 0) data.categoryTotals = categoryTotals;
+  const accountNet: Record<string, ReturnType<typeof increment>> = {};
+  for (const [accountId, amount] of Object.entries(delta.accountNet)) {
+    if (amount !== 0) accountNet[accountId] = increment(amount);
+  }
+  if (Object.keys(accountNet).length > 0) data.accountNet = accountNet;
   return data;
 };
 
@@ -945,4 +961,18 @@ export const deleteAllMonthlySummaries = async (userId: string): Promise<void> =
   }
   clearCategorySummaryCache();
   try { localStorage.removeItem(SUMMARY_SYNC_LS_KEY(userId)); } catch { /* ignore */ }
+};
+
+/**
+ * Net effect of all transactions on each bank account, summed over every month.
+ * Balance = initialBalance + this. Only meaningful when summaries are complete (v3).
+ */
+export const accountNetFromSummaries = (summaries: MonthlySummary[]): Record<string, number> => {
+  const net: Record<string, number> = {};
+  for (const s of summaries) {
+    for (const [accountId, amount] of Object.entries(s.accountNet || {})) {
+      net[accountId] = (net[accountId] || 0) + amount;
+    }
+  }
+  return net;
 };

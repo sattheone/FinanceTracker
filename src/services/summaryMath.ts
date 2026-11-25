@@ -1,5 +1,5 @@
 /**
- * Monthly summary math (schema v2).
+ * Monthly summary math (schema v3).
  *
  * The app maintains these docs itself (no Cloud Function): every transaction
  * change writes matching increments, and a one-time rebuild recomputes them.
@@ -12,9 +12,12 @@
  *   expense / income / investment            - non-transfer totals by raw type
  *   totalSpent                               - expense + investment
  *   txCount                                  - number of transactions in the month
+ *   accountNet    { [bankAccountId]: amount } - (v3) the month's effect on each account's
+ *                 balance: +income, -expense/investment/insurance (same rule as the app's
+ *                 balance formula). Balance = initialBalance + sum over all months.
  */
 
-export const SUMMARY_SCHEMA_VERSION = 2;
+export const SUMMARY_SCHEMA_VERSION = 3;
 
 /** Transactions with a full timestamp are bucketed in this zone (the app's users are in India). */
 export const SUMMARY_TIME_ZONE = "Asia/Kolkata";
@@ -33,6 +36,7 @@ export interface SummaryTx {
   category?: string;
   type?: string;
   date?: string;
+  bankAccountId?: string;
 }
 
 export interface SummaryDelta {
@@ -45,6 +49,15 @@ export interface SummaryDelta {
   investment: number;
   totalSpent: number;
   txCount: number;
+  accountNet: Record<string, number>;
+}
+
+/** A transaction's effect on its account balance (mirrors computeAccountBalanceFromLoaded). */
+export function accountBalanceEffect(tx: SummaryTx): number {
+  const amount = Number(tx.amount) || 0;
+  if (tx.type === "income") return amount;
+  if (tx.type === "expense" || tx.type === "investment" || tx.type === "insurance") return -amount;
+  return 0;
 }
 
 const monthFormatter = new Intl.DateTimeFormat("en-CA", {
@@ -76,7 +89,7 @@ function emptyDelta(monthKey: string): SummaryDelta {
   const [year, month] = monthKey.split("-").map(Number);
   return {
     year, month, byType: {}, categoryTotals: {},
-    expense: 0, income: 0, investment: 0, totalSpent: 0, txCount: 0,
+    expense: 0, income: 0, investment: 0, totalSpent: 0, txCount: 0, accountNet: {},
   };
 }
 
@@ -103,6 +116,10 @@ export function accumulateSummaryDelta(
   }
 
   delta.txCount += sign;
+  if (tx.bankAccountId) {
+    const effect = accountBalanceEffect(tx) * sign;
+    if (effect !== 0) delta.accountNet[tx.bankAccountId] = (delta.accountNet[tx.bankAccountId] || 0) + effect;
+  }
   const typeMap = delta.byType[type] || (delta.byType[type] = {});
   typeMap[byTypeKey] = (typeMap[byTypeKey] || 0) + amount;
 
@@ -127,5 +144,6 @@ export function isEmptyDelta(delta: SummaryDelta): boolean {
   for (const typeMap of Object.values(delta.byType)) {
     for (const value of Object.values(typeMap)) if (value !== 0) return false;
   }
+  for (const value of Object.values(delta.accountNet)) if (value !== 0) return false;
   return true;
 }

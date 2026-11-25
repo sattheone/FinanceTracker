@@ -33,6 +33,7 @@ const Dashboard: React.FC = () => {
     recurringTransactions,
     categories,
     getAccountBalance,
+    accountBalancesAuthoritative,
     userProfile,
     dashboardSummary,
     loadDashboardSummary,
@@ -79,7 +80,8 @@ const Dashboard: React.FC = () => {
   const liabilitiesLoaded = liabilities.length > 0;
   // Bank balance is only trustworthy once the FULL transaction set is loaded;
   // until then prefer the summary's complete figure over an initialBalance-only sum.
-  const bankBalanceComplete = transactions.length > 0 && !hasMoreTransactions;
+  // Balances from complete monthly summaries are correct regardless of what's loaded.
+  const bankBalanceComplete = accountBalancesAuthoritative || (transactions.length > 0 && !hasMoreTransactions);
 
   const totalAssets = assetsLoaded
     ? calculatedTotalAssets
