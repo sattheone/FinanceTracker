@@ -421,6 +421,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     monthlySummariesLoadedRef.current = loaded;
     setMonthlySummariesLoaded(loaded);
   };
+
+  // Per-account totals from complete monthly summaries: the same on every device and
+  // independent of how many transactions this browser happens to have loaded.
+  const summaryAccountNet = useMemo(
+    () => (monthlySummariesComplete && monthlySummariesLoaded ? accountNetFromSummaries(monthlySummaries) : null),
+    [monthlySummariesComplete, monthlySummariesLoaded, monthlySummaries]
+  );
   const loadedCategoryRangesRef = useRef<Set<string>>(new Set());
   const [lastSyncTimestamp, setLastSyncTimestamp] = useState<number | null>(() => {
     const ts = localStorage.getItem('lastSyncTimestamp');
@@ -813,44 +820,38 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const cachedAssets = readUserCache<Asset[]>(userId, 'assets', 'assets');
       if (cachedAssets && Array.isArray(cachedAssets) && cachedAssets.length > 0) {
         setAssets(cachedAssets);
-        lazyLoadedRef.current.add('assets');
-        hasCachedData = true;
+        hasCachedData = true; // shown now; the page's loader still fetches fresh data
       }
 
       const cachedGoals = readUserCache<Goal[]>(userId, 'goals', 'goals');
       if (cachedGoals && Array.isArray(cachedGoals) && cachedGoals.length > 0) {
         const migrated = GoalMigrationService.migrateGoals(cachedGoals);
         setGoals(migrated);
-        lazyLoadedRef.current.add('goals');
-        hasCachedData = true;
+        hasCachedData = true; // shown now; the page's loader still fetches fresh data
       }
 
       const cachedInsurance = readUserCache<Insurance[]>(userId, 'insurance', 'insurance');
       if (cachedInsurance && Array.isArray(cachedInsurance) && cachedInsurance.length > 0) {
         setInsurance(cachedInsurance);
-        lazyLoadedRef.current.add('insurance');
-        hasCachedData = true;
+        hasCachedData = true; // shown now; the page's loader still fetches fresh data
       }
 
       const cachedLiabilities = readUserCache<Liability[]>(userId, 'liabilities', 'liabilities');
       if (cachedLiabilities && Array.isArray(cachedLiabilities) && cachedLiabilities.length > 0) {
         setLiabilities(cachedLiabilities);
-        lazyLoadedRef.current.add('liabilities');
-        hasCachedData = true;
+        hasCachedData = true; // shown now; the page's loader still fetches fresh data
       }
 
       const cachedRecurring = readUserCache<RecurringTransaction[]>(userId, 'recurringTransactions', 'recurringTransactions');
       if (cachedRecurring && Array.isArray(cachedRecurring) && cachedRecurring.length > 0) {
         setRecurringTransactions(cachedRecurring);
-        lazyLoadedRef.current.add('recurring');
-        hasCachedData = true;
+        hasCachedData = true; // shown now; the page's loader still fetches fresh data
       }
 
       const cachedBills = readUserCache<Bill[]>(userId, 'bills', 'bills');
       if (cachedBills && Array.isArray(cachedBills) && cachedBills.length > 0) {
         setBills(cachedBills);
-        lazyLoadedRef.current.add('bills');
-        hasCachedData = true;
+        hasCachedData = true; // shown now; the page's loader still fetches fresh data
       }
 
       // Load categories (defaults + cached custom categories)
@@ -983,6 +984,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   // happens before sign-in finishes, so remember the request and run it once the
   // user is known instead of silently dropping it (which left stale cached data).
   const pendingLazyLoadsRef = useRef<Set<string>>(new Set());
+  // Collections fetched from Firestore this session (not just shown from the local cache).
+  // Only these are trusted when writing the cross-device dashboard summary.
+  const serverLoadedRef = useRef<Set<string>>(new Set());
   const deferLazyLoad = (key: string) => { pendingLazyLoadsRef.current.add(key); };
 
   const loadGoals = async () => {
@@ -1001,6 +1005,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       if (isManual) return; // localStorage cache is sufficient when offline
       const goalsData = await FirebaseService.getGoals(user.id);
       const migratedGoals = GoalMigrationService.migrateGoals(goalsData);
+      serverLoadedRef.current.add('goals');
       setGoals(migratedGoals);
       writeUserCache(user.id, 'goals', goalsData);
     } catch (error) {
@@ -1045,6 +1050,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
       if (isManual) return;
       const assetsData = await FirebaseService.getAssets(user.id);
+      serverLoadedRef.current.add('assets');
       setAssets(assetsData);
       writeUserCache(user.id, 'assets', assetsData);
     } catch (error) {
@@ -1065,6 +1071,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
       if (isManual) return;
       const insuranceData = await FirebaseService.getInsurance(user.id);
+      serverLoadedRef.current.add('insurance');
       setInsurance(insuranceData);
       writeUserCache(user.id, 'insurance', insuranceData);
     } catch (error) {
@@ -1085,6 +1092,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
       if (isManual) return;
       const liabilitiesData = await FirebaseService.getLiabilities(user.id);
+      serverLoadedRef.current.add('liabilities');
       setLiabilities(liabilitiesData);
       writeUserCache(user.id, 'liabilities', liabilitiesData);
     } catch (error) {
@@ -1105,6 +1113,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
       if (isManual) return;
       const data = await FirebaseService.getRecurringTransactions(user.id);
+      serverLoadedRef.current.add('recurring');
       setRecurringTransactions(data);
       writeUserCache(user.id, 'recurringTransactions', data);
     } catch (error) {
@@ -1125,6 +1134,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const isManual = (userProfileRef.current?.syncSettings?.mode ?? 'auto') === 'manual';
       if (isManual) return;
       const data = await FirebaseService.getBills(user.id);
+      serverLoadedRef.current.add('bills');
       setBills(data);
       writeUserCache(user.id, 'bills', data);
     } catch (error) {
@@ -1280,11 +1290,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     const periodMonthLabel = periodBaseDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
     const canUseTransactions = initialTransactionsLoadedRef.current || transactions.length > 0;
-    const canUseAssets = lazyLoadedRef.current.has('assets');
-    const canUseGoals = lazyLoadedRef.current.has('goals');
-    const canUseInsurance = lazyLoadedRef.current.has('insurance');
-    const canUseLiabilities = lazyLoadedRef.current.has('liabilities');
-    const canUseRecurring = lazyLoadedRef.current.has('recurring');
+    const canUseAssets = serverLoadedRef.current.has('assets');
+    const canUseGoals = serverLoadedRef.current.has('goals');
+    const canUseInsurance = serverLoadedRef.current.has('insurance');
+    const canUseLiabilities = serverLoadedRef.current.has('liabilities');
+    const canUseRecurring = serverLoadedRef.current.has('recurring');
 
     const computedTotalAssets = canUseAssets
       ? assets.reduce((sum, asset) => sum + (Number(asset.currentValue) || 0), 0)
@@ -1294,7 +1304,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       ? liabilities.reduce((sum, liability) => sum + (Number(liability.currentBalance) || 0), 0)
       : baseSummary.totalLiabilities;
 
-    const computedTotalBankBalance = canUseTransactions
+    // Complete monthly summaries give correct balances on any device; otherwise fall back
+    // to summing whatever transactions are loaded (only trusted when the set is complete).
+    const computedTotalBankBalance = summaryAccountNet
+      ? bankAccounts.reduce((sum, account) => sum + getAccountBalance(account.id), 0)
+      : canUseTransactions
       ? bankAccounts.reduce((sum, account) => {
           const accountTransactions = transactions.filter(t => t.bankAccountId === account.id);
           const totalTransactionAmount = accountTransactions.reduce((accountSum, t) => {
@@ -1387,8 +1401,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       canUseGoals &&
       canUseInsurance &&
       canUseRecurring &&
-      canUseTransactions &&
-      !hasMoreTransactions;
+      (summaryAccountNet !== null || (canUseTransactions && !hasMoreTransactions));
 
     if (currentSignature !== nextSignature) {
       saveDashboardSummary(nextSummary, isComplete);
@@ -1405,7 +1418,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     liabilities,
     recurringTransactions,
     dashboardSummary,
-    hasMoreTransactions
+    hasMoreTransactions,
+    summaryAccountNet
   ]);
 
   // Latest loader closures (they capture `user`), used to replay deferred loads.
@@ -2518,13 +2532,6 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   // Cursor-based pagination means the list is often partial (initial page = 50),
   // and a balance summed from a partial set is wrong. When `hasMoreTransactions`
   // is true we know more pages exist upstream, so we cannot trust a live sum.
-  // Per-account totals from complete monthly summaries: the same on every device and
-  // independent of how many transactions this browser happens to have loaded.
-  const summaryAccountNet = useMemo(
-    () => (monthlySummariesComplete && monthlySummariesLoaded ? accountNetFromSummaries(monthlySummaries) : null),
-    [monthlySummariesComplete, monthlySummariesLoaded, monthlySummaries]
-  );
-
   const isTransactionSetComplete = (): boolean =>
     initialTransactionsLoadedRef.current && !hasMoreTransactions;
 
