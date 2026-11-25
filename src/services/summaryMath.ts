@@ -20,6 +20,13 @@ export const SUMMARY_SCHEMA_VERSION = 2;
 /** Transactions with a full timestamp are bucketed in this zone (the app's users are in India). */
 export const SUMMARY_TIME_ZONE = "Asia/Kolkata";
 
+/**
+ * byType key for transactions with no category. Kept apart from "uncategorized"
+ * because the app resolves an empty category by the transaction's own type,
+ * while the "uncategorized" category has its own type. Displayed as "uncategorized".
+ */
+export const NO_CATEGORY_KEY = "_none";
+
 export type SummaryTxType = "expense" | "income" | "investment" | "transfer";
 
 export interface SummaryTx {
@@ -87,6 +94,7 @@ export function accumulateSummaryDelta(
   if (!monthKey) return;
   const amount = (Number(tx.amount) || 0) * sign;
   const categoryId = tx.category || "uncategorized";
+  const byTypeKey = tx.category || NO_CATEGORY_KEY;
   const type = normalizeSummaryType(tx.type);
 
   let delta = deltas.get(monthKey);
@@ -97,7 +105,7 @@ export function accumulateSummaryDelta(
 
   delta.txCount += sign;
   const typeMap = delta.byType[type] || (delta.byType[type] = {});
-  typeMap[categoryId] = (typeMap[categoryId] || 0) + amount;
+  typeMap[byTypeKey] = (typeMap[byTypeKey] || 0) + amount;
 
   const isTransfer = type === "transfer" || categoryId === "transfer";
   if (isTransfer) return;

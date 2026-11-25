@@ -2,7 +2,7 @@ import { db } from '../config/firebase';
 import { collection, doc, setDoc, getDoc, getDocs, query, where, increment, writeBatch, Timestamp } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Transaction } from '../types';
-import { accumulateSummaryDelta, SummaryDelta, SummaryTx, SUMMARY_SCHEMA_VERSION } from './summaryMath';
+import { accumulateSummaryDelta, SummaryDelta, SummaryTx, SUMMARY_SCHEMA_VERSION, NO_CATEGORY_KEY } from './summaryMath';
 
 export interface CategorySummary {
   id: string;
@@ -845,9 +845,11 @@ export const yearTotalsFromSummaries = (
     if (s.year !== year) continue;
     if (!s.byType) return null;
     for (const [type, cats] of Object.entries(s.byType)) {
-      for (const [category, amount] of Object.entries(cats)) {
+      for (const [key, amount] of Object.entries(cats)) {
         if (!amount) continue;
-        const role = resolveType({ type, category });
+        const noCategory = key === NO_CATEGORY_KEY;
+        const role = resolveType({ type, category: noCategory ? '' : key });
+        const category = noCategory ? 'uncategorized' : key;
         out[role][category] = (out[role][category] || 0) + amount;
       }
     }
