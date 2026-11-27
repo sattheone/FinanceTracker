@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback, ReactNode } from 'react';
 import { Asset, Insurance, Goal, LifeEvent, LICPolicy, MonthlyBudget, Transaction, BankAccount, Liability, RecurringTransaction, Bill, SIPTransaction, CategoryRule, SIPRule, Tag, DashboardSummary } from '../types';
-import { Category, isTransferTransaction } from '../constants/categories';
+import { Category, isTransferTransaction, resolveTransactionType } from '../constants/categories';
 import { autoPairCandidate, buildTransferCounterpart, findAutoCreatedCounterpart, findTransferCandidates } from '../services/transferPairing';
 import { UserProfile, SyncSettings } from '../types/user';
 import { useAuth } from './AuthContext';
@@ -10,7 +10,7 @@ import { deleteField } from 'firebase/firestore';
 import { goOffline, goOnline } from '../config/firebase';
 import GoalMigrationService from '../services/goalMigration';
 import CategoryRuleService from '../services/categoryRuleService';
-import { clearCategorySummaryCache, setCurrentUserId, MonthlySummary, refreshMonthlySummaries, patchMonthlySummaries, rebuildMonthlySummariesClient, writeSummaryDeltas, accountNetFromSummaries, SUMMARY_SCHEMA_VERSION } from '../services/categorySummaryService';
+import { clearCategorySummaryCache, setCurrentUserId, MonthlySummary, refreshMonthlySummaries, patchMonthlySummaries, rebuildMonthlySummariesClient, writeSummaryDeltas, accountNetFromSummaries, monthTotalsFromSummaries, SUMMARY_SCHEMA_VERSION } from '../services/categorySummaryService';
 
 
 // Transaction pagination page sizes (each doc = 1 Firestore read).
@@ -1339,34 +1339,37 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           .reduce((sum, policy) => sum + (policy.maturityAmount || 0), 0)
       : baseSummary.totalLICMaturity;
 
+    // Same numbers the Dashboard shows: whole-month totals from complete monthly
+    // summaries; otherwise the loaded transactions, classified the same way.
+    const summaryMonth = summaryAccountNet
+      ? monthTotalsFromSummaries(monthlySummaries, periodYear, periodMonth + 1, tx => resolveTransactionType(tx, categories))
+      : null;
+
     const periodTransactions = canUseTransactions
       ? transactions.filter(t => {
           const transactionDate = new Date(t.date);
           return transactionDate.getFullYear() === periodYear &&
-            transactionDate.getMonth() === periodMonth &&
-            t.category !== 'transfer';
+            transactionDate.getMonth() === periodMonth;
         })
       : [];
+    const sumLoaded = (role: 'income' | 'expense' | 'investment') => periodTransactions
+      .filter(t => resolveTransactionType(t, categories) === role)
+      .reduce((sum, t) => sum + t.amount, 0);
+    const useMonthData = summaryMonth !== null || canUseTransactions;
 
-    const computedCurrentMonthIncome = canUseTransactions
-      ? periodTransactions
-          .filter(t => t.type === 'income')
-          .reduce((sum, t) => sum + t.amount, 0)
-      : baseSummary.currentMonthIncome;
+    const computedCurrentMonthIncome = summaryMonth
+      ? summaryMonth.income
+      : canUseTransactions ? sumLoaded('income') : baseSummary.currentMonthIncome;
 
-    const computedCurrentMonthExpenses = canUseTransactions
-      ? periodTransactions
-          .filter(t => t.type === 'expense')
-          .reduce((sum, t) => sum + t.amount, 0)
-      : baseSummary.currentMonthExpenses;
+    const computedCurrentMonthExpenses = summaryMonth
+      ? summaryMonth.expense
+      : canUseTransactions ? sumLoaded('expense') : baseSummary.currentMonthExpenses;
 
-    const computedCurrentMonthInvestments = canUseTransactions
-      ? periodTransactions
-          .filter(t => t.type === 'investment')
-          .reduce((sum, t) => sum + t.amount, 0)
-      : baseSummary.currentMonthInvestments;
+    const computedCurrentMonthInvestments = summaryMonth
+      ? summaryMonth.investment
+      : canUseTransactions ? sumLoaded('investment') : baseSummary.currentMonthInvestments;
 
-    const computedCurrentMonthSurplus = canUseTransactions
+    const computedCurrentMonthSurplus = useMonthData
       ? (computedCurrentMonthIncome - computedCurrentMonthExpenses - computedCurrentMonthInvestments)
       : baseSummary.currentMonthSurplus;
 
@@ -1424,7 +1427,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     recurringTransactions,
     dashboardSummary,
     hasMoreTransactions,
-    summaryAccountNet
+    summaryAccountNet,
+    monthlySummaries,
+    categories
   ]);
 
   // Latest loader closures (they capture `user`), used to replay deferred loads.

@@ -830,6 +830,23 @@ export const yearTotalsFromSummaries = (
   return out;
 };
 
+/**
+ * A month's income / expense / investment totals from its summary doc, classified like
+ * the Dashboard (resolveType; transfers left out). Month is 1-12. A month with no doc
+ * had no transactions. Null when the month's doc predates byType.
+ */
+export const monthTotalsFromSummaries = (
+  summaries: MonthlySummary[],
+  year: number,
+  month: number,
+  resolveType: (tx: { type: string; category: string }) => 'expense' | 'income' | 'investment' | 'transfer'
+): { income: number; expense: number; investment: number } | null => {
+  const totals = yearTotalsFromSummaries(summaries.filter(s => s.year === year && s.month === month), year, resolveType);
+  if (!totals) return null;
+  const sum = (m: Record<string, number>) => Object.values(m).reduce((a, b) => a + b, 0);
+  return { income: sum(totals.income), expense: sum(totals.expense), investment: sum(totals.investment) };
+};
+
 export { SUMMARY_SCHEMA_VERSION };
 
 // ============================================================

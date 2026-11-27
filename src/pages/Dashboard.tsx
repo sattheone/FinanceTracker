@@ -20,6 +20,7 @@ import SpendingInsightsWidget from '../components/insights/SpendingInsightsWidge
 import SmartAlertsWidget from '../components/dashboard/SmartAlertsWidget';
 import UnifiedGoalCard from '../components/goals/UnifiedGoalCard';
 import { isTransferTransaction, resolveTransactionType } from '../constants/categories';
+import { monthTotalsFromSummaries } from '../services/categorySummaryService';
 
 const Dashboard: React.FC = () => {
   const {
@@ -40,7 +41,9 @@ const Dashboard: React.FC = () => {
     loadAssets,
     loadLiabilities,
     loadGoals,
-    loadInsurance
+    loadInsurance,
+    monthlySummaries,
+    monthlySummariesComplete,
   } = useData();
   const navigate = useNavigate();
   const theme = useThemeClasses();
@@ -150,17 +153,26 @@ const Dashboard: React.FC = () => {
       .reduce((sum, t) => sum + t.amount, 0);
   }, [currentMonthTransactions, categories]);
 
-  const currentMonthIncome = transactions.length > 0
-    ? calculatedCurrentMonthIncome
-    : (dashboardSummary?.currentMonthIncome ?? 0);
-  const currentMonthExpenses = transactions.length > 0
-    ? calculatedCurrentMonthExpenses
-    : (dashboardSummary?.currentMonthExpenses ?? 0);
-  const currentMonthInvestments = transactions.length > 0
-    ? calculatedCurrentMonthInvestments
-    : (dashboardSummary?.currentMonthInvestments ?? 0);
-  const currentMonthSurplus = transactions.length > 0
-    ? (calculatedCurrentMonthIncome - calculatedCurrentMonthExpenses - calculatedCurrentMonthInvestments)
+  // Complete monthly summaries hold the whole month on every device; the loaded
+  // transactions may be only part of it.
+  const summaryMonthTotals = React.useMemo(() => (
+    monthlySummariesComplete
+      ? monthTotalsFromSummaries(monthlySummaries, currentYear, currentMonth + 1, tx => resolveTransactionType(tx, categories))
+      : null
+  ), [monthlySummariesComplete, monthlySummaries, currentYear, currentMonth, categories]);
+
+  const useLoadedTransactions = transactions.length > 0;
+  const currentMonthIncome = summaryMonthTotals
+    ? summaryMonthTotals.income
+    : useLoadedTransactions ? calculatedCurrentMonthIncome : (dashboardSummary?.currentMonthIncome ?? 0);
+  const currentMonthExpenses = summaryMonthTotals
+    ? summaryMonthTotals.expense
+    : useLoadedTransactions ? calculatedCurrentMonthExpenses : (dashboardSummary?.currentMonthExpenses ?? 0);
+  const currentMonthInvestments = summaryMonthTotals
+    ? summaryMonthTotals.investment
+    : useLoadedTransactions ? calculatedCurrentMonthInvestments : (dashboardSummary?.currentMonthInvestments ?? 0);
+  const currentMonthSurplus = summaryMonthTotals || useLoadedTransactions
+    ? (currentMonthIncome - currentMonthExpenses - currentMonthInvestments)
     : (dashboardSummary?.currentMonthSurplus ?? 0);
 
   // Recurring transactions and bills data
